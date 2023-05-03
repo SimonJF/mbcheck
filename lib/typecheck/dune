@@ -1,0 +1,10 @@
+(library (name typecheck)
+ (public_name mbcheck.typecheck)
+ (preprocess ( pps visitors.ppx ppx_deriving.show))
+ (libraries common util bag z3)
+ (modules :standard)
+;(rule
+;(targets parser.mli parser.ml)
+; (deps   parser.mly)
+; (action (ignore-stderr (run menhir --external-tokens Json --explain ${<}))))
+)

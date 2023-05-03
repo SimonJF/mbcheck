@@ -1,0 +1,108 @@
+{ "groups":
+    [
+        { "group": "Linear functions",
+          "tests":
+            [
+                {
+                    "name": "Linear function (good)",
+                    "filename": "lmb-tests/linfun-good.lmb",
+                    "exit_code": 0
+                },
+                {
+                    "name": "Linear function (bad #1: unused linear variable)",
+                    "filename": "lmb-tests/linfun-bad-1.lmb",
+                    "exit_code": 1
+                },
+                {
+                    "name": "Linear function (bad #2: non-linear function closing over linear variable)",
+                    "filename": "lmb-tests/linfun-bad-2.lmb",
+                    "exit_code": 1
+                },
+                {
+                    "name": "Linear function (bad #3: unused linear function)",
+                    "filename": "lmb-tests/linfun-bad-3.lmb",
+                    "exit_code": 1
+                }
+            ]
+        },
+        {
+          "group": "Basic tests",
+          "tests":
+            [
+                {
+                    "name": "Arithmetic",
+                    "filename": "lmb-tests/arith.lmb",
+                    "exit_code": 0
+                },
+                {
+                    "name": "Functions",
+                    "filename": "lmb-tests/functions.lmb",
+                    "exit_code": 0
+                }
+            ]
+        },
+        { "group": "Correct examples",
+          "tests":
+            [
+                {"name": "Account", "filename": "examples/account.lmb", "exit_code": 0},
+                {"name": "Account with Future", "filename": "examples/account_future.lmb", "exit_code": 0},
+                {"name": "Alternative Fibonacci", "filename": "examples/alternative_fib.lmb", "exit_code": 0},
+                {"name": "Calculator", "filename": "examples/calculator.lmb", "exit_code": 0},
+                {"name": "Calculator 2", "filename": "examples/calculator2.lmb", "exit_code": 0},
+                {"name": "Fibonacci", "filename": "examples/fib.lmb", "exit_code": 0},
+                {"name": "Fibonacci with Pairs", "filename": "examples/fib_pairs.lmb", "exit_code": 0},
+                {"name": "Future", "filename": "examples/future.lmb", "exit_code": 0},
+                {"name": "Future with explicit fail guard", "filename": "examples/futurefail.lmb", "exit_code": 0},
+                {"name": "Lock", "filename": "examples/lock.lmb", "exit_code": 0},
+                {"name": "Master-Worker", "filename": "examples/master_worker.lmb", "exit_code": 0},
+                {"name": "Random", "filename": "examples/rand.lmb", "exit_code": 0},
+                {"name": "Robots", "filename": "examples/robots.lmb", "exit_code": 0},
+                {"name": "n-Robots", "filename": "examples/robotsn.lmb", "exit_code": 0}
+            ]
+        },
+        { "group": "Incorrect examples",
+          "tests":
+            [
+                {
+                    "name": "Lock",
+                    "filename": "errors/lock.lmb",
+                    "exit_code": 1
+                },
+                {
+                    "name": "Future",
+                    "filename": "errors/future.lmb",
+                    "exit_code": 1
+                },
+                {
+                    "name": "Use after free",
+                    "filename": "examples/useafterfree.lmb",
+                    "exit_code": 1
+                },
+                {
+                    "name": "Use after free (2)",
+                    "filename": "examples/weird.lmb",
+                    "exit_code": 1
+                },
+                {
+                    "name": "Use after free (with aliasing)",
+                    "filename": "examples/weird2.lmb",
+                    "exit_code": 1
+                },
+                {
+                    "name": "Aliasing through communication",
+                    "filename": "examples/weird3.lmb",
+                    "exit_code": 1
+                },
+                {
+                    "name": "Aliasing by returning received endpoint",
+                    "filename": "examples/weird4.lmb",
+                    "exit_code": 1
+                },
+                {"name": "Additional non-supported non-fail guard", "filename": "pat_constr.lmb", "exit_code": 1},
+                {"name": "Non-exhaustive guards", "filename": "pat_constr2.lmb", "exit_code": 1},
+                {"name": "Additional non-supported non-fail guard with nontrivial continuation", "filename": "pat_constr3.lmb", "exit_code": 1},
+                {"name": "Additional non-supported free guard", "filename": "pat_constr4.lmb", "exit_code": 1} 
+            ]
+        }
+    ]
+}
