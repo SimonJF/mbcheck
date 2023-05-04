@@ -9,6 +9,13 @@ introduced by de' Liguoro and Padovani at ECOOP 2018
 (https://drops.dagstuhl.de/opus/volltexte/2018/9220/pdf/LIPIcs-ECOOP-2018-15.pdf)
 to the setting of a programming language.
 
+## Credits
+
+Several core ideas of our typechecking algorithm originated in the following, both by [Luca Padovani](https://boystrange.github.io/index.html):
+
+  * [MCC](https://boystrange.github.io/mcc/)
+  * [A type checking algorithm for concurrent object protocols](https://www.sciencedirect.com/science/article/pii/S2352220817301463)
+
 ## Installation
 
 You will need a system installation of Z3. From here you can do `opam pin add .`
