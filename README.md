@@ -18,9 +18,71 @@ Several core ideas of our typechecking algorithm originated in the following, bo
 
 ## Installation
 
-You will need a system installation of Z3. From here you can do `opam pin add .`
-to install the required dependencies, then `make` to generate the `mbcheck`
-executable.
+The type checker for `Pat` is developed in OCaml, a general-purpose functional programming language. OCaml can be installed by following these instructions.
+
+### macOS
+
+The easiest way to install OCaml on macOS is to use the Homebrew package manager. Homebrew can be downloaded and installed by following the instructions on the [website](https://brew.sh). Once Homebrew is installed and configured, the latest OCaml package manager, `opam`, can be installed as shown:
+
+```bash
+$ brew install opam
+```
+
+### Ubuntu
+
+`opam` on Ubuntu Linux can be installed via the `apt` package manager.
+
+```bash
+$ sudo add-apt-repository ppa:avsm/ppa
+$ sudo apt update
+$ sudo apt install opam
+```
+
+On Ubuntu, one also needs to install `libgmp-dev`, which is a development library for the GMP (GNU Multiple Precision Arithmetic) that provides functions for performing arithmetic operations on large numbers. This library is used by the Z3 constraint solver invoked externally by the 'Pat' type checker.
+
+```bash
+sudo apt install libgmp-dev
+```
+
+
+
+### Initialising `opam`
+
+The next step is to initialise `opam`:
+
+```bash
+$ opam init
+```
+
+Once the initialisation is completed, the following command updates the current shell environment.
+
+```bash
+$ eval $(opam env --switch=default)
+```
+
+
+
+## Downloading and building the `Pat`  type checker
+
+`Pat` can be cloned from this GitHub repository as follows.
+
+```bash
+$ git clone https://github.com/SimonJF/mbcheck.git
+```
+
+The `Pat` type checker uses a number of OCaml libraries that should be installed prior to compiling it.
+
+```bash
+$ opam install dune menhir ppx_import visitors cmdliner z3 bag
+```
+
+The type-checking tool can then be compiled using `make` after installing these dependencies.
+
+```bash
+$ cd mbcheck
+mbcheck$ make
+```
+
 
 ## Running
 
