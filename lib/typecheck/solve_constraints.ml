@@ -397,6 +397,18 @@ let check_satisfiability resolved_lowers =
              |> check_result resolved_constr goal
     )
 
+(* Ensure that none of the patterns are resolved as zero. The type system is only
+   sound if a solution is *usable* (i.e., nonzero).
+   A pattern will typically only be resolved as zero if there is insufficient type
+    information (for example, only a part of a program has been written), and an
+    annotation has not been given.
+ *)
+let check_nonzero =
+    PVarMap.iter (fun var pat ->
+        if Pattern.is_zero pat then
+            raise (Errors.constraint_solver_zero_error var))
+
+(* Main pipeline *)
 let pipeline constrs =
     Settings.if_verbose (fun () ->
         Format.printf "=== Input constraints ===\n%a\n\n"
@@ -422,6 +434,8 @@ let pipeline constrs =
     in
     (* Check if solutions are satisfiable *)
     check_satisfiability resolved_constraints (get_upper_bounds constrs);
+    (* Ensure that none of the pattern variables have been solved as zero *)
+    check_nonzero resolved_constraints;
     resolved_constraints
 
 (* External API *)
