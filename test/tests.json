@@ -44,20 +44,16 @@
         { "group": "Correct examples",
           "tests":
             [
-                {"name": "Account", "filename": "examples/account.lmb", "exit_code": 0},
-                {"name": "Account with Future", "filename": "examples/account_future.lmb", "exit_code": 0},
-                {"name": "Alternative Fibonacci", "filename": "examples/alternative_fib.lmb", "exit_code": 0},
-                {"name": "Calculator", "filename": "examples/calculator.lmb", "exit_code": 0},
-                {"name": "Calculator 2", "filename": "examples/calculator2.lmb", "exit_code": 0},
-                {"name": "Fibonacci", "filename": "examples/fib.lmb", "exit_code": 0},
-                {"name": "Fibonacci with Pairs", "filename": "examples/fib_pairs.lmb", "exit_code": 0},
-                {"name": "Future", "filename": "examples/future.lmb", "exit_code": 0},
-                {"name": "Future with explicit fail guard", "filename": "examples/futurefail.lmb", "exit_code": 0},
-                {"name": "Lock", "filename": "examples/lock.lmb", "exit_code": 0},
-                {"name": "Master-Worker", "filename": "examples/master_worker.lmb", "exit_code": 0},
-                {"name": "Random", "filename": "examples/rand.lmb", "exit_code": 0},
-                {"name": "Robots", "filename": "examples/robots.lmb", "exit_code": 0},
-                {"name": "n-Robots", "filename": "examples/robotsn.lmb", "exit_code": 0}
+                {"name": "Account", "filename": "examples/de_liguoro_padovani/account.lmb", "exit_code": 0},
+                {"name": "Account with Future", "filename": "examples/de_liguoro_padovani/account_future.lmb", "exit_code": 0},
+                {"name": "Fibonacci", "filename": "examples/savina/fib.lmb", "exit_code": 0},
+                {"name": "Fibonacci with Pairs", "filename": "examples/savina/fib_pairs.lmb", "exit_code": 0},
+                {"name": "Future", "filename": "examples/de_liguoro_padovani/future.lmb", "exit_code": 0},
+                {"name": "Future with explicit fail guard", "filename": "examples/de_liguoro_padovani/futurefail.lmb", "exit_code": 0},
+                {"name": "Lock", "filename": "examples/de_liguoro_padovani/lock.lmb", "exit_code": 0},
+                {"name": "Master-Worker", "filename": "examples/de_liguoro_padovani/master_worker.lmb", "exit_code": 0},
+                {"name": "n-Robots", "filename": "examples/robotsn.lmb", "exit_code": 0},
+                {"name": "Guard annotation is a subpattern", "filename": "examples/pat_constr.lmb", "exit_code": 0}
             ]
         },
         { "group": "Incorrect examples",
@@ -75,33 +71,33 @@
                 },
                 {
                     "name": "Use after free",
-                    "filename": "examples/useafterfree.lmb",
+                    "filename": "errors/useafterfree.lmb",
                     "exit_code": 1
                 },
                 {
                     "name": "Use after free (2)",
-                    "filename": "examples/weird.lmb",
+                    "filename": "errors/weird.lmb",
                     "exit_code": 1
                 },
                 {
                     "name": "Use after free (with aliasing)",
-                    "filename": "examples/weird2.lmb",
+                    "filename": "errors/weird2.lmb",
                     "exit_code": 1
                 },
                 {
                     "name": "Aliasing through communication",
-                    "filename": "examples/weird3.lmb",
+                    "filename": "errors/weird3.lmb",
                     "exit_code": 1
                 },
                 {
                     "name": "Aliasing by returning received endpoint",
-                    "filename": "examples/weird4.lmb",
+                    "filename": "errors/weird4.lmb",
                     "exit_code": 1
                 },
-                {"name": "Additional non-supported non-fail guard", "filename": "pat_constr.lmb", "exit_code": 1},
-                {"name": "Non-exhaustive guards", "filename": "pat_constr2.lmb", "exit_code": 1},
-                {"name": "Additional non-supported non-fail guard with nontrivial continuation", "filename": "pat_constr3.lmb", "exit_code": 1},
-                {"name": "Additional non-supported free guard", "filename": "pat_constr4.lmb", "exit_code": 1} 
+                {"name": "Insufficient type information", "filename": "errors/pat_constr.lmb", "exit_code": 1},
+                {"name": "Non-exhaustive guards", "filename": "errors/pat_constr2.lmb", "exit_code": 1},
+                {"name": "Additional non-supported non-fail guard with nontrivial continuation", "filename": "errors/pat_constr3.lmb", "exit_code": 1},
+                {"name": "Additional non-supported free guard", "filename": "errors/pat_constr4.lmb", "exit_code": 1}
             ]
         }
     ]

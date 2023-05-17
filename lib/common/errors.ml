@@ -29,6 +29,7 @@ exception Constraint_gen_error of { subsystem: subsystem option; message: string
 (* It would be a bit nicer to have the constraints on the LHS and RHS here,
    but it would introduce a cyclic library dependency. *)
 exception Constraint_solver_error of { lhs: string; rhs: string }
+exception Constraint_solver_zero_error of string
 exception Internal_error of { filename: string; message: string }
 exception Bad_receive_typing_argument of string
 exception Transform_error of string
@@ -38,6 +39,7 @@ let internal_error filename message = Internal_error { filename; message }
 let parse_error msg = Parse_error msg
 let type_error message = Type_error message
 let constraint_solver_error lhs rhs = Constraint_solver_error { lhs; rhs }
+let constraint_solver_zero_error var = Constraint_solver_zero_error var
 let bad_receive_typing_argument bad = Bad_receive_typing_argument bad
 let transform_error err = Transform_error err
 
@@ -69,6 +71,13 @@ let format_error = function
             Printf.sprintf
                 "%s is not included in %s"
                 lhs rhs
+        in
+        Utility.print_error ~note:"CONSTRAINT SOLVING" msg
+    | Constraint_solver_zero_error var ->
+        let msg =
+            Printf.sprintf
+                "Pattern variable %s was solved as pattern 0. This can happen when only part of a program is written. Consider finishing the program or adding a type annotation."
+                var
         in
         Utility.print_error ~note:"CONSTRAINT SOLVING" msg
     | Bad_receive_typing_argument bad ->

@@ -222,6 +222,11 @@ module Pattern = struct
 
     let defined p = variables p |> StringSet.is_empty
 
+    let is_zero p =
+        match simplify p with
+            | Zero -> true
+            | _ -> false
+
     let rec pp ppf : t -> unit =
       let open Format in
       let ps = pp_print_string ppf in
