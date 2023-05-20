@@ -1,0 +1,52 @@
+name: Links main workflow
+
+on:
+  pull_request:
+    branches: master
+  push:
+    branches: [master]
+  schedule:
+    # Prime the caches every Monday
+    - cron: 0 1 * * MON
+
+jobs:
+  interpreter:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-20.04
+        ocaml-compiler:
+          - 5.0.0
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Use OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+
+      - name: Install system dependencies
+        run: sudo apt install z3
+
+      - name: Install mbcheck dependencies
+        run: >-
+          opam install
+          ./mbcheck.opam
+          --deps-only
+
+      - name: Build mbcheck from source
+        run: |
+          eval $(opam env)
+          make
+        shell: bash
+
+      - name: Run testsuite
+        run: |
+          eval $(opam env)
+          make test
+        shell: bash

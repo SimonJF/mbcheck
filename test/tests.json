@@ -5,22 +5,22 @@
             [
                 {
                     "name": "Linear function (good)",
-                    "filename": "lmb-tests/linfun-good.pat",
+                    "filename": "pat-tests/linfun-good.pat",
                     "exit_code": 0
                 },
                 {
                     "name": "Linear function (bad #1: unused linear variable)",
-                    "filename": "lmb-tests/linfun-bad-1.pat",
+                    "filename": "pat-tests/linfun-bad-1.pat",
                     "exit_code": 1
                 },
                 {
                     "name": "Linear function (bad #2: non-linear function closing over linear variable)",
-                    "filename": "lmb-tests/linfun-bad-2.pat",
+                    "filename": "pat-tests/linfun-bad-2.pat",
                     "exit_code": 1
                 },
                 {
                     "name": "Linear function (bad #3: unused linear function)",
-                    "filename": "lmb-tests/linfun-bad-3.pat",
+                    "filename": "pat-tests/linfun-bad-3.pat",
                     "exit_code": 1
                 }
             ]
@@ -31,12 +31,12 @@
             [
                 {
                     "name": "Arithmetic",
-                    "filename": "lmb-tests/arith.pat",
+                    "filename": "pat-tests/arith.pat",
                     "exit_code": 0
                 },
                 {
                     "name": "Functions",
-                    "filename": "lmb-tests/functions.pat",
+                    "filename": "pat-tests/functions.pat",
                     "exit_code": 0
                 }
             ]
