@@ -36,6 +36,13 @@ let rec subtype_type :
         match t1, t2 with
             | Base b1, Base b2 when b1 = b2->
                         Constraint_set.empty
+
+            (* Subtyping covariant for pairs and sums *)
+            | Pair (tya1, tya2), Pair (tyb1, tyb2)
+            | Sum (tya1, tya2), Sum (tyb1, tyb2) ->
+                Constraint_set.union
+                    (subtype_type visited ienv tya1 tyb1)
+                    (subtype_type visited ienv tya2 tyb2)
             | Mailbox { pattern = None; _ }, _
             | _, Mailbox { pattern = None; _ } ->
                     (* Should have been sorted by annotation pass *)

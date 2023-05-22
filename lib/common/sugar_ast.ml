@@ -38,8 +38,8 @@ type expr =
     | Inr of expr
     | Case of {
         term: expr;
-        branch1: (sugar_binder * (Type.t[@name "ty"]) option) * expr;
-        branch2: (sugar_binder * (Type.t[@name "ty"]) option) * expr
+        branch1: (sugar_binder * (Type.t[@name "ty"])) * expr;
+        branch2: (sugar_binder * (Type.t[@name "ty"])) * expr
     }
     (* Note that we're using the versions of new and spawn where they are
        not wired to their continuations. I've experimented with the
@@ -141,11 +141,11 @@ and pp_message ppf (tag, es) =
 (* Parameters *)
 and pp_param ppf (param, ty) = fprintf ppf "%s: %a" param Type.pp ty
 and pp_let_annot ppf ty = fprintf ppf ": %a" Type.pp ty
-and pp_bnd_ann ppf (bnd, ann_opt) =
+and pp_bnd_ann ppf (bnd, ann) =
     fprintf ppf
         "%s%a"
         bnd
-        (pp_print_option pp_let_annot) ann_opt
+        pp_let_annot ann
 (* Expressions *)
 and pp_expr ppf = function
     (* Might want, at some stage, to print out pretype info *)

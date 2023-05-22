@@ -41,3 +41,9 @@ val make_usable : t -> t
 
 (** Sets all mailbox types to be returnable *)
 val make_returnable : t -> t
+
+(** Checks to see whether environment contains a variable: if so,
+    checks whether that the given type is a subtype of the type in
+    the environment.
+ *)
+val check_type : Interface_env.t -> Ir.Var.t -> Type.t -> t -> Constraint_set.t

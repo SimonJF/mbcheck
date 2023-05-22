@@ -137,6 +137,7 @@ let rec synthesise_val :
             in
             let ty = Type.function_type linear parameter_tys result_type in
             (ty, env, constrs)
+        | other -> Gripers.cannot_synthesise_value other
 and check_val :
     IEnv.t -> Ty_env.t -> Ir.value -> Type.t -> Ty_env.t * Constraint_set.t =
         fun ienv decl_env v ty ->
@@ -152,6 +153,9 @@ and check_val :
             | Pair (t1, t2), PPair (pt1, pt2) ->
                 check_pretype_consistency t1 pt1;
                 check_pretype_consistency t2 pt2
+            | Sum (t1, t2), PSum (pt1, pt2) ->
+                check_pretype_consistency t1 pt1;
+                check_pretype_consistency t2 pt2
             | _, _ -> Gripers.pretype_consistency ty pty
     in
     match v with
@@ -162,6 +166,20 @@ and check_val :
         | Variable (v, Some pty) ->
             check_pretype_consistency ty pty;
             Ty_env.singleton v ty, Constraint_set.empty
+        | Inl v ->
+            begin
+                match ty with
+                    | Type.Sum (t1, _) ->
+                        check_val ienv decl_env v (Type.make_returnable t1)
+                    | _ -> Gripers.expected_sum_type ty
+            end
+        | Inr v ->
+            begin
+                match ty with
+                    | Type.Sum (_, t2) ->
+                        check_val ienv decl_env v (Type.make_returnable t2)
+                    | _ -> Gripers.expected_sum_type ty
+            end
         | Pair (v1, v2) ->
             let (t1, t2) =
                 begin
@@ -362,6 +380,33 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
     let chkv = check_val ienv decl_env in
     match e with
         | Return v -> check_val ienv decl_env v ty
+        | Case { term; branch1 = ((bnd1, ty1), comp1); branch2 = ((bnd2, ty2), comp2) } ->
+            let (term_env, term_constrs) =
+                check_val ienv decl_env term (Type.make_sum_type ty1 ty2)
+            in
+            let var1 = Var.of_binder bnd1 in
+            let var2 = Var.of_binder bnd2 in
+            (* Check both branches, and check that inferred types match annotations *)
+            let (comp1_env, comp1_constrs) = chk comp1 ty in
+            let (comp2_env, comp2_constrs) = chk comp2 ty in
+            let env1_constrs = Ty_env.check_type ienv var1 ty1 comp1_env in
+            let env2_constrs = Ty_env.check_type ienv var2 ty2 comp2_env in
+            (* Calculate merge of the branches (sans binders) *)
+            let isect_env, isect_constrs =
+                Ty_env.intersect
+                    (Ty_env.delete var1 comp1_env)
+                    (Ty_env.delete var2 comp2_env)
+            in
+            (* Finally join the term env with the intersected env *)
+            let env, env_constrs =
+                Ty_env.join ienv term_env isect_env
+            in
+            let constrs =
+                Constraint_set.union_many
+                    [ comp1_constrs; comp2_constrs; env1_constrs;
+                      env2_constrs; isect_constrs; env_constrs; term_constrs ]
+            in
+            (env, constrs)
         | Seq (e1, e2) ->
             (* Check e1 has type unit, check body type *)
             let (e1_env, e1_constrs) = chk e1 Type.unit_type in
