@@ -47,6 +47,15 @@ let cannot_synthesise c =
     in
     raise (constraint_gen_error ~subsystem:(Errors.GenSynth) msg)
 
+let cannot_synthesise_value v =
+    let msg =
+        Format.asprintf
+            "Unable to synthesise a type for %a. Try adding a type annotation."
+            Ir.pp_value v
+    in
+    raise (constraint_gen_error ~subsystem:(Errors.GenSynth) msg)
+
+
 let interface_mismatch expected actual =
     let msg =
         Printf.sprintf
@@ -256,6 +265,15 @@ let expected_pair_type instead =
             Type.pp instead
     in
     raise (constraint_gen_error ~subsystem:Errors.GenCheck msg)
+
+let expected_sum_type instead =
+    let msg =
+        Format.asprintf
+            "Expected a sum type, but got %a."
+            Type.pp instead
+    in
+    raise (constraint_gen_error ~subsystem:Errors.GenCheck msg)
+
 
 let invalid_ql_sequencing var =
     let open Type in

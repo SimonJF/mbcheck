@@ -19,6 +19,8 @@ let rec annotate_type =
             }
         | Pair (t1, t2) ->
             Pair (annotate_type t1, annotate_type t2)
+        | Sum (t1, t2) ->
+            Sum (annotate_type t1, annotate_type t2)
         | Mailbox { pattern = Some _; _ } as mb -> mb
         | Mailbox { capability; interface; pattern = None; quasilinearity } ->
             Mailbox {

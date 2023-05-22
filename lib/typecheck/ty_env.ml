@@ -336,3 +336,11 @@ let make_usable =
 let make_returnable =
     with_env_2 "make_returnable"
     (VarMap.map Type.make_returnable)
+
+let check_type ienv var declared =
+    with_env "check_type" (fun env ->
+        match VarMap.find_opt var env with
+            | Some inferred -> subtype ienv declared inferred
+            | None -> Type_utils.make_unrestricted declared
+    )
+

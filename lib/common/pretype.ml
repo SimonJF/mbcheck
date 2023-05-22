@@ -13,6 +13,7 @@ type t =
        The codomain is a pretype, since it is not in binding position. *)
     | PFun of { linear: bool; args: (Type.t[@name "ty"]) list; result: t[@name "pretype"] }
     | PInterface of string
+    | PSum of (t * t)
     | PPair of (t * t)
     [@@name "pretype"]
     [@@deriving visitors { variety = "map" }]
@@ -39,6 +40,10 @@ let rec pp ppf =
         Format.fprintf ppf "(%a * %a)"
             pp t1
             pp t2
+    | PSum (t1, t2) ->
+        Format.fprintf ppf "(%a + %a)"
+            pp t1
+            pp t2
     | PInterface name -> ps name
 
 let show t =
@@ -51,6 +56,7 @@ let rec of_type = function
     | Type.Fun { linear; args; result } ->
         PFun { linear; args; result = of_type result }
     | Type.Pair (t1, t2) -> PPair (of_type t1, of_type t2)
+    | Type.Sum (t1, t2) -> PSum (of_type t1, of_type t2)
     | Type.Mailbox { interface; _ } -> PInterface interface
 
 (* As long as a pretype isn't a mailbox type, and isn't a function
@@ -68,6 +74,12 @@ let rec to_type = function
         begin
         match to_type t1, to_type t2 with
             | Some ty1, Some ty2 -> Some (Type.Pair (ty1, ty2))
+            | _, _ -> None
+        end
+    | PSum (t1, t2) ->
+        begin
+        match to_type t1, to_type t2 with
+            | Some ty1, Some ty2 -> Some (Type.Sum (ty1, ty2))
             | _, _ -> None
         end
     | PInterface _ -> None
