@@ -220,7 +220,7 @@ let branch_linearity var =
 let combine_mailbox_type var =
     let msg =
         Format.asprintf
-            "Linear mailbox variable %a cannot be used in two separate environments. This typically happens when aliasing a mailbox type, or attempting to use a mailbox variable both as a target for a guard and in its continuation."
+            "Linear variable %a which contains a mailbox type cannot be used in two separate environments. This typically happens when aliasing a mailbox type, or attempting to use a mailbox variable both as a target for a guard and in its continuation."
             Ir.Var.pp_name var
     in
     raise (constraint_gen_error ~subsystem:Errors.GenCombine msg)

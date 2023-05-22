@@ -242,7 +242,7 @@ and synthesise_comp :
                             [arg_constrs; env_constrs; acc_constrs]
                     in
                     (env, constrs))
-                zipped (Ty_env.none, Constraint_set.empty)
+                zipped (Ty_env.empty, Constraint_set.empty)
             in
             (* No nested evaluation contexts, so we combine function and
                argument environments, expecting disjointness. *)
@@ -582,7 +582,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                 chkv target (Type.make_returnable target_ty)
             in
             let (env, env_constrs) =
-                Ty_env.combine ienv target_env guards_env
+                Nullable_env.combine ienv target_env guards_env
             in
             (* The pattern annotation must be *included* in the inferred pattern.
                The reason this is inclusion rather than equivalence is that we
@@ -614,7 +614,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
  * returns the intersection of the resulting environments and generated pattern. *)
 and check_guards :
     IEnv.t -> Ty_env.t -> interface_name -> Type.Pattern.t -> Ir.guard list ->
-        Type.t -> Ty_env.t * Type.Pattern.t * Constraint_set.t =
+        Type.t -> Nullable_env.t * Type.Pattern.t * Constraint_set.t =
         fun ienv decl_env iname guard_pat gs ty ->
           let open Ir in
           let open Type in
@@ -645,20 +645,21 @@ and check_guards :
           List.fold_left (fun (env, pat, acc_constrs) g ->
             (* TC Guard *)
             let (g_env, g_pat, g_constrs) =
-              check_guard ienv decl_env iname guard_pat g ty in
+              check_guard ienv decl_env iname guard_pat g ty
+            in
             (* Calculate environment intersection *)
-            let (env, env_constrs) = Ty_env.intersect g_env env in
+            let (env, env_constrs) = Nullable_env.intersect g_env env in
             let constrs =
               Constraint_set.union_many
                 [g_constrs; env_constrs; acc_constrs] in
             (env, Pattern.Plus (pat, g_pat), constrs) )
-          (Ty_env.none, Pattern.Zero, Constraint_set.empty) gs
+          (Nullable_env.null, Pattern.Zero, Constraint_set.empty) gs
 
 (* Checks the type for a single guard, returning type, environment, pattern,
    and constraint set. *)
 and check_guard :
     IEnv.t -> Ty_env.t -> interface_name -> Type.Pattern.t -> Ir.guard -> Type.t ->
-        Ty_env.t * Type.Pattern.t * Constraint_set.t =
+        Nullable_env.t * Type.Pattern.t * Constraint_set.t =
         fun ienv decl_env iname pat g ty ->
           let open Ir in
           let open Type in
@@ -764,12 +765,12 @@ and check_guard :
                 (* Final calculated pattern is the message concatenated with the
                    calculated resulting pattern. *)
                 let res_pat =  Pattern.(Concat (Message tag, deriv)) in
-                (env, res_pat, constrs)
+                (Nullable_env.of_env env, res_pat, constrs)
             | Free e ->
                 let (env, constrs) = check_comp ienv decl_env e ty in
-                (env, One, constrs)
+                (Nullable_env.of_env env, One, constrs)
             | Fail ->
-                (Ty_env.none, Zero, Constraint_set.empty)
+                (Nullable_env.null, Zero, Constraint_set.empty)
 
 (* Declarations have a top-level annotation, so it only makes sense to check them. *)
 (* The result of checking each definition should be a typing environment with a

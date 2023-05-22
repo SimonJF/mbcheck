@@ -6,88 +6,66 @@ open Gripers
 module type VARMAP = (Map.S with type key = Ir.Var.t)
 module VarMap = Map.Make(Ir.Var)
 
-type t = Type.t VarMap.t option
+type t = Type.t VarMap.t
 
-let empty = Some VarMap.empty
-let none = None
+let empty = VarMap.empty
 
-(* Most operations will require a type environment, and are undefined on *)
-let with_env op f env =
-    match env with
-        | Some env -> f env
-        | None -> Gripers.undefined_env op
+let bind = VarMap.add
+let lookup = VarMap.find
 
-let with_env_2 op f env =
-    match env with
-        | Some env -> (Some (f env))
-        | None -> Gripers.undefined_env op
+let lookup_opt = VarMap.find_opt
 
-let bind x ty = with_env_2 "bind" (fun env -> VarMap.add x ty env)
-let lookup x = with_env "lookup" (VarMap.find x)
-let lookup_opt x =
-    with_env "lookup_opt" (VarMap.find_opt x)
-let delete x = with_env_2 "delete" (VarMap.remove x)
-let delete_binder x = with_env_2 "delete" (VarMap.remove (Ir.Var.of_binder x))
-let singleton x ty = Some (VarMap.singleton x ty)
-let bindings = with_env "bindings" (VarMap.bindings)
-let iter f = with_env "iter" (VarMap.iter f)
+let delete = VarMap.remove
+let delete_binder x = VarMap.remove (Ir.Var.of_binder x)
+let singleton = VarMap.singleton
+let bindings = VarMap.bindings
+let iter = VarMap.iter
 
-let union f env1 env2 =
-    match env1, env2 with
-        | None, None -> None
-        | Some env, None | None, Some env -> Some env
-        | Some env1, Some env2 -> Some (VarMap.union f env1 env2)
+let union = VarMap.union
 
-let from_list xs =
-    Some (List.to_seq xs |> VarMap.of_seq)
+let from_list xs = List.to_seq xs |> VarMap.of_seq
 
 
 (* Combines two environments. The environments should only intersect
    on unrestricted types. *)
 let combine : Interface_env.t -> t -> t -> t * Constraint_set.t =
     fun ienv env1 env2 ->
-        match env1, env2 with
-            | None, None -> None, Constraint_set.empty
-            | Some _, None -> env1, Constraint_set.empty
-            | None, Some _ -> env2, Constraint_set.empty
-            | _, _ ->
-                (* Types must be *the same* and *unrestricted* *)
-                (* Subtype in both directions *)
-                let join_types var (ty1: Type.t) (ty2: Type.t) =
-                    (* The subtyping and constraints are enough to rule out
-                       re-use of mailboxes, but it's worth special-casing to
-                       get a better error message. *)
-                    if Type.is_mailbox_type ty1 && Type.is_mailbox_type ty2 &&
-                        (Type.is_lin ty1) && (Type.is_lin ty2)
-                    then
-                        Gripers.combine_mailbox_type var
-                    else
-                        Constraint_set.union_many
-                            [
-                                make_unrestricted ty1;
-                                make_unrestricted ty2;
-                                subtype ienv ty1 ty2;
-                                subtype ienv ty2 ty1
-                            ]
-                in
-                (* Find the overlapping keys, zip up, and join. *)
-                (* Since the subtyping in both directions will ensure equality of types,
-                   and that the relevant constraints are generated, it is safe to just
-                   use either type in the combined environment. *)
-                let overlap_constrs =
-                    bindings env1
-                    |> List.filter_map (fun (k, ty1) ->
-                            match lookup_opt k env2 with
-                                | None -> None
-                                | Some ty2 -> Some (join_types k ty1 ty2)
+        (* Types must be *the same* and *unrestricted* *)
+        (* Subtype in both directions *)
+        let join_types var (ty1: Type.t) (ty2: Type.t) =
+            (* The subtyping and constraints are enough to rule out
+               re-use of mailboxes, but it's worth special-casing to
+               get a better error message. *)
+            if Type.contains_mailbox_type ty1 && Type.contains_mailbox_type ty2
+            then
+                Gripers.combine_mailbox_type var
+            else
+                Constraint_set.union_many
+                    [
+                        make_unrestricted ty1;
+                        make_unrestricted ty2;
+                        subtype ienv ty1 ty2;
+                        subtype ienv ty2 ty1
+                    ]
+        in
+        (* Find the overlapping keys, zip up, and join. *)
+        (* Since the subtyping in both directions will ensure equality of types,
+           and that the relevant constraints are generated, it is safe to just
+           use either type in the combined environment. *)
+        let overlap_constrs =
+            bindings env1
+            |> List.filter_map (fun (k, ty1) ->
+                    match lookup_opt k env2 with
+                        | None -> None
+                        | Some ty2 -> Some (join_types k ty1 ty2)
 
-                    )
-                    |> Constraint_set.union_many
-                in
-                let combined_env =
-                    union (fun _ ty1 _ -> Some ty1) env1 env2
-                in
-                (combined_env, overlap_constrs)
+            )
+            |> Constraint_set.union_many
+        in
+        let combined_env =
+            union (fun _ ty1 _ -> Some ty1) env1 env2
+        in
+        (combined_env, overlap_constrs)
 
 (* Joins two sequential or concurrent environments (i.e., where *both*
    actions will happen). *)
@@ -159,42 +137,24 @@ let join : Interface_env.t -> t -> t -> t * Constraint_set.t =
                 | _, _ ->
                     Gripers.type_mismatch true t1 t2 var
         in
-        let join_envs (env1: Type.t VarMap.t) (env2: Type.t VarMap.t) :
-            t * Constraint_set.t =
-            (* Calculate intersection of the two typing environments, and join
-               each type. *)
-            let bindings1 = VarMap.bindings env1 in
-            let bindings2 = VarMap.bindings env2 in
+        (* Calculate intersection of the two typing environments, and join
+           each type. *)
+        let bindings1 = VarMap.bindings env1 in
+        let bindings2 = VarMap.bindings env2 in
 
-            let (isect1, disjoint1) =
-                List.partition (fst >> (flip List.mem_assoc) bindings2) bindings1 in
-            let (isect2, disjoint2) =
-                List.partition (fst >> (flip List.mem_assoc) bindings1) bindings2 in
+        let (isect1, disjoint1) =
+            List.partition (fst >> (flip List.mem_assoc) bindings2) bindings1 in
+        let (isect2, disjoint2) =
+            List.partition (fst >> (flip List.mem_assoc) bindings1) bindings2 in
 
-            (* Now, combine intersecting lists *)
-            let (joined, constrs) =
-                List.fold_left (fun (joined, constrs) (name, ty1) ->
-                    let ty2 = List.assoc name isect2 in
-                    let (ty, join_constrs) = join_types name ty1 ty2 in
-                    ((name, ty) :: joined, Constraint_set.union join_constrs constrs)
-                ) ([], Constraint_set.empty) isect1 in
-            from_list (joined @ disjoint1 @ disjoint2), constrs
-        in
-
-        (* Merging is trivial with None environments. *)
-        match env1, env2 with
-            | None, None -> None, Constraint_set.empty
-            | Some env, None
-            | None, Some env -> Some env, Constraint_set.empty
-            | Some env1, Some env2 ->
-                join_envs env1 env2
-
-let join_many : Interface_env.t -> t list -> t * Constraint_set.t =
-    fun ienv xs ->
-        List.fold_left (fun (env, constrs) x ->
-            let (env', constrs') = join ienv x env in
-            (env', Constraint_set.union constrs constrs'))
-        (none, Constraint_set.empty) xs
+        (* Now, combine intersecting lists *)
+        let (joined, constrs) =
+            List.fold_left (fun (joined, constrs) (name, ty1) ->
+                let ty2 = List.assoc name isect2 in
+                let (ty, join_constrs) = join_types name ty1 ty2 in
+                ((name, ty) :: joined, Constraint_set.union join_constrs constrs)
+            ) ([], Constraint_set.empty) isect1 in
+        from_list (joined @ disjoint1 @ disjoint2), constrs
 
 (* Merges environments resulting from branching control flow. *)
 (* Core idea is that linear types must be used in precisely the same way in
@@ -313,34 +273,23 @@ let intersect : t -> t -> t * Constraint_set.t =
             in
             from_list (merged @ disjoints), constrs
         in
-        match env1, env2 with
-            | None, None -> None, Constraint_set.empty
-            | Some env, None
-            | None, Some env -> Some env, Constraint_set.empty
-            | Some env1, Some env2 ->
-                intersect_envs env1 env2
+        intersect_envs env1 env2
 
-let dump = function
-    | None -> Printf.printf "<none>\n"
-    | Some env ->
-        VarMap.bindings env
-        |> List.iter (fun (x, ty) ->
-                Format.(fprintf std_formatter "%s : %a\n%!"
-                    (Ir.Var.unique_name x)
-                    Type.pp ty))
+let dump env =
+    VarMap.bindings env
+    |> List.iter (fun (x, ty) ->
+            Format.(fprintf std_formatter "%s : %a\n%!"
+                (Ir.Var.unique_name x)
+                Type.pp ty))
 
 let make_usable =
-    with_env_2 "make_usable"
-    (VarMap.map Type.make_usable)
+    VarMap.map Type.make_usable
 
 let make_returnable =
-    with_env_2 "make_returnable"
-    (VarMap.map Type.make_returnable)
+    VarMap.map Type.make_returnable
 
-let check_type ienv var declared =
-    with_env "check_type" (fun env ->
-        match VarMap.find_opt var env with
-            | Some inferred -> subtype ienv declared inferred
-            | None -> Type_utils.make_unrestricted declared
-    )
+let check_type ienv var declared env =
+    match lookup_opt var env with
+        | Some inferred -> subtype ienv declared inferred
+        | None -> Type_utils.make_unrestricted declared
 
