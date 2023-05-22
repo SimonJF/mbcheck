@@ -7,10 +7,6 @@ type t
 (** Empty type environment *)
 val empty : t
 
-(** No type environment was constructed. Different to empty typing environment,
-     since it will unify with others. Used for fail guards. *)
-val none : t
-
 val bind : Ir.Var.t -> Type.t -> t -> t
 val lookup : Ir.Var.t -> t -> Type.t
 val lookup_opt : Ir.Var.t -> t -> Type.t option
@@ -26,9 +22,6 @@ val combine : Interface_env.t -> t -> t-> t * Constraint_set.t
 
 (** Joins two sequential / concurrent environments *)
 val join : Interface_env.t -> t -> t -> t * Constraint_set.t
-
-(** Iterated join *)
-val join_many : Interface_env.t -> t list -> t * Constraint_set.t
 
 (** Merges two branching environments (e.g., if-then-else, cases) *)
 val intersect : t -> t -> t * Constraint_set.t
