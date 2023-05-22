@@ -76,9 +76,13 @@ message:
 message_binder:
     | CONSTRUCTOR LEFT_PAREN separated_list(COMMA, VARIABLE) RIGHT_PAREN { ($1, $3) }
 
+type_annot:
+    | COLON ty { $2 }
+
 expr:
     (* Let *)
-    | LET VARIABLE EQ expr IN expr { Let { binder = $2; term = $4; body = $6 } }
+    | LET VARIABLE type_annot? EQ expr IN expr
+        { Let { binder = $2; annot = $3; term = $5; body = $7 } }
     | LET LEFT_PAREN VARIABLE COMMA VARIABLE RIGHT_PAREN EQ basic_expr IN expr
         { LetPair { binders = ($3, $5); term = $8; cont = $10 } }
     | basic_expr SEMICOLON expr { Seq ($1, $3) }
