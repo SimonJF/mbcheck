@@ -282,6 +282,11 @@ let is_mailbox_type = function
     | Mailbox _ -> true
     | _ -> false
 
+let rec contains_mailbox_type = function
+    | Mailbox _ -> true
+    | Sum (t1, t2) | Pair (t1, t2) -> contains_mailbox_type t1 || contains_mailbox_type t2
+    | _ -> false
+
 (* Easy constructors *)
 let int_type = Base Base.Int
 let string_type = Base Base.String
