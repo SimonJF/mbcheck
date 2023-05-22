@@ -84,14 +84,11 @@ message_binder:
 type_annot:
     | COLON ty { $2 }
 
-binder_opt_ty:
-    | VARIABLE type_annot? { ($1, $2)}
-
 inl_branch:
-    | LEFT_PAREN INL binder_opt_ty RIGHT_PAREN RIGHTARROW expr { ($3, $6) }
+    | INL LEFT_PAREN VARIABLE RIGHT_PAREN type_annot RIGHTARROW expr { (($3, $5), $7) }
 
 inr_branch:
-    | LEFT_PAREN INR binder_opt_ty RIGHT_PAREN RIGHTARROW expr { ($3, $6) }
+    | INR LEFT_PAREN VARIABLE RIGHT_PAREN type_annot RIGHTARROW expr { (($3, $5), $7) }
 
 expr:
     (* Let *)
@@ -111,8 +108,8 @@ linearity:
     | LINFUN { true }
 
 basic_expr:
-    | INL fact { Inl $2 }
-    | INR fact { Inr $2 }
+    | INL LEFT_PAREN expr RIGHT_PAREN { Inl $3 }
+    | INR LEFT_PAREN expr RIGHT_PAREN { Inr $3 }
     | CASE expr OF LEFT_BRACE inl_branch PIPE inr_branch RIGHT_BRACE
         { Case { term = $2; branch1 = $5; branch2 = $7} }
     (* New *)
@@ -204,6 +201,8 @@ parenthesised_datatypes:
 ty:
     | parenthesised_datatypes RIGHTARROW simple_ty  { Type.Fun { linear = false; args = $1; result = $3} }
     | parenthesised_datatypes LOLLI simple_ty       { Type.Fun { linear = true;  args = $1; result = $3} }
+    | LEFT_PAREN simple_ty PLUS simple_ty RIGHT_PAREN { Type.make_sum_type $2 $4 }
+    | LEFT_PAREN simple_ty STAR simple_ty RIGHT_PAREN { Type.make_pair_type $2 $4 }
     | simple_ty { $1 }
 
 interface_name:
@@ -237,7 +236,7 @@ ql:
     }
 
 mailbox_ty:
-    | CONSTRUCTOR BANG pat? ql? {
+    | CONSTRUCTOR BANG simple_pat? ql? {
         let quasilinearity =
             Option.value $4 ~default:(Type.Quasilinearity.Usable)
         in
@@ -248,7 +247,7 @@ mailbox_ty:
             quasilinearity
         })
     }
-    | CONSTRUCTOR QUERY pat? ql? {
+    | CONSTRUCTOR QUERY simple_pat? ql? {
         let quasilinearity =
             Option.value $4 ~default:(Type.Quasilinearity.Returnable)
         in
@@ -261,8 +260,8 @@ mailbox_ty:
     }
 
 simple_ty:
-    | base_ty { Type.Base $1 }
     | mailbox_ty { $1 }
+    | base_ty { Type.Base $1 }
 
 base_ty:
     | CONSTRUCTOR {

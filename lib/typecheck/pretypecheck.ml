@@ -66,6 +66,15 @@ module Gripers = struct
 
     let cannot_synth_fail () =
         raise (pretype_error "Cannot synthesise a type for a 'fail' guard")
+
+    let cannot_synth_sum term =
+        let msg =
+            asprintf
+                "Cannot synthesise a type for a sum constructor %a"
+                Ir.pp_value term
+        in
+        raise (pretype_error msg)
+
 end
 
 (* Note: This basically works since we only have mailbox subtyping at present.
@@ -143,10 +152,23 @@ let rec synthesise_val ienv env value : (value * Pretype.t) =
                 args = param_types;
                 result = result_prety
             }
+        | ((Inl _) as x) | ((Inr _) as x) -> Gripers.cannot_synth_sum x
 and check_val ienv env value ty =
-    let value, inferred_ty = synthesise_val ienv env value in
-    check_tys ty inferred_ty;
-    value
+    match value, ty with
+        | Inl v, (Pretype.PSum (pty1, _)) ->
+            let v = check_val ienv env v pty1 in
+            Inl v
+        | Inr v, (Pretype.PSum (_, pty2)) ->
+            let v = check_val ienv env v pty2 in
+            Inr v
+        | Inl _, ty | Inr _, ty ->
+            raise
+                (Gripers.type_mismatch_with_expected
+                    "a sum type" ty)
+        | _ ->
+            let value, inferred_ty = synthesise_val ienv env value in
+            check_tys ty inferred_ty;
+            value
 and synthesise_comp ienv env comp =
     let synth = synthesise_comp ienv env in
     let synthv = synthesise_val ienv env in
@@ -177,6 +199,17 @@ and synthesise_comp ienv env comp =
             let env' = PretypeEnv.bind (Var.of_binder binder) term_ty env in
             let cont, cont_ty = synthesise_comp ienv env' cont in
             Let { binder; term; cont }, cont_ty
+        | Case { term; branch1 = ((bnd1, ty1), e1); branch2 = ((bnd2, ty2), e2) } ->
+            let prety1 = Pretype.of_type ty1 in
+            let prety2 = Pretype.of_type ty2 in
+            let term =
+                check_val ienv env term (Pretype.PSum (prety1, prety2))
+            in
+            let e1_env = PretypeEnv.bind (Var.of_binder bnd1) prety1 env in
+            let e2_env = PretypeEnv.bind (Var.of_binder bnd2) prety2 env in
+            let e1, e1_ty = synthesise_comp ienv e1_env e1 in
+            let e2 = check_comp ienv e2_env e2 e1_ty in
+            Case { term; branch1 = ((bnd1, ty1), e1); branch2 = ((bnd2, ty2), e2) }, e1_ty
         | LetPair { binders = (b1, b2); pair; cont } ->
             let pair, pair_ty = synthv pair in
             let (t1, t2) =
