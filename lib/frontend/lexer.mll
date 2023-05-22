@@ -31,7 +31,11 @@ let keywords = [
     "interface", INTERFACE;
     "def", DEF;
     "if", IF;
-    "else", ELSE
+    "else", ELSE;
+    "case", CASE;
+    "of", OF;
+    "inl", INL;
+    "inr", INR
 ]
 }
 
@@ -78,6 +82,7 @@ rule read =
     | '/'      { DIV }
     | '+'      { PLUS }
     | '-'      { MINUS }
+    | '|'      { PIPE }
     | "&&"     { AND }
     | "||"     { OR }
     | ">="     { GEQ }
