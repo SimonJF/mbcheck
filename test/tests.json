@@ -38,6 +38,31 @@
                     "name": "Functions",
                     "filename": "pat-tests/functions.pat",
                     "exit_code": 0
+                },
+                {
+                    "name": "Sums (1)",
+                    "filename": "pat-tests/sum-1.pat",
+                    "exit_code": 0
+                },
+                {
+                    "name": "Sums (2)",
+                    "filename": "pat-tests/sum-2.pat",
+                    "exit_code": 0
+                },
+                {
+                    "name": "Annotated let (1)",
+                    "filename": "pat-tests/let-annot-1.pat",
+                    "exit_code": 0
+                },
+                {
+                    "name": "Annotated let (2)",
+                    "filename": "pat-tests/let-annot-2.pat",
+                    "exit_code": 0
+                },
+                {
+                    "name": "Annotated let (3)",
+                    "filename": "pat-tests/let-annot-3.pat",
+                    "exit_code": 0
                 }
             ]
         },

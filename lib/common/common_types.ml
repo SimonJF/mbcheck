@@ -34,7 +34,7 @@ module Constant = struct
     let pp ppf = function
         | Unit -> Format.pp_print_string ppf "()"
         | Int i -> Format.pp_print_int ppf i
-        | String s -> Format.pp_print_string ppf s
+        | String s -> Format.fprintf ppf "\"%s\"" s
         | Bool b -> Format.pp_print_bool ppf b
 
     let unit = Unit

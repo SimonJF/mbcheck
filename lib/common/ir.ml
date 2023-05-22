@@ -88,6 +88,11 @@ and comp =
         pair: value;
         cont: comp
     }
+    | Case of {
+        term: value;
+        branch1: ((Binder.t[@name "binder"]) * (Type.t[@name "ty"])) * comp;
+        branch2: ((Binder.t[@name "binder"]) * (Type.t[@name "ty"])) * comp
+    }
     | New of string
     | Spawn of comp
     | Send of {
@@ -107,6 +112,8 @@ and value =
     | Primitive of primitive_name
     | Variable of (Var.t[@name "var"]) * (Pretype.t[@name "pretype"]) option
     | Pair of value * value
+    | Inl of value
+    | Inr of value
     | Lam of {
         linear: bool;
         parameters: ((Binder.t[@name "binder"]) * (Type.t[@name "ty"])) list;
@@ -166,6 +173,12 @@ and pp_message ppf (tag, vs) =
         (pp_print_comma_list pp_value) vs
 (* Parameters *)
 and pp_param ppf (param, ty) = fprintf ppf "%a: %a" Binder.pp param Type.pp ty
+and pp_branch name ppf ((bnd, ty), c) =
+    fprintf ppf "%s(%a): %a -> @[<v>%a@]"
+        name
+        Binder.pp bnd
+        Type.pp ty
+        pp_comp c
 (* Expressions *)
 and pp_comp ppf = function
     | Annotate (c, ty) ->
@@ -210,6 +223,12 @@ and pp_comp ppf = function
             Binder.pp b2
             pp_value pair
             pp_comp cont
+    | Case { term; branch1; branch2 } ->
+        fprintf ppf
+            "case %a of {@[<v>@[<v>%a@]@,@[<v>%a@]@]}"
+            pp_value term
+            (pp_branch "inl") branch1
+            (pp_branch "inr") branch2
     | Guard { target; pattern; guards; _ } ->
         fprintf ppf
             "guard %a : %a {@,@[<v 2>  %a@]@,}"
@@ -225,6 +244,8 @@ and pp_value ppf = function
     | Constant c -> Constant.pp ppf c
     | Pair (v1, v2) ->
         fprintf ppf "(%a, %a)" pp_value v1 pp_value v2
+    | Inl v -> fprintf ppf "inl(%a)" pp_value v
+    | Inr v -> fprintf ppf "inr(%a)" pp_value v
     | Lam { linear; parameters; result_type; body } ->
         let lin = if linear then "linfun" else "fun" in
         fprintf ppf "%s(%a): %a {@,  @[<v>%a@]@,}"

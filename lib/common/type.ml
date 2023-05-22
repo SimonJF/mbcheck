@@ -249,6 +249,7 @@ type t =
     | Base of base
     | Fun of { linear: bool; args: t list; result: t }
     | Pair of (t * t)
+    | Sum of (t * t)
     | Mailbox of {
         capability: (Capability.t [@name "capability"]);
         interface: string;
@@ -311,6 +312,10 @@ let rec pp ppf =
         fprintf ppf "(%a * %a)"
             pp t1
             pp t2
+    | Sum (t1, t2) ->
+        fprintf ppf "(%a + %a)"
+            pp t1
+            pp t2
     | Mailbox { capability; interface; pattern; quasilinearity } ->
         let ql =
             match quasilinearity with
@@ -345,6 +350,7 @@ let rec is_lin = function
     (* !1 is unrestricted... *)
     | Mailbox { capability = Out; pattern = Some One; _ } -> false
     | Pair (t1, t2) -> is_lin t1 || is_lin t2
+    | Sum (t1, t2) -> is_lin t1 || is_lin t2
     (* ...but otherwise a mailbox type must be used linearly. *)
     | Mailbox _ -> true
 
@@ -358,6 +364,10 @@ let is_output_mailbox = function
 
 let is_pair = function
     | Pair _ -> true
+    | _ -> false
+
+let is_sum = function
+    | Sum _ -> true
     | _ -> false
 
 let get_pattern = function
@@ -376,11 +386,13 @@ let get_quasilinearity = function
 let rec make_usable = function
     | Mailbox m -> Mailbox { m with quasilinearity = Quasilinearity.Usable }
     | Pair (t1, t2) -> Pair (make_usable t1, make_usable t2)
+    | Sum (t1, t2) -> Sum (make_usable t1, make_usable t2)
     | t -> t
 
 let rec make_returnable = function
     | Mailbox m -> Mailbox { m with quasilinearity = Quasilinearity.Returnable }
     | Pair (t1, t2) -> Pair (make_returnable t1, make_returnable t2)
+    | Sum (t1, t2) -> Sum (make_returnable t1, make_returnable t2)
     | t -> t
 
 let is_unr = is_lin >> not
@@ -388,7 +400,8 @@ let is_unr = is_lin >> not
 let rec is_returnable = function
     | Mailbox { quasilinearity = ql; _ } ->
         ql = Quasilinearity.Returnable
-    | Pair (t1, t2) -> is_returnable t1 && is_returnable t2
+    | Pair (t1, t2)
+    | Sum  (t1, t2) -> is_returnable t1 && is_returnable t2
     | _ -> true
 
 let make_function_type linear args result =
@@ -396,4 +409,7 @@ let make_function_type linear args result =
 
 let make_pair_type ty1 ty2 =
     Pair (make_returnable ty1, make_returnable ty2)
+
+let make_sum_type ty1 ty2 =
+    Sum (make_returnable ty1, make_returnable ty2)
 

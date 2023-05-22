@@ -26,11 +26,20 @@ type expr =
         args: expr list
     }
     | If of { test: expr; then_expr: expr; else_expr: expr }
+    (* Pairs *)
     | Pair of (expr * expr)
     | LetPair of {
         binders: sugar_binder * sugar_binder;
         term: expr;
         cont: expr
+    }
+    (* Sums *)
+    | Inl of expr
+    | Inr of expr
+    | Case of {
+        term: expr;
+        branch1: (sugar_binder * (Type.t[@name "ty"])) * expr;
+        branch2: (sugar_binder * (Type.t[@name "ty"])) * expr
     }
     (* Note that we're using the versions of new and spawn where they are
        not wired to their continuations. I've experimented with the
@@ -132,6 +141,11 @@ and pp_message ppf (tag, es) =
 (* Parameters *)
 and pp_param ppf (param, ty) = fprintf ppf "%s: %a" param Type.pp ty
 and pp_let_annot ppf ty = fprintf ppf ": %a" Type.pp ty
+and pp_bnd_ann ppf (bnd, ann) =
+    fprintf ppf
+        "%s%a"
+        bnd
+        pp_let_annot ann
 (* Expressions *)
 and pp_expr ppf = function
     (* Might want, at some stage, to print out pretype info *)
@@ -180,6 +194,17 @@ and pp_expr ppf = function
                         pp_expr target
                         pp_message message
         end
+    | Inl e -> fprintf ppf "inl %a" pp_expr e
+    | Inr e -> fprintf ppf "inr %a" pp_expr e
+    | Case { term; branch1 = (bnd1, e1); branch2 = (bnd2, e2) } ->
+        fprintf
+            ppf
+            "case %a of {@[@[inl %a -> [@%a@]@][@inr %a -> [@%a@]@]@]}"
+            pp_expr term
+            pp_bnd_ann bnd1
+            pp_expr e1
+            pp_bnd_ann bnd2
+            pp_expr e2
     | Pair (e1, e2) ->
         fprintf ppf "(%a, %a)" pp_expr e1 pp_expr e2
     | LetPair { binders = (b1, b2); term; cont } ->
