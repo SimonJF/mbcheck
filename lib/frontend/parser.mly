@@ -63,6 +63,11 @@ These will be added in later
 %token NEQ
 %token AND
 %token OR
+%token CASE
+%token OF
+%token INL
+%token INR
+%token PIPE
 
 (* Start parsing *)
 %start <expr> expr_main
@@ -78,6 +83,15 @@ message_binder:
 
 type_annot:
     | COLON ty { $2 }
+
+binder_opt_ty:
+    | VARIABLE type_annot? { ($1, $2)}
+
+inl_branch:
+    | LEFT_PAREN INL binder_opt_ty RIGHT_PAREN RIGHTARROW expr { ($3, $6) }
+
+inr_branch:
+    | LEFT_PAREN INR binder_opt_ty RIGHT_PAREN RIGHTARROW expr { ($3, $6) }
 
 expr:
     (* Let *)
@@ -97,6 +111,10 @@ linearity:
     | LINFUN { true }
 
 basic_expr:
+    | INL fact { Inl $2 }
+    | INR fact { Inr $2 }
+    | CASE expr OF LEFT_BRACE inl_branch PIPE inr_branch RIGHT_BRACE
+        { Case { term = $2; branch1 = $5; branch2 = $7} }
     (* New *)
     | NEW LEFT_BRACK interface_name RIGHT_BRACK { New $3 }
     (* Spawn *)
