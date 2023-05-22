@@ -91,7 +91,8 @@ and transform_expr :
         | Annotate (body, annotation) ->
             Ir.Annotate (transform_expr env body id, annotation)
             |> k env
-        | Let {binder; term; body} ->
+        (* Note that annotation will have been desugared to subject annotation *)
+        | Let {binder; term; body; _} ->
             (* let x = M in N*)
             (* Create an IR variable based on x *)
             let bnd = Ir.Binder.make ~name:binder () in
@@ -168,7 +169,6 @@ and transform_expr :
 
 (* Transforms a subterm into an IR computation, naming if necessary. *)
 and transform_subterm
-    ?(annotation: Type.t option)
     (env: env)
     (x: Sugar_ast.expr)
     (k: env -> Ir.value -> Ir.comp) =
@@ -183,28 +183,33 @@ and transform_subterm
        sugared AST anymore! (Var, Lam, Constant)
      *)
     transform_expr env x (fun env c ->
-        let annotate value =
-            match annotation with
-                | Some annotation ->
-                    Ir.VAnnotate (value, annotation)
-                | None -> value
-        in
         match x with
             (* Translate syntactic values directly to avoid a needless
                administrative reduction.
              *)
-            | Primitive p -> Ir.Primitive p |> annotate |> k env
+            | Primitive p -> Ir.Primitive p |> k env
             | Var var ->
                 let v = lookup_var var env in
-                Ir.Variable (v, None) |> annotate |> k env
-            | Constant c -> Ir.Constant c |> annotate |> k env
+                Ir.Variable (v, None) |> k env
+            | Constant c -> Ir.Constant c |> k env
             | Lam {linear; parameters; result_type; body} ->
                 let (bnds, env') = add_names env fst parameters in
                 Ir.Lam {
                     linear;
                     parameters = List.combine bnds (List.map snd parameters);
                     result_type;
-                    body = transform_expr env' body id } |> annotate |> k env
+                    body = transform_expr env' body id } |> k env
+            (* Annotations: need to translate inner expression, and add value
+               annotation on resulting value *)
+            | Annotate (annot_expr, ty) ->
+                let bnd = Ir.Binder.make () in
+                let var = Ir.Variable ((Ir.Var.of_binder bnd), None) in
+                let comp = transform_expr env annot_expr id in
+                Ir.Let {
+                    binder = bnd;
+                    term = comp;
+                    cont = (k env (VAnnotate (var, ty)))
+                }
             (* Other expressions need to be bound to an intermediate variable *)
             | _ ->
                 (* Create a new binder *)
