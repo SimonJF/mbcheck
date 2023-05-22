@@ -15,7 +15,11 @@ type expr =
         parameters: (sugar_binder * (Type.t[@name "ty"])) list;
         result_type: (Type.t[@name "ty"]);
         body: expr }
-    | Let of { binder: sugar_binder; term: expr; body: expr }
+    | Let of {
+        binder: sugar_binder;
+        annot: (Type.t[@name "ty"]) option;
+        term: expr;
+        body: expr }
     | Seq of expr * expr
     | App of {
         func: expr;
@@ -127,6 +131,7 @@ and pp_message ppf (tag, es) =
         (pp_print_comma_list pp_expr) es
 (* Parameters *)
 and pp_param ppf (param, ty) = fprintf ppf "%s: %a" param Type.pp ty
+and pp_let_annot ppf ty = fprintf ppf ": %a" Type.pp ty
 (* Expressions *)
 and pp_expr ppf = function
     (* Might want, at some stage, to print out pretype info *)
@@ -142,9 +147,10 @@ and pp_expr ppf = function
             (pp_print_comma_list pp_param) parameters
             Type.pp result_type
             pp_expr body
-    | Let { binder; term; body } ->
-        fprintf ppf "let %s = @[<v>%a@] in@,%a"
+    | Let { binder; annot; term; body } ->
+        fprintf ppf "let %s%a = @[<v>%a@] in@,%a"
             binder
+            (pp_print_option pp_let_annot) annot
             pp_expr term
             pp_expr body
     | If { test; then_expr; else_expr } ->
