@@ -10,6 +10,7 @@ end
 
 let verbose = ref false
 let debug = ref false
+let benchmark = ref (-1)
 let receive_typing_strategy = ref ReceiveTypingStrategy.Interface
 
 let set : 'a setting -> 'a -> unit = fun setting value ->

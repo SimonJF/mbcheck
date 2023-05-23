@@ -67,15 +67,6 @@ def master(self: MasterMb?, startRate: Int, increment: Int): Unit {
   }
 }
 
-## Why using this function does not work?
-def new_computer(id: Int, startRate: Int, increment: Int): ComputerMb! {
-  let computerMb = new [ComputerMb] in
-  let rate = startRate + (id * increment) in 
-  spawn { computer(computerMb, rate) };
-
-  computerMb
-}
-
 ## Master process main loop issuing term computation requests.
 def master_loop(self: MasterMb?, termSum: Int, workerMb1: WorkerMb!, computerMb1: ComputerMb!, workerMb2: WorkerMb!, computerMb2: ComputerMb!): Unit {
   guard self: *Result {
