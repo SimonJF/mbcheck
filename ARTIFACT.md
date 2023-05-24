@@ -6,9 +6,15 @@ Name: *Special Delivery: Programming with Mailbox Types*
 
 This is the artifact for the paper "Special Delivery: Programming with Mailbox
 Types". The artifact consists of a QEMU image (based on the ICFP base image)
-containing the Pat typechecker. The typechecker is written in OCaml, and uses Z3
-as a backend solver for Presburger formulae. Please see the "QEMU Instructions"
-section for instructions on how to boot the QEMU image.
+containing the Pat typechecker and scripts to help evaluate the artifact.
+The typechecker is written in OCaml, and uses Z3 as a backend solver for
+Presburger formulae. Please see the "QEMU Instructions" section for instructions
+on how to boot the QEMU image.
+
+## Credentials
+
+  * Username: artifact
+  * Password: password
 
 ### Scope
 
@@ -18,26 +24,33 @@ interfaces).  The artifact will also allow you to generate the table from the
 Evaluation section of the paper; includes all of the examples from the paper and
 evaluation; and will allow you to test your own examples.
 
-The most up-to-date version of Pat can be found on
-https://www.github.com/SimonJF/mbcheck .
-
-
 ### Sample evaluation workflow
 
   1. `cd mbcheck` into the project directory.
-  2. Run the test suite by running `make tests`.
+  2. Run the test suite by running `make test`.
   3. Try the examples from the paper (see the "Mapping to Paper" section)
-  4. Generate the table from section 6 by running `./generate-table.py`.
+  4. Generate the table from section 6 by running `./generate-table.py`. (Note,
+     this is set to perform 100 iterations by default; you can change this by
+     modifying the `REPETITIONS` parameter)
   5. Try your own examples, if you like! You can invoke the typechecker by
      `./mbcheck <name>`. It will exit silently if the example typechecks. If you
      would like to see the inferred and simplified patterns, use the `-v` option.
   6. Have a look at the salient parts of the implementation (see the "Navigating
      the source code" section)
 
-
 ### Tool options
 
-TODO
+Invoke `mbcheck` as `./mbcheck <options> filename`. The options are as follows:
+  * `-v`: verbose mode; outputs program with solved constraints
+  * `-d`: debug mode; outputs detailed information about pattern constraints
+  * `-b <count>` or `--benchmark=<count>`: output mean time taken to typecheck
+      file over `<count>` iterations
+  * `--ir` prints the IR after translation
+  * `--mode=MODE` where `MODE` is one of `strict`, `interface`, or `none`:
+      defines alias checking mode. `strict` requires that no free names occur
+      within a guard; `interface` (default) requires that received names have a
+      different interface to the free names in a guard; and `none` (unsound)
+      turns off alias checking
 
 ### Mapping to Paper
 
@@ -57,23 +70,24 @@ You can run all of these using the `./run-paper-examples.py` script.
       also raise errors, and can be found in:
     - `test/errors/alias_comm1.pat`
     - `test/errors/alias_comm2.pat`
-  * The product example from Sec 5.1 can be found in TODO
-  * The interface example from Sec 5.1 can be found in TODO
+  * The product example from Sec 5.1 can be found in `test/examples/product.pat`
+  * The interface example from Sec 5.1 can be found in `test/examples/interfaces.pat`
   * The de'Liguoro & Padovani examples from Sec 6 can be found in
       `test/examples/de_liguoro_padovani`.
   * The Savina examples from Sec 6 can be found in `test/examples/savina`.
-  * The Robots case study can be found in `test/examples/robotsn.pat`.
-
+  * The Robots case study from Sec 6 can be found in `test/examples/robotsn.pat`.
 
 ### Language guide & build / installation instructions
-A guide to the language, as well as build instructions, can be found in
-`mbcheck/README.md`.
+A guide to the language, as well as build and installation instructions, can be
+found in `mbcheck/README.md`.
 
 ### Difference between core calculus and concrete syntax
 
 The implementation is fairly faithful to the syntax from Fig. 4, with the
-following modifications:
+following syntactic modifications:
 
+  * Since we perform an A-normalisation step, it is possible to write nested
+      expressions (i.e., `(1 + 2) + 3` rather than `let x = 1 + 2 in x + 3`).
   * It is not necessary to specify a pattern or usage when writing a mailbox
       type (you can see this, for example, in the Future example).
     - You can write `Future!` to mean a send mailbox with interface `Future`.
@@ -85,11 +99,43 @@ following modifications:
         You can specify the usage explicitly using the `[U]` (for second-class)
         and `[R]` (for returnable) modifiers.
         So, to complete our example, a returnable output mailbox type for the Future
-        interface which can send a Put message is 
+        interface which can send a Put message is `Future!Put[R]`
+  * Messages are written with parentheses rather than braces (e.g., `x ! m(y)`
+        rather than `x ! m[y]`).
+  * We require interfaces as standard, so it's necessary to specify an interface
+        name with `new`, i.e., `let x = new[Future] in ...`
+  * Branches of case expressions are separated with a pipe (`|`) rather than a
+      semicolon, i.e., `case V { inl x -> M | inr y -> N }`
 
 ### Navigating the source code
 
-The source code, in the `mbcheck` directory, is 
+The source code can be found in the `mbcheck` directory. Salient code locations
+are as follows:
+
+  * `bin/main.ml`: main entry point / command line processing
+  * `lib/common/sugar_ast.ml`: post-parsing AST
+  * `lib/common/ir.ml`: explicitly-sequenced intermediate representation
+  * `lib/frontend/parser.mly`: grammar
+  * `lib/frontend/pipeline.ml`: desugaring / typechecking pipeline
+  * `lib/frontend/sugar_to_ir.ml`: IR conversion, converting sugared AST
+      to explicitly-sequenced representation
+  * `lib/typecheck/pretypecheck.ml`: contextual typing pass to propagate
+      interface information (sec 5)
+  * `lib/typecheck/gen_constraints.ml`: backwards bidirectional type system
+      described in section 4
+        - `synthesise_val` and `synthesise_comp` correspond to the synthesis
+            judgement `M =P=> t |> env; constrs`
+        - `check_val` and `check_comp` correspond to the checking judgement
+            `M <=P= t |> env; constrs`
+        - `check_guard` corresponds to the guard checking judgement
+            `{E} G <=P= t |> Phi; consts; F`
+  * `lib/typecheck/ty_env.ml`: algorithmic type & environment joining / merging
+        - `combine` corresponds to disjoint combination `t1 + t2 |> t; constrs`
+        - `join` corresponds to sequential combination `t1 ; t2 |> t; constrs`
+        - `intersect` corresponds to disjoint combination `t1 cap t2 |> t; constrs`
+  * `lib/typecheck/solve_constraints.ml` converts pattern constraints into
+      Presburger formulae to be solved by Z3
+  * `lib/typecheck/z3_solver.ml` interfaces with the Z3 solver
 
 ## QEMU Instructions
 

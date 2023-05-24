@@ -1,14 +1,25 @@
 #!/usr/bin/env python3
 import os
 import subprocess
-from tabulate import tabulate
 
-REPETITIONS = 100
-
-BENCHMARKS =\
+EXAMPLES =\
     [
-        ("Lock", os.path.join("test", "examples", "de_liguoro_padovani", "lock.pat")),
+        # Paper examples
         ("Future", os.path.join("test", "examples", "de_liguoro_padovani", "future.pat")),
+        ("Use-after-free 1 (should fail)", os.path.join("test", "errors",  "uaf1.pat")),
+        ("Use-after-free 2 (should fail)", os.path.join("test", "errors",  "uaf2.pat")),
+        ("Use-after-free 3 (should fail)", os.path.join("test", "errors",  "uaf3.pat")),
+        ("Aliasing via communication 1 (should fail)", os.path.join("test",\
+                                                                    "errors",\
+                                                                    "alias_comm1.pat")),
+        ("Aliasing via communication 2 (should fail)", os.path.join("test",\
+                                                                    "errors",\
+                                                                    "alias_comm2.pat")),
+        ("Products", os.path.join("test", "examples", "products.pat")),
+        ("Interfaces", os.path.join("test", "examples", "interfaces.pat")),
+        ("Robots", os.path.join("test", "examples", "robotsn.pat")),
+        # Benchmarks
+        ("Lock", os.path.join("test", "examples", "de_liguoro_padovani", "lock.pat")),
         ("Account", os.path.join("test", "examples", "de_liguoro_padovani", "account.pat")),
         ("AccountF", os.path.join("test", "examples", "de_liguoro_padovani", "account_future.pat")),
         ("Master-Worker", os.path.join("test", "examples", "de_liguoro_padovani", "master_worker.pat")),
@@ -23,22 +34,16 @@ BENCHMARKS =\
         ("Smokers", os.path.join("test", "examples", "savina", "cig_smok.pat")),
         ("Log Map", os.path.join("test", "examples", "savina", "log_map.pat")),
         ("Transaction", os.path.join("test", "examples", "savina", "banking.pat"))
-     ]
+    ]
 
-# Tries to run in strict mode -- returns True if it works, False otherwise
-def try_strict(path):
-    return subprocess.run(["./mbcheck", "--mode=strict", path],\
-                          capture_output=True).returncode == 0
+def run_example(name, path):
+    print("Checking " + name)
+    subprocess.run(["./mbcheck " + path], shell=True)
+    print()
 
-def run_benchmark(name, path):
-    is_strict = try_strict(path)
-    time = str(subprocess.run(["./mbcheck", "-b", str(REPETITIONS), path],\
-                              capture_output=True, text=True).stdout)
-    return (name, is_strict, time)
-
-def main():
-    results = [run_benchmark(name, path) for (name, path) in BENCHMARKS]
-    print(tabulate(results, headers=["Name", "Strict", "Time (ms)"], tablefmt='grid'))
+def run_examples():
+    for (name, path) in EXAMPLES:
+        run_example(name, path)
 
 if __name__ == "__main__":
-    main()
+    run_examples()
