@@ -31,12 +31,14 @@ def try_strict(path):
                           capture_output=True).returncode == 0
 
 def run_benchmark(name, path):
+    print("Running example " + name)
     is_strict = try_strict(path)
     time = str(subprocess.run(["./mbcheck", "-b", str(REPETITIONS), path],\
                               capture_output=True, text=True).stdout)
     return (name, is_strict, time)
 
 def main():
+    print("Generating table -- this may take some time.")
     results = [run_benchmark(name, path) for (name, path) in BENCHMARKS]
     print(tabulate(results, headers=["Name", "Strict", "Time (ms)"], tablefmt='grid'))
 

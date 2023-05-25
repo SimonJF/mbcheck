@@ -27,6 +27,7 @@ evaluation; and will allow you to test your own examples.
 ### Sample evaluation workflow
 
   1. `cd mbcheck` into the project directory.
+  2. Build the `mbcheck` binary by running `make`.
   2. Run the test suite by running `make test`.
   3. Try the examples from the paper (see the "Mapping to Paper" section)
   4. Generate the table from section 6 by running `./generate-table.py`. (Note,
@@ -60,7 +61,7 @@ artifact.
 You can run all of these using the `./run-paper-examples.py` script.
 
   * The Future example from the introduction can be found in
-      `examples/de_liguoro_padovani/future.lmb`. This should typecheck without
+      `test/examples/de_liguoro_padovani/future.pat`. This should typecheck without
       error.
   * The use-after-free examples should all raise errors, and can be found as follows:
     - Fig 3(a): `test/errors/uaf1.pat`
@@ -159,7 +160,8 @@ QEMU homepage: https://www.qemu.org/
 ``brew install qemu``
 
 #### Debian and Ubuntu Linux
-``apt-get install qemu-kvm``
+``sudo apt update``
+``sudo apt install qemu-system-x86``
 
 On x86 laptops and server machines you may need to enable the
 "Intel Virtualization Technology" setting in your BIOS, as some manufacturers
