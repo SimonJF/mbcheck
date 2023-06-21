@@ -293,3 +293,8 @@ let check_type ienv var declared env =
         | Some inferred -> subtype ienv declared inferred
         | None -> Type_utils.make_unrestricted declared
 
+let make_unrestricted env =
+    List.fold_left (fun acc (_, ty) ->
+        Constraint_set.union acc (make_unrestricted ty)
+    ) Constraint_set.empty (bindings env)
+

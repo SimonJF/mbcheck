@@ -127,16 +127,16 @@ let rec synthesise_val :
                to type the body must also be unrestricted. *)
             let unr_constrs =
                 if (not linear) then
-                    List.fold_left (fun acc (_, ty) ->
-                        Constraint_set.union acc (make_unrestricted ty)
-                    ) Constraint_set.empty (Ty_env.bindings env)
+                    Ty_env.make_unrestricted env
                 else Constraint_set.empty
             in
+            (* We can only close over variables that are returnable (to avoid issues with aliasing) *)
+            let returnable_env = Ty_env.make_returnable env in
             let constrs = Constraint_set.union_many
                 [body_constrs; parameter_constrs; unr_constrs]
             in
             let ty = Type.function_type linear parameter_tys result_type in
-            (ty, env, constrs)
+            (ty, returnable_env, constrs)
         | other -> Gripers.cannot_synthesise_value other
 and check_val :
     IEnv.t -> Ty_env.t -> Ir.value -> Type.t -> Ty_env.t * Constraint_set.t =
