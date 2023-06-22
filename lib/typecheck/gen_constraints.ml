@@ -12,10 +12,7 @@ open Util.Utility
 open Common
 open Common_types
 open Ir
-open Gripers
 open Type_utils
-
-type message = (string * Ir.value)
 
 (* Modules *)
 

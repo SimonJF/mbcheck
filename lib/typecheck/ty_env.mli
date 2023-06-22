@@ -1,6 +1,5 @@
 (* Typing environments, used as an output of the typing algorithm. *)
 open Common
-open Common_types
 
 type t
 

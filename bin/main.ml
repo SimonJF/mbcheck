@@ -1,6 +1,4 @@
 open Common
-open Typecheck
-
 
 let print_result (prog, prety, _ir, ty, _env, _constrs) =
     let open Format in
@@ -18,7 +16,6 @@ let print_result (prog, prety, _ir, ty, _env, _constrs) =
 
 (* for IR translation testing *)
 let print_ir (prog, _prety, ir, _ty, _env, _constrs) =
-    let open Format in
     Format.printf
         "=== Resolved Program: ===\n%a\n\n"
         (Sugar_ast.pp_program) prog;

@@ -1,7 +1,6 @@
 open Common
 open Util.Utility
 open Type_utils
-open Gripers
 
 module type VARMAP = (Map.S with type key = Ir.Var.t)
 module VarMap = Map.Make(Ir.Var)
