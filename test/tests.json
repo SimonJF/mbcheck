@@ -30,8 +30,18 @@
           "tests":
             [
                 {
-                    "name": "Arithmetic",
+                    "name": "Arithmetic (1)",
                     "filename": "pat-tests/arith.pat",
+                    "exit_code": 0
+                },
+                {
+                    "name": "Arithmetic (2)",
+                    "filename": "pat-tests/arith1.pat",
+                    "exit_code": 0
+                },
+                {
+                    "name": "Arithmetic (3)",
+                    "filename": "pat-tests/arith2.pat",
                     "exit_code": 0
                 },
                 {
