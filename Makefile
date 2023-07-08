@@ -5,7 +5,7 @@ all:
 
 .PHONY: test
 test:
-	cd test && ./run-tests.py
+	cd test && python3 run-tests.py
 
 .PHONY: pin
 pin:

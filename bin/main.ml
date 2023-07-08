@@ -1,6 +1,4 @@
 open Common
-open Typecheck
-
 
 let print_result (prog, prety, _ir, ty, _env, _constrs) =
     let open Format in
@@ -18,7 +16,6 @@ let print_result (prog, prety, _ir, ty, _env, _constrs) =
 
 (* for IR translation testing *)
 let print_ir (prog, _prety, ir, _ty, _env, _constrs) =
-    let open Format in
     Format.printf
         "=== Resolved Program: ===\n%a\n\n"
         (Sugar_ast.pp_program) prog;
@@ -26,10 +23,11 @@ let print_ir (prog, _prety, ir, _ty, _env, _constrs) =
         "=== Intermediate Representation: ===\n%a\n\n"
         (Ir.pp_program) ir
 
-let process filename is_verbose is_debug is_ir mode () =
+let process filename is_verbose is_debug is_ir mode benchmark_count () =
     Settings.(set verbose is_verbose);
     Settings.(set debug is_debug);
     Settings.(set receive_typing_strategy mode);
+    Settings.(set benchmark benchmark_count);
     try
         Frontend.Parse.parse_file filename ()
         |> Frontend.Pipeline.pipeline
@@ -49,6 +47,8 @@ let () =
     $ Arg.(value & flag & info ["ir"] ~doc:"print the parsed program and its IR translation")
     $ Arg.(value & opt (enum Settings.ReceiveTypingStrategy.enum) Settings.ReceiveTypingStrategy.Interface & info ["mode"]
       ~docv:"MODE" ~doc:"typechecking mode for receive blocks (allowed: strict, interface, none)")
+    $ Arg.(value & opt int (-1) & info ["b"; "benchmark"]
+      ~docv:"BENCHMARK" ~doc:"number of repetitions for benchmark; -1 (default) for no benchmarking")
     $ const ()) in
   let info = Cmd.info "mbcheck" ~doc:"Typechecker for mailbox calculus" in
   Cmd.v info mbcheck_t

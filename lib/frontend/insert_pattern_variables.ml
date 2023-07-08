@@ -30,7 +30,7 @@ let rec annotate_type =
                 quasilinearity
             }
 
-let rec annotate_interface_type =
+let annotate_interface_type =
     let open Type in
     function
         (* Outermost MB types (i.e., payloads) are treated as usable. *)
@@ -46,7 +46,6 @@ let rec annotate_interface_type =
 
 (* Annotates all types in an interface *)
 let annotate_interface iface =
-    let open Type in
     Interface.bindings iface
     |> List.map (fun (tag, tys) -> (tag, List.map annotate_interface_type tys))
     |> Interface.(make (name iface))

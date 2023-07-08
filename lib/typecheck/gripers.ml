@@ -276,7 +276,6 @@ let expected_sum_type instead =
 
 
 let invalid_ql_sequencing var =
-    let open Type in
     let msg =
         Format.asprintf
             "Mailbox variable %a was used after being consumed by a 'guard' or a 'let' binding."

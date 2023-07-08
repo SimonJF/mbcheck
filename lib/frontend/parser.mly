@@ -69,6 +69,12 @@ These will be added in later
 %token INR
 %token PIPE
 
+(* Precedence *)
+%left AND OR
+%left LT GT GEQ LEQ EQQ NEQ
+%left PLUS MINUS
+%left STAR DIV
+
 (* Start parsing *)
 %start <expr> expr_main
 %start <program> program
@@ -140,27 +146,21 @@ basic_expr:
             iname = None
           }
         }
-    | rel_op { $1 }
+    | op { $1 }
 
-rel_op:
-    | mult_op AND rel_op { binary_op "&&" $1 $3 }
-    | mult_op OR rel_op { binary_op "||" $1 $3 }
-    | mult_op EQQ rel_op { binary_op "==" $1 $3 }
-    | mult_op NEQ rel_op { binary_op "!=" $1 $3 }
-    | mult_op LT rel_op { binary_op "<" $1 $3 }
-    | mult_op GT rel_op { binary_op ">" $1 $3 }
-    | mult_op LEQ rel_op { binary_op "<=" $1 $3 }
-    | mult_op GEQ rel_op { binary_op ">=" $1 $3 }
-    | mult_op { $1 }
-
-mult_op:
-    | add_op STAR mult_op { binary_op "*" $1 $3 }
-    | add_op DIV mult_op { binary_op "/" $1 $3 }
-    | add_op { $1 }
-
-add_op:
-    | fact PLUS add_op { binary_op "+" $1 $3 }
-    | fact MINUS add_op { binary_op "-" $1 $3 }
+op:
+    | basic_expr AND basic_expr { binary_op "&&" $1 $3 }
+    | basic_expr OR basic_expr { binary_op "||" $1 $3 }
+    | basic_expr EQQ basic_expr { binary_op "==" $1 $3 }
+    | basic_expr NEQ basic_expr { binary_op "!=" $1 $3 }
+    | basic_expr LT basic_expr { binary_op "<" $1 $3 }
+    | basic_expr GT basic_expr { binary_op ">" $1 $3 }
+    | basic_expr LEQ basic_expr { binary_op "<=" $1 $3 }
+    | basic_expr GEQ basic_expr { binary_op ">=" $1 $3 }
+    | basic_expr PLUS basic_expr { binary_op "+" $1 $3 }
+    | basic_expr MINUS basic_expr { binary_op "-" $1 $3 }
+    | basic_expr STAR basic_expr { binary_op "*" $1 $3 }
+    | basic_expr DIV basic_expr { binary_op "/" $1 $3 }
     | fact { $1 }
 
 fact:

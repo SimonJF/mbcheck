@@ -2,6 +2,9 @@
 open Z3
 open Util.Utility
 
+(* Timeout used for Z3: 10 seconds *)
+let z3_timeout = 10000
+
 (* The Z3 quantifier API is so horrible that we need some helpers... *)
 (* Translates an existential quantifier, adding defaults for the unneeded arguments. *)
 let mk_quantifier_simple mk_fn ctx sorts symbs body =
@@ -88,7 +91,9 @@ let result_of_z3_result : Solver.status -> Solver_result.t =
         | UNKNOWN -> Unknown
 
 let solve : Presburger.goal -> Solver_result.t = fun { tags; lhs; rhs } ->
-    let ctx = mk_context [("model", "false"); ("proof", "false")] in
+    let ctx = mk_context
+        [("model", "false"); ("proof", "false"); ("timeout", string_of_int z3_timeout)]
+    in
     let expr =
         let open Presburger in
         List.fold_right

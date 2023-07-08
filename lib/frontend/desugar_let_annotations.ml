@@ -2,7 +2,6 @@
     let x: A = M in N --> let x = (M : (returnable(A))) in N
  *)
 open Common
-open Common_types
 
 let visitor =
     object(self)
