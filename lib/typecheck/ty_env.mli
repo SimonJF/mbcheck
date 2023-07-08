@@ -1,6 +1,5 @@
 (* Typing environments, used as an output of the typing algorithm. *)
 open Common
-open Common_types
 
 type t
 
@@ -34,6 +33,9 @@ val make_usable : t -> t
 
 (** Sets all mailbox types to be returnable *)
 val make_returnable : t -> t
+
+(** Makes all types in the environment unrestricted *)
+val make_unrestricted : t -> Constraint_set.t
 
 (** Checks to see whether environment contains a variable: if so,
     checks whether that the given type is a subtype of the type in

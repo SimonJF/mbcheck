@@ -8,6 +8,7 @@ end
 
 val verbose : bool setting
 val debug : bool setting
+val benchmark : int setting
 val receive_typing_strategy : ReceiveTypingStrategy.t setting
 
 val set : 'a setting -> 'a -> unit

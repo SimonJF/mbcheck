@@ -15,6 +15,5 @@ let bind_many =
         StringMap.add v prety acc)
 
 let from_list (xs : Interface.t list) : t =
-    let open Interface in
     let xs = List.map (fun x -> (Interface.name x, x)) xs in
     bind_many xs StringMap.empty

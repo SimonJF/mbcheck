@@ -1,11 +1,14 @@
 ; w7:  Overridden method (can't see how to do 'ancestors' in visitors without this off)
 ; w17: Virtual method unimplemented, incompatible with fold visitor
+; w21: non-returning statement
 ; w33: Unused open -- silly during dev
 ; w34: Unused type
+; w39: Unused rec vlag
 ; w26, w27, w32: Unused variable name -- will want eventually but not yet
 (env
   (dev
    ; (flags (:standard -w -7-17-32-33-27-26-34-39))
-   (flags (:standard -g -w -7-17-21-33-34-39))
+   ; (flags (:standard -g -w -7-17-21-33-34-39))
+     (flags (:standard -g -w -7-17))
    )
  )
