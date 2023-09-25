@@ -39,7 +39,7 @@ let rec synthesise_val :
         | Pair (v1, v2) ->
             let (t1, env1, constrs1) = synthesise_val ienv decl_env v1 in
             let (t2, env2, constrs2) = synthesise_val ienv decl_env v2 in
-            let env, constrs3 = Ty_env.combine ienv env1 env2 in
+            let env, constrs3 = Ty_env.join ienv env1 env2 in
             Type.Pair (t1, t2),
                 env,
                 Constraint_set.union_many [constrs1; constrs2; constrs3]
@@ -233,7 +233,7 @@ and synthesise_comp :
                 List.fold_right (fun (x, ty) (acc_env, acc_constrs) ->
                     let (arg_env, arg_constrs) = check_val ienv decl_env x ty in
                     (* Note: arguments must have disjoint type environments *)
-                    let (env, env_constrs) = Ty_env.combine ienv arg_env acc_env in
+                    let (env, env_constrs) = Ty_env.join ienv arg_env acc_env in
                     let constrs =
                         Constraint_set.union_many
                             [arg_constrs; env_constrs; acc_constrs]
@@ -244,7 +244,7 @@ and synthesise_comp :
             (* No nested evaluation contexts, so we combine function and
                argument environments, expecting disjointness. *)
             let (env, env_constrs) =
-                Ty_env.combine ienv fun_env arg_env
+                Ty_env.join ienv fun_env arg_env
             in
             (* Union constraint sets *)
             let constrs =
