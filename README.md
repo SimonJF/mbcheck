@@ -274,25 +274,32 @@ does not contain any messages)
 ```
 interface Test { M(Int), N(Int) }
 
-let mb = new[Test] in
-if (rand()) then {
-  spawn { mb ! M(5) };
-  spawn { mb ! N(10) }
-} else {
-  ()
-};
-in
-guard mb : (M . N) + 1 {
-  free -> ()
-  receive M(x) from mb ->
-    guard mb : N {
-        receive N[y] from mb -> free(mb)
-    }
-  receive N(x) from mb ->
-    guard mb : M {
-        receive M[y] from mb -> free(mb)
+def random(): Bool {
+    true
+}
+
+def main(): Unit {
+    let mb = new[Test] in
+    if (random()) {
+      spawn { mb ! M(5) };
+      spawn { mb ! N(10) }
+    } else {
+      ()
+    };
+    guard mb : (M . N) + 1 {
+      free -> ()
+      receive M(x) from mb ->
+        guard mb : N {
+            receive N(y) from mb -> free(mb)
+        }
+      receive N(x) from mb ->
+        guard mb : M {
+            receive M(y) from mb -> free(mb)
+        }
     }
 }
+
+main()
 ```
 
 Note that in the `receive` clauses, the variable after `from` is a *binding*

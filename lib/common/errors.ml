@@ -69,7 +69,7 @@ let format_error = function
     | Constraint_solver_error { lhs; rhs } ->
         let msg =
             Printf.sprintf
-                "%s is not included in %s"
+                "%s is not supported by %s"
                 lhs rhs
         in
         Utility.print_error ~note:"CONSTRAINT SOLVING" msg
