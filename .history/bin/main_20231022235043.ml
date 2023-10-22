@@ -34,10 +34,7 @@ let process filename is_verbose is_debug is_ir mode benchmark_count () =
             |> Frontend.Pipeline.pipeline in
         let (_, _, ir_program, _, _, _) = temp in
         let _ = Generator.generate ir_program in
-        if is_ir then 
-            print_ir temp
-        else 
-            print_result temp;
+         (if is_ir then print_ir else print_result)
     with
         | e ->
             Errors.format_error e;

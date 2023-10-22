@@ -2,4 +2,4 @@
  (public_name mbcheck)
  (name main)
  (modes byte exe)
- (libraries common frontend cmdliner eval))
+ (libraries common frontend cmdliner))
