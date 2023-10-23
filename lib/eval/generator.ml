@@ -42,8 +42,8 @@ let eval_of_var env v =
 let rec execute (comp,env,stack) =
   print_config (comp,env,stack);
   match comp,env,stack with
-  | Return v,_,[] -> 
-       v; 
+  | Return v,env,[] -> 
+      eval_of_var env v
   
   | Annotate (term, _),env,stack ->
       execute (term,env,stack)
@@ -77,7 +77,7 @@ let generate program =
       (match find_decl func_name program.prog_decls with
       | Some func_decl ->
           let env = bind_args_paras args func_decl.decl_parameters in
-          execute (func_decl.decl_body, env, [])
+          execute (func_decl.decl_body, env, []) 
       | None -> failwith ("Function " ^ func_name ^ " not found in prog_decls"))
   | Some comp -> execute (comp, [], [])
   | _ -> failwith "prog_body does not reference a function to execute"

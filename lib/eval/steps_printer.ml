@@ -55,4 +55,4 @@ let print_config (comp, env, sigma) =
 let print_value v =
   print_pretty (Printf.sprintf "\n-------------------- Done ---------------------\n") 2;
   print_pretty (Printf.sprintf "Final Result:  ") 1;
-  Printf.printf "%s\n\n" (show_value v)
+  Printf.printf "%s\n" (show_value v)
