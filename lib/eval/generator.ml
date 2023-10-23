@@ -3,21 +3,25 @@ open Common_types
 open Steps_printer
 
 
-let eval_of_op op i1 i2 = 
-  match op with
-    | "+" -> i1 + i2
-    | "-" -> i1 - i2
-    | "*" -> i1 * i2
-    | "/" -> if i2 = 0 then failwith "Division by zero" else i1 / i2
-    | "==" -> if i1 = i2 then 1 else 0
-    | "<" -> if i1 < i2 then 1 else 0
-    | ">" -> if i1 > i2 then 1 else 0
-    | "<=" -> if i1 <= i2 then 1 else 0
-    | ">=" -> if i1 >= i2 then 1 else 0
-    | "!=" -> if i1 <> i2 then 1 else 0
-    | "&&" -> if i1 <> 0 && i2 <> 0 then 1 else 0
-    | "||" -> if i1 <> 0 || i2 <> 0 then 1 else 0
+let eval_of_op op v1 v2 = 
+  match v1, v2 with
+  | Constant(Int i1), Constant(Int i2) -> (
+    match op with
+    | "+" -> Int (i1 + i2)
+    | "-" -> Int (i1 - i2)
+    | "*" -> Int (i1 * i2)
+    | "/" -> if i2 = 0 then failwith "Division by zero" else Int (i1 / i2)
+    | "==" -> Bool (i1 == i2)
+    | "!=" -> Bool (i1 <> i2)
     | _ -> failwith ("Unsupported operation: " ^ op)
+  )
+  | Constant(Bool b1), Constant(Bool b2) -> (
+    match op with
+    | "&&" -> Bool (b1 && b2)
+    | "||" -> Bool (b1 || b2)
+    | _ -> failwith ("Unsupported operation: " ^ op)
+  )
+  | _ -> failwith "Mismatched types or unsupported operation"
 
 
 (* find the value in envirnment *)
@@ -25,25 +29,21 @@ let rec lookup env x =
   match env with
   | [] -> failwith "Variable not found"
   | (y, v) :: env' -> 
-    if Var.id x = Var.id y then
-      match v with
-      | Constant (Int i) -> i
-      | _ -> failwith "Expected integer value"
-    else 
-      lookup env' x
+    if Var.id x = Var.id y then v
+    else lookup env' x
+
 
 let eval_of_var env v = 
   match v with
-  | Variable (var_name,_) -> lookup env var_name
-  | Constant (Int i) -> i
-  | _ -> failwith "unexpected variable"
+  | Variable (var_name, _) -> lookup env var_name
+  | c -> c
 
 
 let rec execute (comp,env,stack) =
   print_config (comp,env,stack);
   match comp,env,stack with
   | Return v,_,[] -> 
-    print_value v; 
+       v; 
   
   | Annotate (term, _),env,stack ->
       execute (term,env,stack)
@@ -53,13 +53,13 @@ let rec execute (comp,env,stack) =
 
   | Return v,env,Frame (x, cont) :: stack ->
       let result = eval_of_var env v in
-      execute (cont,(Var.of_binder x, Constant(Int result)) :: env,stack)
+      execute (cont,(Var.of_binder x, result) :: env,stack)
 
   | App {func = Primitive op; args = [v1; v2]}, env, stack -> 
-      let i1 = eval_of_var env v1 in
-      let i2 = eval_of_var env v2 in
-      let result = eval_of_op op i1 i2 in
-      execute (Return (Constant (Int result)), env, stack)
+    let val1 = eval_of_var env v1 in
+    let val2 = eval_of_var env v2 in
+    let result = eval_of_op op val1 val2 in
+    execute (Return (Constant (result)), env, stack)
   
   | _ ->  failwith "Invalid configuration"
 
@@ -72,7 +72,7 @@ let bind_args_paras args params =
 let generate program =
   Printf.printf "Program: %s\n" (show_program program);
   match program.prog_body with
-  | Some (App {func = Variable (func_var, _); args}) ->
+  | Some (App { func = Variable (func_var, _); args }) ->
       let func_name = Var.name func_var in
       (match find_decl func_name program.prog_decls with
       | Some func_decl ->
@@ -81,7 +81,6 @@ let generate program =
       | None -> failwith ("Function " ^ func_name ^ " not found in prog_decls"))
   | Some comp -> execute (comp, [], [])
   | _ -> failwith "prog_body does not reference a function to execute"
-
 
 
   

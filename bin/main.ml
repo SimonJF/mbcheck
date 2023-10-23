@@ -24,6 +24,10 @@ let print_ir (prog, _prety, ir, _ty, _env, _constrs) =
         "=== Intermediate Representation: ===\n%a\n\n"
         (Ir.pp_program) ir
 
+
+let print_generated result =
+    Eval.Steps_printer.print_value result
+
 let process filename is_verbose is_debug is_ir mode benchmark_count () =
     Settings.(set verbose is_verbose);
     Settings.(set debug is_debug);
@@ -33,7 +37,8 @@ let process filename is_verbose is_debug is_ir mode benchmark_count () =
         let temp = Frontend.Parse.parse_file filename ()
             |> Frontend.Pipeline.pipeline in
         let (_, _, ir_program, _, _, _) = temp in
-        let _ = Generator.generate ir_program in
+        let result = Generator.generate ir_program in
+        print_generated result;
         if is_ir then 
             print_ir temp
         else 

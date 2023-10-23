@@ -14,8 +14,9 @@ let counter = ref 0
 let show_value v =
   match v with
   | Constant (Int i) -> Printf.sprintf "%d" i
+  | Constant (Bool b) -> Printf.sprintf "%b" b
   | Variable (x, _) -> Var.name x
-  | _ -> "Other value\n\n\n"
+  | _ -> "Other value\n"
 
 let name_or_id x = 
   let name = Var.name x in
@@ -54,7 +55,4 @@ let print_config (comp, env, sigma) =
 let print_value v =
   print_pretty (Printf.sprintf "\n-------------------- Done ---------------------\n") 2;
   print_pretty (Printf.sprintf "Final Result:  ") 1;
-  match v with
-  | Constant (Int i) -> Printf.printf "%d\n\n" i
-  | Variable (x, _) -> Printf.printf "%d\n\n" (Var.id x)
-  | _ -> Printf.printf "Other value"
+  Printf.printf "%s\n\n" (show_value v)
