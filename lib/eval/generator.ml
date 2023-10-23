@@ -52,30 +52,37 @@ let rec execute (comp,env,stack) =
       execute (term,env,(Frame (binder, cont)) :: stack)
 
   | Return v,env,Frame (x, cont) :: stack ->
-      execute (cont,(Var.of_binder x, v) :: env,stack)
+      let result = eval_of_var env v in
+      execute (cont,(Var.of_binder x, Constant(Int result)) :: env,stack)
 
   | App {func = Primitive op; args = [v1; v2]}, env, stack -> 
       let i1 = eval_of_var env v1 in
       let i2 = eval_of_var env v2 in
       let result = eval_of_op op i1 i2 in
       execute (Return (Constant (Int result)), env, stack)
-    
+  
   | _ ->  failwith "Invalid configuration"
 
-let find_decl_by_name name decls =
+let find_decl name decls =
   List.find_opt (fun decl -> Binder.name decl.decl_name = name) decls
+
+let bind_args_paras args params =
+  List.map2 (fun arg param -> (Var.of_binder (fst param), arg)) args params
 
 let generate program =
   Printf.printf "Program: %s\n" (show_program program);
   match program.prog_body with
-  | Some (App {func = Variable (main1, _); args = []}) ->
-      let main_name = Var.name main1 in
-      (match find_decl_by_name main_name program.prog_decls with
-      | Some main_decl -> execute (main_decl.decl_body, [],[])
-      | None -> failwith ("Function " ^ main_name ^ " not found in prog_decls"))
-  | Some comp -> execute (comp,[],[])
+  | Some (App {func = Variable (func_var, _); args}) ->
+      let func_name = Var.name func_var in
+      (match find_decl func_name program.prog_decls with
+      | Some func_decl ->
+          let env = bind_args_paras args func_decl.decl_parameters in
+          execute (func_decl.decl_body, env, [])
+      | None -> failwith ("Function " ^ func_name ^ " not found in prog_decls"))
+  | Some comp -> execute (comp, [], [])
   | _ -> failwith "prog_body does not reference a function to execute"
-      
+
+
 
   
 
