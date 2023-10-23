@@ -22,14 +22,13 @@ let rec subst v x cont =
 
 
 let rec execute (comp,sigma) =
-
-  Printf.printf "------------------------------------------\n";
   print_config (comp,sigma);
   match comp,sigma with
   | Return v,[] -> 
-    Printf.printf "\n\nFinal Result: ";
     print_value v; 
-    Printf.printf "\n\n\n";
+  
+  | Annotate (term, _), sigma ->
+      execute (term,sigma)
 
   | Let {binder; term; cont},sigma ->
       execute (term,(Frame (binder, cont)) :: sigma)
@@ -49,13 +48,26 @@ let rec execute (comp,sigma) =
     
   | _ ->  failwith "Invalid configuration"
 
+(* let rec execute_all_decls decls =
+  match decls with
+  | [] -> ()
+  | decl :: rest ->
+      execute (decl.decl_body, []);
+      execute_all_decls rest *)
+
+let find_decl_by_name name decls =
+  List.find_opt (fun decl -> Binder.name decl.decl_name = name) decls
+
 let generate program =
   Printf.printf "Program: %s\n" (show_program program);
   match program.prog_body with
-  | Some comp -> 
-      execute (comp, [])
-  | None -> 
-      failwith "prog_body is empty" 
+  | Some (App {func = Variable (main1, _); args = []}) ->
+      let main_name = Var.name main1 in
+      (match find_decl_by_name main_name program.prog_decls with
+      | Some main_decl -> execute (main_decl.decl_body, [])
+      | None -> failwith ("Function " ^ main_name ^ " not found in prog_decls"))
+  | _ -> failwith "prog_body does not reference a function to execute"
+      
 
   
 
