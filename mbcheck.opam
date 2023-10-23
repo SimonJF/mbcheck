@@ -15,6 +15,7 @@ depends: [
   "z3"
   "menhir"
   "bag"
+  "ANSITerminal"
   "odoc" {with-doc}
 ]
 build: [
