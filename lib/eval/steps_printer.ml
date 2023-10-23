@@ -16,6 +16,13 @@ let show_value v =
   | Constant (Int i) -> Printf.sprintf "%d" i
   | Variable (x, _) -> Var.name x
   | _ -> "Other value\n\n\n"
+
+(* Convert a env to its string representation. *)
+let show_env env =
+  let bindings = List.map (fun (x, v) -> Printf.sprintf "%s -> %s" (Var.name x) (show_value v)) env in
+  "[" ^ (String.concat "; " bindings) ^ "]"
+
+(* Convert a comp to its string representation. *)
   
 (* Convert a frame to its string representation. *)
 let show_frame (Frame (binder, comp)) =
@@ -29,11 +36,13 @@ let show_frame_stack sigma =
 
 
 (* Print the current configuration. *)
-let print_config (comp, sigma) =
+let print_config (comp, env, sigma) =
   counter := !counter + 1; 
   print_pretty (Printf.sprintf "\n------------------- step %d --------------------\n" !counter) 2;
   print_pretty (Printf.sprintf "Comp: ") 3;
   Printf.printf "%s\n\n" (show_comp comp);
+  print_pretty (Printf.sprintf "Env: ") 3;
+  Printf.printf "%s\n\n" (show_env env);
   print_pretty (Printf.sprintf "Frame Stack: ") 3;
   Printf.printf "%s\n" (show_frame_stack sigma)
 

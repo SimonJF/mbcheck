@@ -17,3 +17,4 @@ mbcheck
 *.tmp
 *.DS_Store
 /.history
+/.idea
