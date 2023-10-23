@@ -17,9 +17,13 @@ let show_value v =
   | Variable (x, _) -> Var.name x
   | _ -> "Other value\n\n\n"
 
-(* Convert a env to its string representation. *)
+let name_or_id x = 
+  let name = Var.name x in
+  let id = string_of_int (Var.id x) in
+  if name = "" then "temp_" ^ id else name ^ id
+
 let show_env env =
-  let bindings = List.map (fun (x, v) -> Printf.sprintf "%s -> %s" (Var.name x) (show_value v)) env in
+  let bindings = List.map (fun (x, v) -> Printf.sprintf "%s -> %s" (name_or_id x) (show_value v)) env in
   "[" ^ (String.concat "; " bindings) ^ "]"
 
 (* Convert a comp to its string representation. *)
