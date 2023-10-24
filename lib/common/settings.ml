@@ -10,6 +10,7 @@ end
 
 let verbose = ref false
 let debug = ref false
+let reduc_steps = ref false
 let benchmark = ref (-1)
 let receive_typing_strategy = ref ReceiveTypingStrategy.Interface
 
@@ -23,3 +24,7 @@ let if_verbose f =
 
 let if_debug f =
     if get debug then f () else ()
+
+let if_reduc_steps f =
+    if get reduc_steps then f () else ()
+    

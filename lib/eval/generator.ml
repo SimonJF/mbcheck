@@ -3,6 +3,8 @@ open Common_types
 open Steps_printer
 
 
+let steps_buffer = Buffer.create 1024
+
 let find_decl name decls =
   List.find_opt (fun decl -> Binder.name decl.decl_name = name) decls
 
@@ -48,8 +50,8 @@ let eval_of_op op v1 v2 =
   | _ -> failwith "Mismatched types or unsupported operation"
 
 
-let rec execute (program, comp,env,stack) =
-  print_config (comp,env,stack);
+let rec execute (program,comp,env,stack) =
+  Buffer.add_string steps_buffer (print_config (comp,env,stack));
   match comp,env,stack with
   | Return v,env,[] -> 
       eval_of_var env v
@@ -74,9 +76,17 @@ let rec execute (program, comp,env,stack) =
           let new_env = bind_args_paras args parameters @ env in
           execute (program, body, new_env, stack)
       | Primitive op -> 
-          let val1 = eval_of_var env (List.hd args) in
-          let val2 = eval_of_var env (List.hd (List.tl args)) in
-          execute (program, Return (Constant (eval_of_op op val1 val2)), env, stack)
+          (match op with
+          | "print" ->
+              let arg = List.hd args in
+              let value_to_print = eval_of_var env arg in
+              Printf.printf "%s\n" (show_value value_to_print);
+              execute (program, Return (Constant (Unit)), env, stack)
+          | _ ->
+              let val1 = eval_of_var env (List.hd args) in
+              let val2 = eval_of_var env (List.hd (List.tl args)) in
+              execute (program, Return (Constant (eval_of_op op val1 val2)), env, stack)
+          )
       | Variable (func_var, _) ->
         let func_name = Var.name func_var in
         (match find_decl func_name program.prog_decls with
@@ -93,12 +103,18 @@ let rec execute (program, comp,env,stack) =
       | Constant (Bool true) -> execute (program, then_expr, env, stack)
       | Constant (Bool false) -> execute (program, else_expr, env, stack)
       | _ -> failwith "Expected boolean value in if expression")
+  
+  (* | Case {term; branch1; branch2} *)
+  (* | New s ,env,stack -> *)
+  (* | Spawn comp *)
+  (* | Send {target; message;iname;},env,stack -> *)
+  (* | Guard {target; pattern; guards; iname} -> *)
 
   | _ ->  failwith "Invalid configuration"
 
 
 let generate program =
-  Printf.printf "Program: %s\n" (show_program program);
+  Buffer.add_string steps_buffer(Printf.sprintf "\n=== Reduction steps: ===\n\nProgram: %s\n" (show_program program); );
   match program.prog_body with
   | Some (App { func = Variable (func_var, _); args }) ->
       let func_name = Var.name func_var in
@@ -108,7 +124,7 @@ let generate program =
           execute (program, func_decl.decl_body, env, []) 
       | None -> failwith ("Function " ^ func_name ^ " not found in prog_decls"))
   | Some comp -> execute (program,comp, [], [])
-  | _ -> failwith "prog_body does not reference a function to execute"
+  | _ -> Constant (String "")
 
 
 

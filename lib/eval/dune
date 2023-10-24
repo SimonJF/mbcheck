@@ -1,6 +1,6 @@
 (library (name eval)
  (public_name mbcheck.generator)
- (libraries common util bag z3 ANSITerminal)
+ (libraries common util bag z3)
  (modules :standard)
 ;(rule
 ;(targets parser.mli parser.ml)

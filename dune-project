@@ -20,5 +20,4 @@
   z3
   menhir
   bag
-  ANSITerminal
 ))

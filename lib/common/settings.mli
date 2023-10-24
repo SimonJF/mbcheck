@@ -8,6 +8,7 @@ end
 
 val verbose : bool setting
 val debug : bool setting
+val reduc_steps : bool setting
 val benchmark : int setting
 val receive_typing_strategy : ReceiveTypingStrategy.t setting
 
@@ -16,3 +17,4 @@ val get : 'a setting -> 'a
 
 val if_verbose : (unit -> unit) -> unit
 val if_debug : (unit -> unit) -> unit
+val if_reduc_steps : (unit -> unit) -> unit
