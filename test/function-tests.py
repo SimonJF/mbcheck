@@ -39,10 +39,18 @@ class TestMbcheck(unittest.TestCase):
             ("let x = 13 in let y = 14 in x / y", "0"),
             ("let x = 15 in let y = 15 in x == y", "true"),
             ("let x = 16 in let y = 17 in x != y", "true"),
+            ("(fun (x: Int): Int { x + 1 })(5)","6"),
+            ("(fun (x: Int, y: Int): Int { x + y })(5,6)","11"),
             ("def main(): Int {let x: Int = 5 in x + x} main()", "10"),
             ("def main(): Int {let x: Int = let y = 5 in y in x + x} main()", "10"),
             ("def main(x: Int, y: Int):Int {x + y} main(10, 15)","25"),
-            ("def main(x: Int, y: Int):Int {let z = 9 in x + y + z } main(10, 15)","34")]
+            ("def main(x: Int, y: Int):Int {let z = 9 in x + y + z } main(10, 15)","34"),
+            ("def main(): Int {let x  = 18 in if(x <= 19) { x + 20 } else { x - 21}} main()","38"),
+            ("def main(): Int {let x  = 22 in if(x >= 23) { x + 24  } else { let y = 22 + x in x + y}} main()","66"),
+            ("def main(): Int {let x = (fun (z: Int, y: Int): Int { z + y })(5,6) in x + 10} main()", "21"),
+            ("def main(): Int {let x = (fun (z: Int, y: Int): Int { z + y })(5,6) in if(x == 19) { x + 20 } else { x - 21}} main()", "-10"),
+            
+            ]
     
         for program_str, expected_output in test_cases:
             with self.subTest(program_str=program_str):
