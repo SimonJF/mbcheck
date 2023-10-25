@@ -23,6 +23,10 @@ let eval_of_var env v =
   | Variable (var_name, _) -> lookup env var_name
   | c -> c
 
+let eval_args args env =
+  List.map (fun arg -> eval_of_var env arg) args
+  
+
 let eval_of_op op v1 v2 = 
   match v1, v2 with
   | Constant(Int i1), Constant(Int i2) -> (
@@ -76,23 +80,45 @@ let rec execute (program,comp,env,stack) =
       | Primitive op -> 
           (match op with
           | "print" ->
-              let arg = List.hd args in
-              let value_to_print = eval_of_var env arg in
+              let value_to_print = List.hd (eval_args args env) in
               Buffer.add_string result_buffer (show_value value_to_print);
               execute (program, Return (Constant (Unit)), env, stack)
           | "intToString" ->
-            let arg = List.hd args in
-            let value_to_convert = eval_of_var env arg in
-              (match value_to_convert with
+            let value_to_print = List.hd (eval_args args env) in
+              (match value_to_print with
                 | Constant (Int i) ->
                     let converted_string = string_of_int i in
                     execute (program, Return (Constant (String converted_string)), env, stack)
                 | _ -> failwith_and_print_buffer "Expected integer argument for intToString primitive")
-            
+          | "rand" ->
+            let value_to_convert =List.hd (eval_args args env) in
+            let _ = Random.self_init () in
+              (match value_to_convert with
+                | Constant (Int i) ->
+                    let random_int = Random.int i in
+                    execute (program, Return (Constant (Int random_int)), env, stack)
+                | _ -> failwith_and_print_buffer "Expected integer argument for rand primitive")
+          | "sleep" ->
+            let value_to_convert =List.hd (eval_args args env) in
+              (match value_to_convert with
+                | Constant (Int i) ->
+                    let _ = Unix.sleep i in
+                    execute (program, Return (Constant (Unit)), env, stack)
+                | _ -> failwith_and_print_buffer "Expected integer argument for sleep primitive")
+          | "concat" ->
+            let list = eval_args args env in
+            let value1 = List.hd list in
+            let value2 = List.hd (List.tl list) in
+              (match value1, value2 with
+                | Constant (String s1), Constant (String s2) ->
+                    let concatenated_string = s1 ^ s2 in
+                    execute (program, Return (Constant (String concatenated_string)), env, stack)
+                | _ -> failwith_and_print_buffer "Expected string arguments for concat primitive")
           | _ ->
-              let val1 = eval_of_var env (List.hd args) in
-              let val2 = eval_of_var env (List.hd (List.tl args)) in
-              execute (program, Return (Constant (eval_of_op op val1 val2)), env, stack)
+            let list = eval_args args env in
+            let value1 = List.hd list in
+            let value2 = List.hd (List.tl list) in
+              execute (program, Return (Constant (eval_of_op op value1 value2)), env, stack)
           )
       | Variable (func_var, _) ->
         let func_name = Var.name func_var in
