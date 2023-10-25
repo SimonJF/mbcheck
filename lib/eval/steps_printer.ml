@@ -3,13 +3,27 @@ open Common_types
 
 let counter = ref 0
 
+let steps_buffer = Buffer.create 1024
+let result_buffer = Buffer.create 1024
+
+let steps_buffer_print () = 
+  Printf.printf "%s\n\n" (Buffer.contents steps_buffer)
+
+let result_buffer_print () = 
+  Printf.printf "%s\n\n" (Buffer.contents result_buffer)
+
+let failwith_and_print_buffer msg =
+  steps_buffer_print (); 
+  result_buffer_print ();
+  failwith msg
+  
 (* Convert a value to its string representation. *)
 let show_value v =
   match v with
-  | Constant (Int i) -> Printf.sprintf "%d\n" i
-  | Constant (Bool b) -> Printf.sprintf "%b\n" b
-  | Constant (String s) -> Printf.sprintf "%s\n" s
-  | Constant (Unit) -> Printf.sprintf "()\n"
+  | Constant (Int i) -> Printf.sprintf "%d" i
+  | Constant (Bool b) -> Printf.sprintf "%b" b
+  | Constant (String s) -> Printf.sprintf "%s" s
+  | Constant (Unit) -> Printf.sprintf "()"
   | Variable (x, _) -> Var.name x
   | _ -> "Other value\n"
 

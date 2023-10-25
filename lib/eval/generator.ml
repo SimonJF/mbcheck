@@ -3,8 +3,6 @@ open Common_types
 open Steps_printer
 
 
-let steps_buffer = Buffer.create 1024
-
 let find_decl name decls =
   List.find_opt (fun decl -> Binder.name decl.decl_name = name) decls
 
@@ -14,7 +12,7 @@ let bind_args_paras args params =
 (* find the value in envirnment *)
 let rec lookup env x =
   match env with
-  | [] -> failwith "Variable not found"
+  | [] -> failwith_and_print_buffer "Variable not found"
   | (y, v) :: env' -> 
     if Var.id x = Var.id y then v
     else lookup env' x
@@ -32,22 +30,22 @@ let eval_of_op op v1 v2 =
     | "+" -> Int (i1 + i2)
     | "-" -> Int (i1 - i2)
     | "*" -> Int (i1 * i2)
-    | "/" -> if i2 = 0 then failwith "Division by zero" else Int (i1 / i2)
+    | "/" -> if i2 = 0 then failwith_and_print_buffer "Division by zero" else Int (i1 / i2)
     | "==" -> Bool (i1 == i2)
     | "!=" -> Bool (i1 <> i2)
     | "<" -> Bool (i1 < i2)
     | "<=" -> Bool (i1 <= i2)
     | ">" -> Bool (i1 > i2)
     | ">=" -> Bool (i1 >= i2)
-    | _ -> failwith ("Unsupported operation: " ^ op)
+    | _ -> failwith_and_print_buffer ("Unsupported operation: " ^ op)
   )
   | Constant(Bool b1), Constant(Bool b2) -> (
     match op with
     | "&&" -> Bool (b1 && b2)
     | "||" -> Bool (b1 || b2)
-    | _ -> failwith ("Unsupported operation: " ^ op)
+    | _ -> failwith_and_print_buffer ("Unsupported operation: " ^ op)
   )
-  | _ -> failwith "Mismatched types or unsupported operation"
+  | _ -> failwith_and_print_buffer "Mismatched types or unsupported operation"
 
 
 let rec execute (program,comp,env,stack) =
@@ -80,8 +78,17 @@ let rec execute (program,comp,env,stack) =
           | "print" ->
               let arg = List.hd args in
               let value_to_print = eval_of_var env arg in
-              Printf.printf "%s\n" (show_value value_to_print);
+              Buffer.add_string result_buffer (show_value value_to_print);
               execute (program, Return (Constant (Unit)), env, stack)
+          | "intToString" ->
+            let arg = List.hd args in
+            let value_to_convert = eval_of_var env arg in
+              (match value_to_convert with
+                | Constant (Int i) ->
+                    let converted_string = string_of_int i in
+                    execute (program, Return (Constant (String converted_string)), env, stack)
+                | _ -> failwith_and_print_buffer "Expected integer argument for intToString primitive")
+            
           | _ ->
               let val1 = eval_of_var env (List.hd args) in
               let val2 = eval_of_var env (List.hd (List.tl args)) in
@@ -94,15 +101,15 @@ let rec execute (program,comp,env,stack) =
             let env' = bind_args_paras (List.map (fun arg -> eval_of_var env arg) args) func_decl.decl_parameters in
             let result = execute (program,func_decl.decl_body, env', []) in
             execute (program, Return result, env, stack)
-        | None -> failwith ("Function " ^ func_name ^ " not found in prog_decls"))
-        | _ -> failwith "Unhandled function expression in App")
+        | None -> failwith_and_print_buffer ("Function " ^ func_name ^ " not found in prog_decls"))
+        | _ -> failwith_and_print_buffer "Unhandled function expression in App")
 
   | If {test; then_expr; else_expr}, env, stack -> 
       let test_value = eval_of_var env test in
       (match test_value with
       | Constant (Bool true) -> execute (program, then_expr, env, stack)
       | Constant (Bool false) -> execute (program, else_expr, env, stack)
-      | _ -> failwith "Expected boolean value in if expression")
+      | _ -> failwith_and_print_buffer "Expected boolean value in if expression")
   
   (* | Case {term; branch1; branch2} *)
   (* | New s ,env,stack -> *)
@@ -110,7 +117,7 @@ let rec execute (program,comp,env,stack) =
   (* | Send {target; message;iname;},env,stack -> *)
   (* | Guard {target; pattern; guards; iname} -> *)
 
-  | _ ->  failwith "Invalid configuration"
+  | _ ->  failwith_and_print_buffer "Invalid configuration"
 
 
 let generate program =
@@ -122,7 +129,7 @@ let generate program =
       | Some func_decl ->
           let env = bind_args_paras args func_decl.decl_parameters in
           execute (program, func_decl.decl_body, env, []) 
-      | None -> failwith ("Function " ^ func_name ^ " not found in prog_decls"))
+      | None -> failwith_and_print_buffer ("Function " ^ func_name ^ " not found in prog_decls"))
   | Some comp -> execute (program,comp, [], [])
   | _ -> Constant (String "")
 
