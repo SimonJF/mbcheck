@@ -25,7 +25,7 @@ let show_value v =
   | Constant (String s) -> Printf.sprintf "%s" s
   | Constant (Unit) -> Printf.sprintf "()"
   | Variable (x, _) -> Var.name x
-  | _ -> "Other value\n"
+  | _ -> "Other value"
 
 let name_or_id x = 
   let name = Var.name x in

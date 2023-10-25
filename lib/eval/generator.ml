@@ -51,7 +51,6 @@ let eval_of_op op v1 v2 =
   )
   | _ -> failwith_and_print_buffer "Mismatched types or unsupported operation"
 
-
 let rec execute (program,comp,env,stack) =
   Buffer.add_string steps_buffer (print_config (comp,env,stack));
   match comp,env,stack with
@@ -68,10 +67,15 @@ let rec execute (program,comp,env,stack) =
       let _ = execute (program, comp1,env,stack) in
       execute (program, comp2, env, stack)
 
-  | Return v,env,Frame (x, cont) :: stack ->
-      let result = eval_of_var env v in
-      execute (program, cont,(Var.of_binder x, result) :: env,stack)
-
+  | Return v, env, Frame (x, cont) :: stack ->
+    (match v with
+    | Inl value -> execute (program, (Return value), env, Frame (x, cont) :: stack)
+    | Inr value -> execute (program, (Return value), env, Frame (x, cont) :: stack)
+    | _ ->
+        let result = eval_of_var env v in
+        execute (program, cont, (Var.of_binder x, result) :: env, stack)
+    )
+    
   | App {func; args}, env, stack -> 
       (match func with
       | Lam {parameters; body; _} -> 
