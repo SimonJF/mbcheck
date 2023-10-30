@@ -1,22 +1,27 @@
 open Common.Ir
 open Common_types
 open Steps_printer
-
+open Common.Interface
 
 let find_decl name decls =
   List.find_opt (fun decl -> Binder.name decl.decl_name = name) decls
 
+
 let bind_args_paras args params =
-  List.map2 (fun arg param -> (Var.of_binder (fst param), arg)) args params
+  List.map2 (fun arg param -> ValueEntry (fst param, arg)) args params
+  
 
 (* find the value in envirnment *)
 let rec lookup env x =
   match env with
   | [] -> failwith_and_print_buffer "Variable not found"
-  | (y, v) :: env' -> 
-    if Var.id x = Var.id y then v
-    else lookup env' x
-
+  | entry :: env' ->
+    match entry with
+    | ValueEntry (y, v) ->
+      if Var.id x = Var.id (Var.of_binder y) then v
+      else lookup env' x
+    | InterfaceEntry _ -> lookup env' x  (* Skip interface entries *)
+    
 
 let eval_of_var env v = 
   match v with
@@ -51,6 +56,7 @@ let eval_of_op op v1 v2 =
   )
   | _ -> failwith_and_print_buffer "Mismatched types or unsupported operation"
 
+
 let rec execute (program,comp,env,stack) =
   Buffer.add_string steps_buffer (print_config (comp,env,stack));
   match comp,env,stack with
@@ -66,7 +72,7 @@ let rec execute (program,comp,env,stack) =
   | LetPair {binders = (binder1, binder2); pair; cont}, env, stack ->
     (match eval_of_var env pair with
     | Pair (v1, v2) ->
-        let env' = (Var.of_binder binder1, v1) :: (Var.of_binder binder2, v2) :: env in
+        let env' = ValueEntry (binder1, v1) :: ValueEntry ( binder2, v2) :: env in
         execute (program, cont, env', stack)
     | _ -> failwith_and_print_buffer "Expected a pair in LetPair")
     
@@ -76,7 +82,7 @@ let rec execute (program,comp,env,stack) =
 
   | Return v, env, Frame (x, cont) :: stack ->
       let result = eval_of_var env v in
-      execute (program, cont, (Var.of_binder x, result) :: env, stack)
+      execute (program, cont, ValueEntry ( x, result) :: env, stack) 
     
   | App {func; args}, env, stack -> 
       (match func with
@@ -147,15 +153,23 @@ let rec execute (program,comp,env,stack) =
     let term_value = eval_of_var env term in
     (match term_value with
     | Inl value ->
-        let env' = (Var.of_binder binder1, value) :: env in
+        let env' = ValueEntry ( binder1, value) :: env in
         execute (program, comp1, env', stack)
     | Inr value ->
-        let env' = (Var.of_binder binder2, value) :: env in
+        let env' = ValueEntry ( binder2, value) :: env in
         execute (program, comp2, env', stack)
     | _ -> failwith_and_print_buffer "Expected Inl or Inr value in Case expression")
+
+  | New interface_name, env, Frame (x, cont) :: stack ->
+    (match List.find_opt (fun iface -> name iface = interface_name) program.prog_interfaces with
+    | Some interface_def -> 
+        let env' = InterfaceEntry (x, interface_def) :: env in
+        execute (program, cont, env', stack)
+    | None -> failwith_and_print_buffer ("Interface " ^ interface_name ^ " not found"))
+  
+  
     
-    
-  (* | New s ,env,stack -> *)
+
   (* | Spawn comp *)
   (* | Send {target; message;iname;},env,stack -> *)
   (* | Guard {target; pattern; guards; iname} -> *)
@@ -164,7 +178,7 @@ let rec execute (program,comp,env,stack) =
 
 
 let generate program =
-  Buffer.add_string steps_buffer(Printf.sprintf "\n=== Reduction steps: ===\n\nProgram: %s\n" (show_program program); );
+  Buffer.add_string steps_buffer(Printf.sprintf "\n=== Reduction steps: ===\n\nProgram: %s\n" (show_program program));
   match program.prog_body with
   | Some (App { func = Variable (func_var, _); args }) ->
       let func_name = Var.name func_var in
@@ -173,8 +187,9 @@ let generate program =
           let env = bind_args_paras args func_decl.decl_parameters in
           execute (program, func_decl.decl_body, env, []) 
       | None -> failwith_and_print_buffer ("Function " ^ func_name ^ " not found in prog_decls"))
-  | Some comp -> execute (program,comp, [], [])
+  | Some comp -> execute (program, comp, [], [])
   | _ -> Constant (String "")
+
 
 
 

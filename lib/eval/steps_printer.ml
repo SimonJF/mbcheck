@@ -1,5 +1,6 @@
 open Common.Ir
 open Common_types
+open Common.Interface
 
 let counter = ref 0
 
@@ -35,9 +36,18 @@ let name_or_id x =
   let id = string_of_int (Var.id x) in
   if name = "" then "temp_" ^ id else name ^ id
 
+let show_env_entry entry =
+  match entry with
+  | ValueEntry (binder, value) -> Printf.sprintf "%s -> %s" (Binder.name binder) (show_value value)
+  | InterfaceEntry (binder, iface) ->
+      let iface_str = Format.asprintf "%a" pp iface in
+      Printf.sprintf "%s -> %s" (Binder.name binder) iface_str
+  
+
 let show_env env =
-  let bindings = List.map (fun (x, v) -> Printf.sprintf "%s -> %s" (name_or_id x) (show_value v)) env in
-  "[" ^ (String.concat "; " bindings) ^ "]"
+  let entries = List.map show_env_entry env in
+  "[" ^ (String.concat "; " entries) ^ "]"
+  
 
 (* Convert a comp to its string representation. *)
   
