@@ -62,19 +62,21 @@ let rec execute (program,comp,env,stack) =
 
   | Let {binder; term; cont},env,stack ->
       execute (program, term,env,(Frame (binder, cont)) :: stack)
+
+  | LetPair {binders = (binder1, binder2); pair; cont}, env, stack ->
+    (match eval_of_var env pair with
+    | Pair (v1, v2) ->
+        let env' = (Var.of_binder binder1, v1) :: (Var.of_binder binder2, v2) :: env in
+        execute (program, cont, env', stack)
+    | _ -> failwith_and_print_buffer "Expected a pair in LetPair")
     
   | Seq (comp1, comp2),env,stack ->
       let _ = execute (program, comp1,env,stack) in
       execute (program, comp2, env, stack)
 
   | Return v, env, Frame (x, cont) :: stack ->
-    (match v with
-    | Inl value -> execute (program, (Return value), env, Frame (x, cont) :: stack)
-    | Inr value -> execute (program, (Return value), env, Frame (x, cont) :: stack)
-    | _ ->
-        let result = eval_of_var env v in
-        execute (program, cont, (Var.of_binder x, result) :: env, stack)
-    )
+      let result = eval_of_var env v in
+      execute (program, cont, (Var.of_binder x, result) :: env, stack)
     
   | App {func; args}, env, stack -> 
       (match func with
@@ -140,8 +142,19 @@ let rec execute (program,comp,env,stack) =
       | Constant (Bool true) -> execute (program, then_expr, env, stack)
       | Constant (Bool false) -> execute (program, else_expr, env, stack)
       | _ -> failwith_and_print_buffer "Expected boolean value in if expression")
-  
-  (* | Case {term; branch1; branch2} *)
+
+  | Case {term; branch1 = (binder1, _), comp1; branch2 = (binder2, _), comp2}, env, stack ->
+    let term_value = eval_of_var env term in
+    (match term_value with
+    | Inl value ->
+        let env' = (Var.of_binder binder1, value) :: env in
+        execute (program, comp1, env', stack)
+    | Inr value ->
+        let env' = (Var.of_binder binder2, value) :: env in
+        execute (program, comp2, env', stack)
+    | _ -> failwith_and_print_buffer "Expected Inl or Inr value in Case expression")
+    
+    
   (* | New s ,env,stack -> *)
   (* | Spawn comp *)
   (* | Send {target; message;iname;},env,stack -> *)

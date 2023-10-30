@@ -24,7 +24,10 @@ let show_value v =
   | Constant (Bool b) -> Printf.sprintf "%b" b
   | Constant (String s) -> Printf.sprintf "%s" s
   | Constant (Unit) -> Printf.sprintf "()"
+  | Inl v -> Printf.sprintf "Inl %s" (show_value v)
+  | Inr _ -> Printf.sprintf "Inr %s" (show_value v)
   | Variable (x, _) -> Var.name x
+  | Pair (v1, v2) -> Printf.sprintf "(%s, %s)" (show_value v1) (show_value v2)
   | _ -> "Other value"
 
 let name_or_id x = 
