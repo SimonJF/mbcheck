@@ -61,11 +61,12 @@ let show_frame_stack sigma =
   "[" ^ (String.concat "; " frames) ^ "]"
 
 (* Print the current configuration. *)
-let print_config (comp, env, sigma) =
+let print_config (comp, env, sigma, steps) =
   counter := !counter + 1;
   let step_str = Printf.sprintf "\n------------------- step %d --------------------\n" !counter in
+  let steps_str = Printf.sprintf "Steps: %d\n\n" steps in
   let comp_str = Printf.sprintf "Comp: %s\n\n" (show_comp comp) in
   let env_str = Printf.sprintf "Env: %s\n\n" (show_env env) in
   let frame_stack_str = Printf.sprintf "Frame Stack: %s\n" (show_frame_stack sigma) in
-  step_str ^ comp_str ^ env_str ^ frame_stack_str
+  step_str ^ steps_str ^ comp_str ^ env_str ^ frame_stack_str
 
