@@ -41,6 +41,7 @@ let process filename is_verbose is_debug is_ir is_reduct_steps mode benchmark_co
             print_result temp;
         if is_reduct_steps then 
             Eval.Steps_printer.steps_buffer_print ();
+        Eval.Steps_printer.process_buffer_print ();
         Eval.Steps_printer.result_buffer_print ();
     with
         | e ->
