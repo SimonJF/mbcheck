@@ -14,9 +14,16 @@ let steps_buffer_print () =
   Printf.printf "%s\n\n" (Buffer.contents steps_buffer)
 
 let process_buffer_print () =
-  Hashtbl.iter (fun pid steps ->
-    Printf.printf "Total steps of PID %d: %d\n" pid steps
-  ) step_counts
+  let sorted_steps = 
+    Hashtbl.fold (fun pid steps acc -> (pid, steps) :: acc) step_counts [] 
+    |> List.sort (fun (pid1, _) (pid2, _) -> compare pid1 pid2)
+  in
+  List.iter (fun (pid, steps) ->
+    let pid_str = if pid = 1 then "Main" else string_of_int pid in
+    Printf.printf "Total steps of PID %s: %d\n" pid_str steps
+  ) sorted_steps
+  
+  
 
 let result_buffer_print () = 
   Printf.printf "\n%s\n\n" (Buffer.contents result_buffer)
@@ -37,7 +44,7 @@ let show_value v =
   | Constant (Unit) -> Printf.sprintf "()"
   | Inl v -> Printf.sprintf "Inl %s" (show_value v)
   | Inr _ -> Printf.sprintf "Inr %s" (show_value v)
-  | Variable (x, _) -> Var.name x
+  | Variable (x, _) -> Var.name x 
   | Pair (v1, v2) -> Printf.sprintf "(%s, %s)" (show_value v1) (show_value v2)
   | _ -> "Other value"
 
@@ -58,8 +65,6 @@ let show_env env =
   let entries = List.map show_env_entry env in
   "[" ^ (String.concat "; " entries) ^ "]"
   
-
-(* Convert a comp to its string representation. *)
   
 (* Convert a frame to its string representation. *)
 let show_frame (Frame (binder, comp)) =
@@ -74,7 +79,8 @@ let show_frame_stack stack =
 let print_config (comp, env, stack, steps, pid) =
   counter := !counter + 1;
   let step_str = Printf.sprintf "\n------------------- total step %d --------------------\n" !counter in
-  let steps_str = Printf.sprintf "PID: %d Steps: %d\n\n" pid steps in
+  let pid_str = if pid = 1 then "Main" else string_of_int pid in
+  let steps_str = Printf.sprintf "PID: %s Steps: %d\n\n" pid_str steps in
   let comp_str = Printf.sprintf "Comp: %s\n\n" (show_comp comp) in
   let env_str = Printf.sprintf "Env: %s\n\n" (show_env env) in
   let frame_stack_str = Printf.sprintf "Frame Stack: %s\n" (show_frame_stack stack) in

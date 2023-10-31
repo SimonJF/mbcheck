@@ -3,7 +3,14 @@ open Common_types
 open Steps_printer
 open Common.Interface
 
-let step_limit = 2
+let step_limit = 3
+
+let global_pid_counter = ref 1
+
+let generate_new_pid () =
+  let pid = !global_pid_counter in
+  global_pid_counter := !global_pid_counter + 1;
+  pid
 
 let find_decl name decls =
   List.find_opt (fun decl -> Binder.name decl.decl_name = name) decls
@@ -88,7 +95,7 @@ let rec execute (program,pid,steps,comp,env,stack) =
       let (status, (_,_,steps',_,_,_)) = execute (program,pid, steps+1,comp1, env, stack) in
       (match status with
       | Finished | Unfinished ->
-          (status, (program,pid,steps'+1,comp2, env, stack))
+          (execute (program,pid, steps', comp2, env, stack))
       | Spawned _ ->
           (status, (program,pid,steps+1,comp2, env, stack)))
 
@@ -180,7 +187,7 @@ let rec execute (program,pid,steps,comp,env,stack) =
       | None -> failwith_and_print_buffer ("Interface " ^ interface_name ^ " not found"))
     
     | Spawn comp, env, stack ->
-      let new_process = (program,pid+1, 0, comp, env, stack) in
+      let new_process = (program,generate_new_pid (), 0, comp, env, stack) in
         (Spawned new_process, (program, pid , steps+1, Return (Constant Unit), env, stack))
     
 
@@ -206,7 +213,7 @@ let rec process_scheduling processes max_steps =
         let (execution_status, updated_process) = execute (prog, pid, 0, comp, env, stack) in
         match execution_status with
         | Finished -> 
-            Buffer.add_string steps_buffer (Printf.sprintf "\n******** Process %d Finished ********\n" pid);
+            Buffer.add_string steps_buffer (Printf.sprintf "\n******** Process %d Finished \u{221A} ********\n" pid);
             process_scheduling rest max_steps
         | Unfinished -> process_scheduling (rest @ [updated_process]) max_steps
         | Spawned new_process -> 
@@ -215,7 +222,7 @@ let rec process_scheduling processes max_steps =
 
 
 let generate program =
-  Buffer.add_string steps_buffer (Printf.sprintf "\n=== Reduction steps: ===\n\nProgram: %s\n" (show_program program));
+  (* Buffer.add_string steps_buffer (Printf.sprintf "\n=== Reduction steps: ===\n\nProgram: %s\n" (show_program program)); *)
   let initial_process =
     match program.prog_body with
     | Some (App { func = Variable (func_var, _); args }) ->
@@ -223,10 +230,10 @@ let generate program =
         (match find_decl func_name program.prog_decls with
         | Some func_decl ->
             let env = bind_args_paras args func_decl.decl_parameters in
-            (program, 1 , 0, func_decl.decl_body, env, [])
+            (program, generate_new_pid (), 0, func_decl.decl_body, env, [])
         | None -> failwith_and_print_buffer ("Function " ^ func_name ^ " not found in prog_decls"))
-    | Some comp -> (program,1,0, comp, [], [])
-    | _ -> (program,1 , 0, Return (Constant Unit), [], [])
+    | Some comp -> (program,generate_new_pid (),0, comp, [], [])
+    | _ -> (program,generate_new_pid () , 0, Return (Constant Unit), [], [])
   in
   process_scheduling [initial_process] step_limit
 
