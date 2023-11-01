@@ -517,7 +517,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                             Constraint_set.union_many
                                 [body_constrs; term_constrs; env_constrs] in
                         (env, constrs)
-                    | _, _ ->
+                    | maybe_ty1, maybe_ty2 ->
                         (* In this case, all we can really do is synthesise and
                            check it's not linear. *)
                         let (pair_ty, pair_env, pair_constrs) =
@@ -528,25 +528,26 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                                 | Type.Pair (pty1, pty2) -> (pty1, pty2)
                                 | _ -> Gripers.expected_pair_type pair_ty
                         in
-                        (* The synthesised type must be a returnable pair *)
+                        (* If either of the types is actually found in the continuation, then check subtype.
+                           If not, then we need to generate unrestrictedness constraints *)
+                        let ty_constrs declared maybe_ty =
+                            match maybe_ty with
+                                | Some inferred -> Type_utils.subtype ienv inferred declared
+                                | None -> Type_utils.make_unrestricted declared
+                        in
+                        let ty_consistency_constrs = 
+                            Constraint_set.union (ty_constrs pty1 maybe_ty1) (ty_constrs pty2 maybe_ty2)
+                        in
                         let () =
                             if not (Type.is_returnable pair_ty) then
                                 Gripers.let_not_returnable pair_ty
-                        in
-                        let () =
-                            if Type.is_lin pty1 then
-                                Gripers.unused_synthesised_linear_var
-                                b1var pty1
-                            else if Type.is_lin pty2 then
-                                Gripers.unused_synthesised_linear_var
-                                b1var pty2
                         in
                         let (env, env_constrs) =
                             Ty_env.join ienv pair_env body_env
                         in
                         let constrs =
                             Constraint_set.union_many
-                                [body_constrs; pair_constrs; env_constrs]
+                                [body_constrs; pair_constrs; env_constrs; ty_consistency_constrs]
                         in
                         (env, constrs)
             in

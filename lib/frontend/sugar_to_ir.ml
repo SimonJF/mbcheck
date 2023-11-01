@@ -114,7 +114,7 @@ and transform_expr :
             transform_subterm env e1 (fun env v1 ->
             transform_subterm env e2 (fun env v2 ->
                 Ir.Return (Ir.Pair (v1, v2)) |> k env))
-        | LetPair {binders = (b1, b2); term; cont } ->
+        | LetPair {binders = (b1, b2); term; cont; _ } ->
             (* let x = M in N*)
             (* Create an IR variable based on x *)
             let bnd1 = Ir.Binder.make ~name:b1 () in
@@ -221,9 +221,17 @@ and transform_subterm
                 let bnd = Ir.Binder.make () in
                 (* Create a new variable from the binder *)
                 let var = Ir.Variable ((Ir.Var.of_binder bnd), None) in
+                (* If we are translating an annotation, we need to create a value annotation
+                   in the IR such that we do not lose the type information and needlessly resort
+                   to synthesis *)
+                let var' =
+                    match x with
+                        | Annotate (_, ty) -> Ir.VAnnotate (var, ty)
+                        | _ -> var
+                in
                 (* Return a 'let' expression with the binder, binding the computation,
                    and apply the continuation to the bound variable *)
-                Ir.Let { binder = bnd; term = c; cont = (k env var) })
+                Ir.Let { binder = bnd; term = c; cont = (k env var') })
 
 and transform_guard :
     env ->

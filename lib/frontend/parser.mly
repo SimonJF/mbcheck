@@ -100,8 +100,10 @@ expr:
     (* Let *)
     | LET VARIABLE type_annot? EQ expr IN expr
         { Let { binder = $2; annot = $3; term = $5; body = $7 } }
+    | LET LEFT_PAREN VARIABLE COMMA VARIABLE RIGHT_PAREN COLON pair_annotation EQ basic_expr IN expr
+        { LetPair { binders = ($3, $5); term = $10; annot = Some $8; cont = $12 } }
     | LET LEFT_PAREN VARIABLE COMMA VARIABLE RIGHT_PAREN EQ basic_expr IN expr
-        { LetPair { binders = ($3, $5); term = $8; cont = $10 } }
+        { LetPair { binders = ($3, $5); term = $8; annot = None; cont = $10 } }
     | basic_expr SEMICOLON expr { Seq ($1, $3) }
     | basic_expr COLON ty { Annotate ($1, $3) }
     | basic_expr { $1 }
@@ -193,6 +195,9 @@ guard:
 
 ty_list:
     | separated_nonempty_list(COMMA, ty) { $1 }
+
+pair_annotation:
+    | LEFT_PAREN simple_ty STAR simple_ty RIGHT_PAREN { ($2, $4) }
 
 parenthesised_datatypes:
     | LEFT_PAREN RIGHT_PAREN { [] }

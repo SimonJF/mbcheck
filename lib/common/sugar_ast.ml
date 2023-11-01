@@ -30,6 +30,7 @@ type expr =
     | Pair of (expr * expr)
     | LetPair of {
         binders: sugar_binder * sugar_binder;
+        annot: ((Type.t[@name "ty"]) * (Type.t[@name "ty"])) option;
         term: expr;
         cont: expr
     }
@@ -207,9 +208,16 @@ and pp_expr ppf = function
             pp_expr e2
     | Pair (e1, e2) ->
         fprintf ppf "(%a, %a)" pp_expr e1 pp_expr e2
-    | LetPair { binders = (b1, b2); term; cont } ->
+    | LetPair { binders = (b1, b2); annot = None; term; cont } ->
         fprintf ppf "let (%s, %s) = %a in %a"
             b1 b2
+            pp_expr term
+            pp_expr cont
+    | LetPair { binders = (b1, b2); annot = Some (t1, t2); term; cont } ->
+        fprintf ppf "let (%s, %s) : (%a * %a) = %a in %a"
+            b1 b2
+            Type.pp t1
+            Type.pp t2
             pp_expr term
             pp_expr cont
     | Guard { target; pattern; guards; _ } ->
