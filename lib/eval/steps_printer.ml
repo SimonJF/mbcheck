@@ -1,5 +1,5 @@
 open Common.Ir
-open Common_types
+open Eval_types
 open Common.Interface
 
 let step_counts : (int, int) Hashtbl.t = Hashtbl.create 10
@@ -55,20 +55,18 @@ let name_or_id x =
 
 let show_env_entry entry =
   match entry with
-  | ValueEntry (binder, value) -> Printf.sprintf "%s -> %s" (Binder.name binder) (show_value value)
+  | ValueEntry (binder, value) -> Printf.sprintf "%s -> %s" (name_or_id (Var.of_binder binder)) (show_value value)
   | InterfaceEntry (binder, iface) ->
       let iface_str = Format.asprintf "%a" pp iface in
       Printf.sprintf "%s -> %s" (Binder.name binder) iface_str
   
-
 let show_env env =
   let entries = List.map show_env_entry env in
   "[" ^ (String.concat "; " entries) ^ "]"
-  
-  
+
 (* Convert a frame to its string representation. *)
-let show_frame (Frame (binder, comp)) =
-  Printf.sprintf "Frame(%s, %s)" (Binder.name binder) (show_comp comp)
+let show_frame (Frame (binder, env ,comp)) =
+  Printf.sprintf "Frame(%s,%s,%s)" (Binder.name binder) (show_env env) (show_comp comp)
 
 (* Convert a frame stack to its string representation. *)
 let show_frame_stack stack =

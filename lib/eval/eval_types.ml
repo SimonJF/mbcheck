@@ -8,7 +8,7 @@ type env_entry =
 type process = program * pid * steps * comp * environment * frame_stack 
 and pid = int
 and environment = env_entry list
-and frame = Frame of Binder.t * comp
+and frame = Frame of Binder.t * environment * comp
 and frame_stack = frame list
 and steps = int
 

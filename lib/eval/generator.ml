@@ -1,9 +1,9 @@
 open Common.Ir
-open Common_types
+open Eval_types
 open Steps_printer
 open Common.Interface
 
-let step_limit = 3
+let step_limit = 10
 
 let global_pid_counter = ref 1
 
@@ -82,7 +82,7 @@ let rec execute (program,pid,steps,comp,env,stack) =
         execute (program,pid, steps+1,term,env,stack)
 
     | Let {binder; term; cont},env,stack ->
-        execute (program,pid, steps+1,term,env,(Frame (binder, cont)) :: stack)
+        execute (program,pid,steps+1,term,env,(Frame (binder,env,cont)) :: stack)
 
     | LetPair {binders = (binder1, binder2); pair; cont}, env, stack ->
       (match eval_of_var env pair with
@@ -99,9 +99,9 @@ let rec execute (program,pid,steps,comp,env,stack) =
       | Spawned _ ->
           (status, (program,pid,steps+1,comp2, env, stack)))
 
-    | Return v, env, Frame (x, cont) :: stack ->
+    | Return v, env, Frame (x, env', cont) :: stack ->
         let result = eval_of_var env v in
-        execute (program,pid, steps+1,cont, ValueEntry ( x, result) :: env, stack) 
+        execute (program,pid, steps+1,cont, ValueEntry ( x, result) :: env', stack) 
       
     | App {func; args}, env, stack -> 
         (match func with
@@ -156,8 +156,8 @@ let rec execute (program,pid,steps,comp,env,stack) =
           (match find_decl func_name program.prog_decls with
           | Some func_decl ->
               let env' = bind_args_paras (List.map (fun arg -> eval_of_var env arg) args) func_decl.decl_parameters in
-              let  (_,(_, _, _, comp_result, _, _)) = execute (program,pid, steps+1,func_decl.decl_body, env', []) in
-              execute (program,pid, steps+1,comp_result, env, stack)
+              let  (_,(_, _, steps', comp_result, _, _)) = execute (program,pid, steps+1,func_decl.decl_body, env', []) in
+              execute (program,pid, steps',comp_result, env, stack)
           | None -> failwith_and_print_buffer ("Function " ^ func_name ^ " not found in prog_decls"))
           | _ -> failwith_and_print_buffer "Unhandled function expression in App")
 
@@ -179,7 +179,7 @@ let rec execute (program,pid,steps,comp,env,stack) =
           execute (program,pid, steps+1, comp2, env', stack)
       | _ -> failwith_and_print_buffer "Expected Inl or Inr value in Case expression")
 
-    | New interface_name, env, Frame (x, cont) :: stack ->
+    | New interface_name, env, Frame (x, _ ,cont) :: stack ->
       (match List.find_opt (fun iface -> name iface = interface_name) program.prog_interfaces with
       | Some interface_def -> 
           let env' = InterfaceEntry (x, interface_def) :: env in
@@ -200,13 +200,11 @@ let rec process_scheduling processes max_steps =
   match processes with
   | [] -> ()
   | (prog, pid, steps, comp, env, stack) :: rest ->
-
-    let total_steps = match Hashtbl.find_opt step_counts pid with
-        | Some count -> count
-        | None -> steps
-      in
-      Hashtbl.replace step_counts pid total_steps;
-
+      let total_steps = match Hashtbl.find_opt step_counts pid with
+          | Some count -> count
+          | None -> steps
+        in
+        Hashtbl.replace step_counts pid total_steps;
       if steps >= max_steps then begin
         process_scheduling (rest @ [(prog, pid, 0, comp, env, stack)]) max_steps
       end else
@@ -222,7 +220,7 @@ let rec process_scheduling processes max_steps =
 
 
 let generate program =
-  (* Buffer.add_string steps_buffer (Printf.sprintf "\n=== Reduction steps: ===\n\nProgram: %s\n" (show_program program)); *)
+  Buffer.add_string steps_buffer (Printf.sprintf "\n=== Reduction steps: ===\n\nProgram: %s\n" (show_program program));
   let initial_process =
     match program.prog_body with
     | Some (App { func = Variable (func_var, _); args }) ->
