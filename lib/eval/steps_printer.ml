@@ -23,7 +23,6 @@ let process_buffer_print () =
     Printf.printf "Total steps of PID %s: %d\n" pid_str steps
   ) sorted_steps
   
-  
 
 let result_buffer_print () = 
   Printf.printf "\n%s\n\n" (Buffer.contents result_buffer)
@@ -34,6 +33,14 @@ let failwith_and_print_buffer msg =
   result_buffer_print ();
   process_buffer_print ();
   failwith msg
+
+let show_message (tag, values) =
+  let values_str = List.map show_value values |> String.concat ", " in
+  Printf.sprintf "(%s, [%s])" tag values_str
+
+let show_mailbox mailbox =
+  let messages_str = List.map show_message mailbox in
+  "[" ^ (String.concat "; " messages_str) ^ "]\n"
 
 (* Convert a value to its string representation. *)
 let show_value v =
@@ -74,7 +81,7 @@ let show_frame_stack stack =
   "[" ^ (String.concat "; " frames) ^ "]"
 
 (* Print the current configuration. *)
-let print_config (comp, env, stack, steps, pid) =
+let print_config (comp, env, stack, steps, pid,mailbox) =
   counter := !counter + 1;
   let step_str = Printf.sprintf "\n------------------- total step %d --------------------\n" !counter in
   let pid_str = if pid = 1 then "Main" else string_of_int pid in
@@ -82,5 +89,6 @@ let print_config (comp, env, stack, steps, pid) =
   let comp_str = Printf.sprintf "Comp: %s\n\n" (show_comp comp) in
   let env_str = Printf.sprintf "Env: %s\n\n" (show_env env) in
   let frame_stack_str = Printf.sprintf "Frame Stack: %s\n" (show_frame_stack stack) in
-  step_str ^ steps_str ^ comp_str ^ env_str ^ frame_stack_str
+  let mailbox_str = Printf.sprintf "Mailbox: %s\n" (show_mailbox mailbox) in
+  step_str ^ steps_str ^ mailbox_str^ comp_str ^ env_str ^ frame_stack_str
 
