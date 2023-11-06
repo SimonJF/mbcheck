@@ -30,8 +30,8 @@ let result_buffer_print () =
 
 let failwith_and_print_buffer msg =
   steps_buffer_print (); 
-  result_buffer_print ();
   process_buffer_print ();
+  result_buffer_print ();
   failwith msg
 
 let show_message (tag, values) =
@@ -65,7 +65,7 @@ let show_env_entry entry =
   | ValueEntry (binder, value) -> Printf.sprintf "%s -> %s" (name_or_id (Var.of_binder binder)) (show_value value)
   | InterfaceEntry (binder, iface) ->
       let iface_str = Format.asprintf "%a" pp iface in
-      Printf.sprintf "%s -> %s" (Binder.name binder) iface_str
+      Printf.sprintf "%s -> %s" (name_or_id (Var.of_binder binder)) iface_str
   
 let show_env env =
   let entries = List.map show_env_entry env in
@@ -91,4 +91,3 @@ let print_config (comp, env, stack, steps, pid,mailbox) =
   let frame_stack_str = Printf.sprintf "Frame Stack: %s\n" (show_frame_stack stack) in
   let mailbox_str = Printf.sprintf "Mailbox: %s\n" (show_mailbox mailbox) in
   step_str ^ steps_str ^ mailbox_str^ comp_str ^ env_str ^ frame_stack_str
-
