@@ -3,131 +3,11 @@ open Common
 open Eval_types
 open Steps_printer
 open Common.Interface
-
-let step_limit = 20
-
-let global_pid_counter = ref 1
-
-let generate_new_pid () =
-  let pid = !global_pid_counter in
-  global_pid_counter := !global_pid_counter + 1;
-  pid
-
-
-let interface_name_from_value value = match value with
-  | Variable (v, _) -> v.name
-  | _ -> failwith_and_print_buffer "Expected a variable"
-
-
-let rec has_interface_with_name env interface_name = match env with
-  | [] -> false
-  | InterfaceEntry (v, _) :: _ when v.name = interface_name -> true
-  | _ :: rest -> has_interface_with_name rest interface_name
-
-
-let rec add_message_to_mailbox processes value message updated_processes = 
-  match processes with
-  | [] -> 
-      if updated_processes = [] then
-        failwith_and_print_buffer "No process found with the given interface name"
-      else
-        List.rev updated_processes
-  | (prog, pid, steps, mailbox, comp, env, cont) as current_process :: rest ->
-      let interface_name = interface_name_from_value value in
-      if has_interface_with_name env interface_name then
-        let updated_process = (prog, pid, steps, message :: mailbox, comp, env, cont) in
-        List.rev (updated_process :: updated_processes) @ rest
-      else
-        add_message_to_mailbox rest value message (current_process :: updated_processes)
-  
-let rec extract_message tag (mailbox: mailbox) : message * mailbox =
-  match mailbox with
-  | [] -> failwith_and_print_buffer "No message with the given tag"
-  | (msg_tag, _) as message :: rest ->
-      if msg_tag = tag then
-        (message, rest)
-      else
-        let (found_payload, new_mailbox) = extract_message tag rest in
-        (found_payload, message :: new_mailbox)
-
-let bind_env msg mailbox_binder payload_binders env =
-  match msg with
-  | (_, payload) ->
-    if List.length payload <> List.length payload_binders then
-      failwith_and_print_buffer "Payload does not match the number of binders"
-    else
-      let bindings = List.combine payload_binders payload in
-      let value_entries = List.map (fun (binder, value) -> ValueEntry (binder, value)) bindings in
-      let updated_env = List.map (function
-        | InterfaceEntry (_, mailbox) -> InterfaceEntry (mailbox_binder, mailbox)
-        | other -> other
-      ) env 
-      in value_entries @ updated_env
-
-let free_mailbox mailbox_binder env =
-  match mailbox_binder with
-  | Variable (binder, _) ->
-      let updated_env = List.filter (function
-        | InterfaceEntry (entry_binder, _) -> entry_binder.name <> binder.name
-        | _ -> true) env
-      in updated_env
-  | _ -> failwith_and_print_buffer "Expected a variable for mailbox binder"
-      
-        
-let find_decl name decls =
-  List.find_opt (fun decl -> Binder.name decl.decl_name = name) decls
-
-let bind_args_paras args params =
-  List.map2 (fun arg param -> ValueEntry (fst param, arg)) args params
-  
-(* find the value in envirnment *)
-let rec lookup env x =
-  match env with
-  | [] -> failwith_and_print_buffer "Variable not found"
-  | entry :: env' ->
-    match entry with
-    | ValueEntry (y, v) ->
-      if Var.id x = Var.id (Var.of_binder y) then v
-      else lookup env' x
-    | InterfaceEntry _ -> lookup env' x  (* Skip interface entries *)
-    
-
-let eval_of_var env v = 
-  match v with
-  | Variable (var_name, _) -> lookup env var_name
-  | c -> c
-
-let eval_args args env =
-  List.map (fun arg -> eval_of_var env arg) args
-  
-
-let eval_of_op op v1 v2 = 
-  match v1, v2 with
-  | Constant(Int i1), Constant(Int i2) -> (
-    match op with
-    | "+" -> Int (i1 + i2)
-    | "-" -> Int (i1 - i2)
-    | "*" -> Int (i1 * i2)
-    | "/" -> if i2 = 0 then failwith_and_print_buffer "Division by zero" else Int (i1 / i2)
-    | "==" -> Bool (i1 == i2)
-    | "!=" -> Bool (i1 <> i2)
-    | "<" -> Bool (i1 < i2)
-    | "<=" -> Bool (i1 <= i2)
-    | ">" -> Bool (i1 > i2)
-    | ">=" -> Bool (i1 >= i2)
-    | _ -> failwith_and_print_buffer ("Unsupported operation: " ^ op)
-  )
-  | Constant(Bool b1), Constant(Bool b2) -> (
-    match op with
-    | "&&" -> Bool (b1 && b2)
-    | "||" -> Bool (b1 || b2)
-    | _ -> failwith_and_print_buffer ("Unsupported operation: " ^ op)
-  )
-  | _ -> failwith_and_print_buffer "Mismatched types or unsupported operation"
+open Helper
 
 let rec execute (program,pid,steps,mailbox,comp,env,stack) =
-  Buffer.add_string steps_buffer (print_config (comp,env,stack,steps,pid,mailbox));
-  (* Printf.printf "%s" (print_config (comp,env,stack,steps,pid,mailbox)); *)
+  (* Buffer.add_string steps_buffer (print_config (comp,env,stack,steps,pid,mailbox)); *)
+  Printf.printf "%s" (print_config (comp,env,stack,steps,pid,mailbox));
 
   let current_steps = Hashtbl.find_opt step_counts pid |> Option.value ~default:0 in
   Hashtbl.replace step_counts pid (current_steps + 1);
@@ -223,7 +103,15 @@ let rec execute (program,pid,steps,mailbox,comp,env,stack) =
               let env' = bind_args_paras (List.map (fun arg -> eval_of_var env arg) args) func_decl.decl_parameters in
               let  (_,(_, _, steps',mailbox', comp_result, _, _)) = execute (program,pid, steps+1,mailbox,func_decl.decl_body, env', []) in
               execute (program,pid, steps',mailbox',comp_result, env, stack)
-          | None -> failwith_and_print_buffer ("Function " ^ func_name ^ " not found in prog_decls"))
+          | None ->
+            (match List.find_opt (fun entry -> match entry with
+                            | ValueEntry (binder, Lam _) when Binder.name binder = func_name -> true
+                            | _ -> false) env with
+              | Some (ValueEntry (_, Lam {parameters; body; _})) ->
+                  let env' = bind_args_paras (List.map (fun arg -> eval_of_var env arg) args) parameters in
+                  let  (_,(_, _, steps',mailbox', comp_result, _, _)) = execute (program,pid, steps+1,mailbox,body, env', []) in
+                  execute (program,pid, steps',mailbox',comp_result, env, stack)
+              | _ -> failwith_and_print_buffer ("Function " ^ func_name ^ " not found in prog_decls or as a closure in env")))
           | _ -> failwith_and_print_buffer "Unhandled function expression in App")
 
     | If {test; then_expr; else_expr}, env, stack -> 
@@ -282,8 +170,6 @@ let rec execute (program,pid,steps,mailbox,comp,env,stack) =
                 in
                 match_guards guards)
 
-    
-
     | _ ->  failwith_and_print_buffer "Invalid configuration"
 
 let rec process_scheduling processes max_steps =
@@ -313,7 +199,7 @@ let rec process_scheduling processes max_steps =
             process_scheduling updated_processes max_steps
 
 let generate program =
-  Buffer.add_string steps_buffer (Printf.sprintf "\n=== Reduction steps: ===\n\nProgram: %s\n" (show_program program));
+  (* Buffer.add_string steps_buffer (Printf.sprintf "\n=== Reduction steps: ===\n\nProgram: %s\n" (show_program program)); *)
   let initial_process =
     match program.prog_body with
     | Some (App { func = Variable (func_var, _); args }) ->

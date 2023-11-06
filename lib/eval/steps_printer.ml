@@ -53,7 +53,16 @@ let show_value v =
   | Inr _ -> Printf.sprintf "Inr %s" (show_value v)
   | Variable (x, _) -> Var.name x 
   | Pair (v1, v2) -> Printf.sprintf "(%s, %s)" (show_value v1) (show_value v2)
+  | Lam {linear; parameters; result_type; body} ->
+    let _ = linear in let _ = result_type in
+    let params_str = parameters |> List.map (fun (binder, _) ->
+      Printf.sprintf "%s" (Binder.name binder)) |> String.concat ", "
+    in
+    let body_str = show_comp body
+    in
+    Printf.sprintf "Lam (%s): { %s }" params_str  body_str
   | _ -> "Other value"
+
 
 let name_or_id x = 
   let name = Var.name x in
