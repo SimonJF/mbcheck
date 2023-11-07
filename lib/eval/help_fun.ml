@@ -11,9 +11,18 @@ let generate_new_pid () =
   global_pid_counter := !global_pid_counter + 1;
   pid
 
+
+let mailbox_map : (string,pid) Hashtbl.t = Hashtbl.create 100
+
+
 let interface_name_from_value value = match value with
   | Variable (v, _) -> v.name
   | _ -> failwith_and_print_buffer "Expected a variable"
+
+let find_pid_by_name name =
+  match Hashtbl.find_opt mailbox_map name with
+  | Some pid -> pid
+  | None -> failwith_and_print_buffer ("No process found with the given interface name: " ^ name)
 
 
 let rec has_interface_with_name env interface_name = match env with
@@ -21,24 +30,27 @@ let rec has_interface_with_name env interface_name = match env with
   | InterfaceEntry (v, _) :: _ when v.name = interface_name -> true
   | _ :: rest -> has_interface_with_name rest interface_name
 
-
-let rec add_message_to_mailbox processes value message updated_processes = 
+let rec add_message_to_mailbox processes target_name message updated_processes = 
   match processes with
   | [] -> 
       if updated_processes = [] then
         failwith_and_print_buffer "No process found with the given interface name"
       else
         List.rev updated_processes
-  | (prog, pid, steps, mailbox, comp, env, cont) as current_process :: rest ->
-      let interface_name = interface_name_from_value value in
-      if has_interface_with_name env interface_name then
-        let updated_process = (prog, pid, steps, message :: mailbox, comp, env, cont) in
-        List.rev (updated_process :: updated_processes) @ rest
+  | (prog, pid, steps, inbox, comp, env, cont) as current_process :: rest ->
+      let target_pid = find_pid_by_name target_name in
+      if pid = target_pid then
+        if has_interface_with_name env target_name then
+          let updated_process = (prog, pid, steps, message :: inbox, comp, env, cont) in
+          List.rev (updated_process :: updated_processes) @ rest
+        else
+          failwith_and_print_buffer ("The process with pid " ^ string_of_int pid ^ " does not have the interface: " ^ target_name)
       else
-        add_message_to_mailbox rest value message (current_process :: updated_processes)
+        add_message_to_mailbox rest target_name message (current_process :: updated_processes)
+        
   
-let rec extract_message tag (mailbox: mailbox) : message * mailbox =
-  match mailbox with
+let rec extract_message tag (inbox: inbox) : message * inbox =
+  match inbox with
   | [] -> failwith_and_print_buffer "No message with the given tag"
   | (msg_tag, _) as message :: rest ->
       if msg_tag = tag then
@@ -56,7 +68,7 @@ let bind_env msg mailbox_binder payload_binders env =
       let bindings = List.combine payload_binders payload in
       let value_entries = List.map (fun (binder, value) -> ValueEntry (binder, value)) bindings in
       let updated_env = List.map (function
-        | InterfaceEntry (_, mailbox) -> InterfaceEntry (mailbox_binder, mailbox)
+        | InterfaceEntry (_, inbox) -> InterfaceEntry (mailbox_binder, inbox)
         | other -> other
       ) env 
       in value_entries @ updated_env
@@ -74,20 +86,35 @@ let free_mailbox mailbox_binder env =
 let find_decl name decls =
   List.find_opt (fun decl -> Binder.name decl.decl_name = name) decls
 
-let bind_args_paras args params =
-  List.map2 (fun arg param -> ValueEntry (fst param, arg)) args params
+let bind_args_paras args params env =
+  List.map2 (fun arg param ->
+    match arg with
+    | Pair (Primitive "interface", Primitive name) ->
+      let interface_value = 
+        match List.find_opt (fun entry ->
+          match entry with
+          | InterfaceEntry (binder, _) -> Binder.name binder = name
+          | _ -> false
+        ) env with
+        | Some (InterfaceEntry (_, iface)) -> iface
+        | _ -> failwith_and_print_buffer ("Interface name not found in environment: " ^ name)
+      in
+      InterfaceEntry (fst param, interface_value)
+    | _ -> ValueEntry (fst param, arg)
+  ) args params
+  
+  
   
 (* find the value in envirnment *)
 let rec lookup env x =
   match env with
-  | [] -> failwith_and_print_buffer "Variable not found"
+  | [] -> failwith_and_print_buffer "entry not found"
   | entry :: env' ->
     match entry with
-    | ValueEntry (y, v) ->
+    | ValueEntry (y, v) -> 
       if Var.id x = Var.id (Var.of_binder y) then v
       else lookup env' x
-    | InterfaceEntry _ -> lookup env' x  (* Skip interface entries *)
-    
+    | InterfaceEntry (y,_) -> Pair(Primitive "interface",Primitive y.name)
 
 let eval_of_var env v = 
   match v with
