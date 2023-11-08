@@ -25,11 +25,6 @@ let find_pid_by_name name =
   | None -> failwith_and_print_buffer ("No process found with the given interface name: " ^ name)
 
 
-let rec has_interface_with_name env interface_name = match env with
-  | [] -> false
-  | InterfaceEntry (v, _) :: _ when v.name = interface_name -> true
-  | _ :: rest -> has_interface_with_name rest interface_name
-
 let rec add_message_to_mailbox processes target_name message updated_processes = 
   match processes with
   | [] -> 
@@ -40,11 +35,8 @@ let rec add_message_to_mailbox processes target_name message updated_processes =
   | (prog, pid, steps, inbox, comp, env, cont) as current_process :: rest ->
       let target_pid = find_pid_by_name target_name in
       if pid = target_pid then
-        if has_interface_with_name env target_name then
           let updated_process = (prog, pid, steps, message :: inbox, comp, env, cont) in
           List.rev (updated_process :: updated_processes) @ rest
-        else
-          failwith_and_print_buffer ("The process with pid " ^ string_of_int pid ^ " does not have the interface: " ^ target_name)
       else
         add_message_to_mailbox rest target_name message (current_process :: updated_processes)
         
@@ -86,7 +78,9 @@ let free_mailbox mailbox_binder env =
 let find_decl name decls =
   List.find_opt (fun decl -> Binder.name decl.decl_name = name) decls
 
-let bind_args_paras args params env =
+
+(* env and pid is for transfer mailbox to current process *)
+let bind_args_paras args params env current_pid=
   List.map2 (fun arg param ->
     match arg with
     | Pair (Primitive "interface", Primitive name) ->
@@ -96,7 +90,7 @@ let bind_args_paras args params env =
           | InterfaceEntry (binder, _) -> Binder.name binder = name
           | _ -> false
         ) env with
-        | Some (InterfaceEntry (_, iface)) -> iface
+        | Some (InterfaceEntry (_, iface)) -> Hashtbl.replace mailbox_map name current_pid;iface
         | _ -> failwith_and_print_buffer ("Interface name not found in environment: " ^ name)
       in
       InterfaceEntry (fst param, interface_value)

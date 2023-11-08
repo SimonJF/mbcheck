@@ -7,7 +7,7 @@ open Help_fun
 
 let rec execute (program,pid,steps,inbox,comp,env,stack) =
   Buffer.add_string steps_buffer (print_config (comp,env,stack,steps,pid,inbox,mailbox_map));
-  (* Printf.printf "%s" (print_config (comp,env,stack,steps,pid,inbox)); *)
+  (* Printf.printf "%s" (print_config (comp,env,stack,steps,pid,inbox,mailbox_map)); *)
 
   let current_steps = Hashtbl.find_opt step_counts pid |> Option.value ~default:0 in
   Hashtbl.replace step_counts pid (current_steps + 1);
@@ -33,16 +33,11 @@ let rec execute (program,pid,steps,inbox,comp,env,stack) =
       | _ -> failwith_and_print_buffer "Expected a pair in LetPair")
       
     | Seq (comp1, comp2), env, stack ->
-      let (status, (_,_,steps',inbox',comp1_rest,comp_env,comp_stack)) = execute (program,pid, steps+1,inbox,comp1, env, stack) in
+      let (status, (_,_,steps',inbox',comp1_rest,env',stack')) = execute (program,pid, steps+1,inbox,comp1, env, stack) in
       let new_comp = match comp1_rest with
           | Return _ -> comp2
           | _ -> Seq (comp1_rest, comp2) 
-      in
-      (match status with
-      | Finished | Unfinished ->
-          (execute (program,pid, steps', inbox,new_comp, comp_env, comp_stack))
-      | Spawned _ | MessageToSend _ ->
-          (status, (program,pid,steps+1, inbox',new_comp, comp_env, comp_stack)))
+      in (status, (program,pid, steps', inbox',new_comp, env', stack'))
 
     | Return v, env, Frame (x, env', cont) :: stack ->
         let result = eval_of_var env v in
@@ -51,7 +46,7 @@ let rec execute (program,pid,steps,inbox,comp,env,stack) =
     | App {func; args}, env, stack -> 
         (match func with
         | Lam {parameters; body; _} -> 
-            let new_env = (bind_args_paras args parameters []) @ env in
+            let new_env = (bind_args_paras args parameters [] pid) @ env in
             execute (program,pid, steps+1,inbox,body, new_env, stack)
         | Primitive op -> 
             (match op with
@@ -190,7 +185,8 @@ let rec process_scheduling processes max_steps =
         | Finished -> 
             Buffer.add_string steps_buffer (Printf.sprintf "\n******** Process %d Finished \u{221A} ********\n" pid);
             process_scheduling rest max_steps
-        | Unfinished -> process_scheduling (rest @ [updated_process]) max_steps
+        | Unfinished -> 
+            process_scheduling (rest @ [updated_process]) max_steps
         | Spawned new_process -> 
             Buffer.add_string steps_buffer (Printf.sprintf "\n******** Process %d generates a new Process ********\n" pid;);
             process_scheduling (new_process :: rest @ [updated_process]) max_steps
@@ -208,7 +204,7 @@ let generate program =
         let func_name = Var.name func_var in
         (match find_decl func_name program.prog_decls with
         | Some func_decl ->
-            let env = bind_args_paras args func_decl.decl_parameters [] in
+            let env = bind_args_paras args func_decl.decl_parameters [] 0 in
             (program, generate_new_pid (), 0, [] , func_decl.decl_body, env, [])
         | None -> failwith_and_print_buffer ("Function " ^ func_name ^ " not found in prog_decls"))
     | Some comp -> (program,generate_new_pid (),0, [], comp, [], [])

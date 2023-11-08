@@ -14,6 +14,7 @@ let steps_buffer_print () =
   Printf.printf "%s\n\n" (Buffer.contents steps_buffer)
 
 let process_buffer_print () =
+  (* sort pid*)
   let sorted_steps = 
     Hashtbl.fold (fun pid steps acc -> (pid, steps) :: acc) step_counts [] 
     |> List.sort (fun (pid1, _) (pid2, _) -> compare pid1 pid2)
@@ -46,7 +47,7 @@ let print_mailbox_map mailbox_map =
   let b = Buffer.create 100 in 
   let _ = Buffer.add_string b (Printf.sprintf "\nGlobal mailbox mapping:") in
   Hashtbl.iter (fun x_name pid ->
-    Buffer.add_string b (Printf.sprintf "\n  PID: %d -> Name: %s\n\n" pid x_name)
+    Buffer.add_string b (Printf.sprintf "\n  PID: %d -> Name: %s" pid x_name)
   ) mailbox_map;
   Buffer.contents b
 
@@ -87,7 +88,7 @@ let show_env_entry entry =
   
 let show_env env =
   let entries = List.map show_env_entry env in
-  "[" ^ (String.concat "; " entries) ^ "]"
+  "[" ^ (String.concat ";\n      " entries) ^ "]"
 
 (* Convert a frame to its string representation. *)
 let show_frame (Frame (binder, env ,comp)) =
@@ -104,7 +105,7 @@ let print_config (comp, env, stack, steps, pid,inbox, mailbox_map) =
   let step_str = Printf.sprintf "\n------------------- Total step %d --------------------\n" !counter in
   let mailbox_map = print_mailbox_map mailbox_map in
   let pid_str = if pid = 1 then "Main" else string_of_int pid in
-  let steps_str = Printf.sprintf "PID: %s Steps: %d\n\n" pid_str steps in
+  let steps_str = Printf.sprintf "\n\nCurrent PID: %s Steps: %d\n\n" pid_str steps in
   let comp_str = Printf.sprintf "Comp: %s\n\n" (show_comp comp) in
   let env_str = Printf.sprintf "Env: %s\n\n" (show_env env) in
   let frame_stack_str = Printf.sprintf "Frame Stack: %s\n" (show_frame_stack stack) in
