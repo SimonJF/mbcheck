@@ -71,6 +71,7 @@ let show_value v =
     let body_str = show_comp body
     in
     Printf.sprintf "Lam (%s): { %s }" params_str  body_str
+  | Mailbox s -> Printf.sprintf "Mailbox %s" s
   | _ -> "Other value"
 
 

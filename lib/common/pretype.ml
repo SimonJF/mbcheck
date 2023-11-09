@@ -15,6 +15,7 @@ type t =
     | PInterface of string
     | PSum of (t * t)
     | PPair of (t * t)
+    | PMailbox
     [@@name "pretype"]
     [@@deriving visitors { variety = "map" }]
 and base = [%import: Common_types.Base.t]
@@ -45,6 +46,7 @@ let rec pp ppf =
             pp t1
             pp t2
     | PInterface name -> ps name
+    | PMailbox -> ps "Mailbox"
 
 let show t =
   let open Format in
@@ -83,3 +85,4 @@ let rec to_type = function
             | _, _ -> None
         end
     | PInterface _ -> None
+    | PMailbox -> None

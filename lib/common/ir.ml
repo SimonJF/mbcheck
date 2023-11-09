@@ -118,8 +118,8 @@ and value =
         linear: bool;
         parameters: ((Binder.t[@name "binder"]) * (Type.t[@name "ty"])) list;
         result_type: (Type.t[@name "ty"]);
-        body: comp
-    }
+        body: comp}
+    | Mailbox of string
 and message = (string * value list)
     [@@name "msg"]
 and primitive_name = string
@@ -253,6 +253,7 @@ and pp_value ppf = function
             (pp_print_comma_list pp_param) parameters
             Type.pp result_type
             pp_comp body
+    | Mailbox name -> fprintf ppf "mailbox[%s]" name
 and pp_guard ppf = function
     | Receive { tag; payload_binders; mailbox_binder; cont } ->
             fprintf ppf "receive %s(%a) from %a ->@,@[<v 2>  %a@]"

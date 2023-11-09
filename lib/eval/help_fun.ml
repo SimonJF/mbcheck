@@ -15,30 +15,58 @@ let generate_new_pid () =
 let mailbox_map : (string,pid) Hashtbl.t = Hashtbl.create 100
 
 
-let interface_name_from_value value = match value with
-  | Variable (v, _) -> v.name
-  | _ -> failwith_and_print_buffer "Expected a variable"
+
+let substitute_variables_in_message env message =
+  List.map (fun item ->
+    match item with
+    | Variable (v, _) -> (
+        match List.find_opt (fun entry ->
+          match entry with
+          | ValueEntry (binder, _) when binder.name = v.name -> true
+          | InterfaceEntry(binder',_) when binder'.name = v.name -> true
+          | _ -> false
+        ) env with
+        | Some (ValueEntry (_, value)) -> value
+        | Some (InterfaceEntry (x,_)) -> Primitive x.name
+        | _ -> item
+      )
+    | _ -> item
+  ) message
+
+let interface_name_from_value env value =
+  match value with
+  | Variable (v1, _) -> (
+      match List.find_opt (fun entry ->
+        match entry with
+        | ValueEntry (binder, _) when binder.name = v1.name -> true
+        | _ -> false
+      ) env with
+      | Some (ValueEntry (_, Primitive v2)) -> [v1.name;v2]
+      | None -> [v1.name]
+      | _ -> failwith_and_print_buffer ("variable not found in environment: " ^ v1.name ^ string_of_int v1.id)
+    )
+  | _ -> failwith_and_print_buffer "Expected a variable"  
 
 let find_pid_by_name name =
   match Hashtbl.find_opt mailbox_map name with
   | Some pid -> pid
-  | None -> failwith_and_print_buffer ("No process found with the given interface name: " ^ name)
+  | None -> (-1)
 
-
-let rec add_message_to_mailbox processes target_name message updated_processes = 
-  match processes with
-  | [] -> 
-      if updated_processes = [] then
-        failwith_and_print_buffer "No process found with the given interface name"
-      else
-        List.rev updated_processes
-  | (prog, pid, steps, inbox, comp, env, cont) as current_process :: rest ->
-      let target_pid = find_pid_by_name target_name in
-      if pid = target_pid then
-          let updated_process = (prog, pid, steps, message :: inbox, comp, env, cont) in
-          List.rev (updated_process :: updated_processes) @ rest
-      else
-        add_message_to_mailbox rest target_name message (current_process :: updated_processes)
+let rec add_message_to_mailbox processes target_names message updated_processes current_pid =
+  match target_names with
+  | [] -> failwith_and_print_buffer "No process found with the given interface names"
+  | target_name :: remaining_targets ->
+      match processes with
+      | [] -> 
+          add_message_to_mailbox updated_processes remaining_targets message [] current_pid
+      | (prog, pid, steps, inbox, comp, env, cont) as current_process :: rest ->
+          let target_pid = find_pid_by_name target_name in
+          if pid = target_pid then begin
+              Buffer.add_string steps_buffer (Printf.sprintf "\n -> -> Process %d sends a message to Process %d(%s)-> ->\n" current_pid pid target_name);
+              let updated_process = (prog, pid, steps, message :: inbox, comp, env, cont) in
+              (List.rev (updated_process :: updated_processes) @ rest) end
+          else
+              add_message_to_mailbox rest target_names message (current_process :: updated_processes) current_pid
         
   
 let rec extract_message tag (inbox: inbox) : message * inbox =
@@ -84,16 +112,16 @@ let bind_args_paras args params env current_pid=
   List.map2 (fun arg param ->
     match arg with
     | Pair (Primitive "interface", Primitive name) ->
-      let interface_value = 
+      let interface_name = 
         match List.find_opt (fun entry ->
           match entry with
           | InterfaceEntry (binder, _) -> Binder.name binder = name
           | _ -> false
         ) env with
-        | Some (InterfaceEntry (_, iface)) -> Hashtbl.replace mailbox_map name current_pid;iface
+        | Some (InterfaceEntry (_, _)) -> Hashtbl.replace mailbox_map name current_pid;name
         | _ -> failwith_and_print_buffer ("Interface name not found in environment: " ^ name)
       in
-      InterfaceEntry (fst param, interface_value)
+      ValueEntry (fst param, Primitive interface_name)
     | _ -> ValueEntry (fst param, arg)
   ) args params
   

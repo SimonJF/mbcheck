@@ -153,6 +153,7 @@ let rec synthesise_val ienv env value : (value * Pretype.t) =
                 result = result_prety
             }
         | ((Inl _) as x) | ((Inr _) as x) -> Gripers.cannot_synth_sum x
+        | Mailbox s -> (Mailbox s, Pretype.PMailbox)
 and check_val ienv env value ty =
     match value, ty with
         | Inl v, (Pretype.PSum (pty1, _)) ->
