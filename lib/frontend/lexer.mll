@@ -23,6 +23,7 @@ let keywords = [
     "guard", GUARD;
     "receive", RECEIVE;
     "free", FREE;
+    "empty", EMPTY;
     "fail", FAIL;
     "in", IN;
     "linfun", LINFUN;

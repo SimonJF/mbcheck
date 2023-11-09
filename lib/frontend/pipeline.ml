@@ -7,9 +7,11 @@ let desugar p =
     |> Insert_pattern_variables.annotate
 
 let typecheck p ir = 
+    (*
     Format.printf
         "=== Intermediate Representation: ===\n%a\n\n"
         (Ir.pp_program) ir;
+        *)
     let ir, prety_opt = Typecheck.Pretypecheck.check ir in
     let (ty, env, constrs) = Typecheck.Gen_constraints.synthesise_program ir in
     let solution = Typecheck.Solve_constraints.solve_constraints constrs in

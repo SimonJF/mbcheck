@@ -87,10 +87,10 @@ let unused_synthesised_linear_var v ty =
     in
     raise (constraint_gen_error ~subsystem:(Errors.GenCheck) msg)
 
-let multiple_free () =
+let multiple_empty () =
     raise (constraint_gen_error
         ~subsystem:(Errors.GenCheckGuard)
-        "At most one `free` guard allowed.")
+        "At most one `empty` guard allowed.")
 
 let multiple_fail () =
     raise (constraint_gen_error

@@ -294,6 +294,14 @@ and synthesise_comp ienv env comp =
                          }, Pretype.PBase Unit
                     | ty -> Gripers.type_mismatch_with_expected "an interface type" ty
             end
+        | Free (v, _) ->
+            let (v, v_ty) = synthv v in
+            let iface =
+                match v_ty with
+                    | PInterface iface -> iface
+                    | t -> Gripers.type_mismatch_with_expected "an interface type" t
+            in
+            Free (v, Some iface), Pretype.PBase Unit
         | Guard { target; pattern; guards; _ } ->
             let (target, target_ty) = synthv target in
             let iname =
@@ -362,9 +370,10 @@ and synth_guard ienv env iname g =
             in
             let cont, cont_ty = synthesise_comp ienv env cont in
             Receive { tag; payload_binders; mailbox_binder; cont }, cont_ty
-        | Free e ->
+        | Empty (x, e) ->
+            let env = PretypeEnv.bind (Var.of_binder x) (Pretype.PInterface iname) env in
             let e, e_ty = synthesise_comp ienv env e in
-            Free e, e_ty
+            Empty (x, e), e_ty
         | Fail ->
             Gripers.cannot_synth_fail ()
 and check_guard ienv env iname g ty =

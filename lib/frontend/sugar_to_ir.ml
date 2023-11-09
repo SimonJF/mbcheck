@@ -163,6 +163,8 @@ and transform_expr :
                     else_expr = transform_expr env else_expr id } |> k env)
         | New i -> Ir.New i |> k env
         | Spawn e -> Ir.Spawn (transform_expr env e id) |> k env
+        | Free e ->
+            transform_subterm env e (fun _ v -> Ir.Free (v, None)) |> k env
         | Send {target; message; iname} ->
             let (tag, payloads) = message in
             transform_subterm env target (fun env pid ->
@@ -180,7 +182,7 @@ and transform_expr :
                     guards = gs;
                     iname
                 } |> k env )
-        | SugarFree _ | SugarFail (_, _) -> (* shouldn't ever match *)
+        |  SugarFail (_, _) -> (* shouldn't ever match *)
                 raise (Errors.internal_error "sugar_to_ir.ml" "Encountered SugarFree/SugarFail expression during the IR translation stage")
 
 (* Transforms a subterm into an IR computation, naming if necessary. *)
@@ -247,7 +249,11 @@ and transform_guard :
             mailbox_binder = mailbox_bnd;
             cont
         }
-    | Free e -> Ir.Free (transform_expr env e id)
+    | Empty (bnd, cont) ->
+        let (mailbox_bnd, env) = add_name env bnd in
+        let cont = transform_expr env cont id in
+        Ir.Empty (mailbox_bnd, cont)
+    | GFree _ -> raise (Errors.internal_error "sugar_to_ir.ml" "Encountered Free guard during the IR translation stage")
     (* type will have been expanded into an annotation by this point *)
     | Fail _ -> Ir.Fail
 

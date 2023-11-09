@@ -61,8 +61,7 @@ type expr =
         guards: guard list;
         iname: string option
     }
-    (* AKA The Diet Guard. free(e), which later desugars to guard e : 1 { free -> () } *)
-    | SugarFree of expr
+    | Free of expr
     (* fail(e)[A], desugars to (guard e : 0 { fail } : A) *)
     | SugarFail of expr * (Type.t [@name "ty"])
 and constant =
@@ -78,7 +77,8 @@ and guard =
         mailbox_binder: sugar_binder;
         cont: expr
     }
-    | Free of expr
+    | GFree of expr
+    | Empty of (sugar_var * expr)
     (* For now, require annotation since Fail can have any type *)
     (* It would be nice to get rid of this later. *)
     | Fail of (Type.t[@name "ty"])
@@ -103,7 +103,11 @@ let is_receive_guard = function
     | _ -> false
 
 let is_free_guard = function
-    | Free _ -> true
+    | GFree _ -> true
+    | _ -> false
+
+let is_empty_guard = function
+    | Empty _ -> true
     | _ -> false
 
 let is_fail_guard = function
@@ -226,7 +230,7 @@ and pp_expr ppf = function
             pp_expr target
             Type.Pattern.pp pattern
             (pp_print_newline_list pp_guard) guards
-    | SugarFree e -> fprintf ppf "free(%a)" pp_expr e
+    | Free e -> fprintf ppf "free(%a)" pp_expr e
     | SugarFail (e, ty) -> fprintf ppf "fail(%a)[%a]" pp_expr e Type.pp ty
 and pp_guard ppf = function
     | Receive { tag; payload_binders; mailbox_binder; cont } ->
@@ -235,8 +239,15 @@ and pp_guard ppf = function
             (pp_print_comma_list pp_print_string) payload_binders
             mailbox_binder
             pp_expr cont
-    | Free e ->
+    (* 
+       free -> M
+       can be treated as syntactic sugar for
+       empty(x) -> free(x); M
+    *)
+    | GFree e -> 
         fprintf ppf "free ->@,  @[<v>%a@]" pp_expr e
+    | Empty (x, e) ->
+        fprintf ppf "empty(%s) ->@,  @[<v>%a@]" x pp_expr e
     | Fail ty ->
         fprintf ppf "fail[%a]" Type.pp ty
 

@@ -46,6 +46,7 @@ These will be added in later
 %token RECEIVE
 %token FREE
 %token FAIL
+%token EMPTY
 %token IN
 %token FUN
 %token LINFUN
@@ -124,8 +125,9 @@ basic_expr:
     | NEW LEFT_BRACK interface_name RIGHT_BRACK { New $3 }
     (* Spawn *)
     | SPAWN LEFT_BRACE expr RIGHT_BRACE { Spawn $3 }
-    (* Sugared Free and Fail forms *)
-    | FREE LEFT_PAREN expr RIGHT_PAREN { SugarFree $3 }
+    (* Free *)
+    | FREE LEFT_PAREN expr RIGHT_PAREN { Free $3 }
+    (* Sugared Fail forms *)
     | FAIL LEFT_PAREN expr RIGHT_PAREN LEFT_BRACK ty RIGHT_BRACK { SugarFail ($3, $6)}
     | LEFT_PAREN expr COMMA expr RIGHT_PAREN { Pair ($2, $4) }
     (* App *)
@@ -184,7 +186,8 @@ fact:
 
 guard:
     | FAIL COLON ty { Fail $3 }
-    | FREE RIGHTARROW expr { Free $3 }
+    | EMPTY LEFT_PAREN VARIABLE RIGHT_PAREN RIGHTARROW expr { Empty ($3, $6) }
+    | FREE RIGHTARROW expr { GFree $3 }
     | RECEIVE message_binder FROM VARIABLE RIGHTARROW expr
             { let (tag, bnds) = $2 in
               Receive { tag; payload_binders = bnds;
