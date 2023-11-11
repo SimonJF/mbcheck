@@ -4,7 +4,10 @@ open Eval_types
 open Steps_printer
 open Common.Interface
 open Help_fun
+open Checker
 
+
+let limit = ref 0
 
 let rec execute (program,pid,steps,inbox,comp,env,stack) =
   Buffer.add_string steps_buffer (print_config (comp,env,stack,steps,pid,inbox,mailbox_map));
@@ -29,25 +32,35 @@ let rec execute (program,pid,steps,inbox,comp,env,stack) =
     | LetPair {binders = (binder1, binder2); pair; cont}, env, stack ->
       (match eval_of_var env pair with
       | Pair (v1, v2) ->
-          let env' = ValueEntry (binder1, v1) :: ValueEntry ( binder2, v2) :: env in
+          let env' =  (binder1, v1) ::  ( binder2, v2) :: env in
           execute (program,pid, steps+1,inbox,cont, env', stack)
       | _ -> failwith_and_print_buffer "Expected a pair in LetPair")
       
     | Seq (comp1, comp2), env, stack ->
-      let (status, (_,_,steps',inbox',comp1_rest,env',stack')) = execute (program,pid, steps+1,inbox,comp1, env, stack) in
-      let new_comp = match comp1_rest with
-          | Return _ -> comp2
-          | _ -> Seq (comp1_rest, comp2) 
-      in (status, (program,pid, steps', inbox',new_comp, env', stack'))
+      let (status, (_, _, steps', inbox', comp1_rest, env', stack')) = execute (program, pid, steps + 1, inbox, comp1, env, stack) in
+      let use_env = match comp1 with
+        | App _ -> env 
+        | _ -> env'  
+      in
+      (match comp1_rest with
+        | Return _ ->
+          (match status with
+          | Spawned _| MessageToSend _ ->  (status, (program, pid, steps', inbox', comp2, use_env, stack'))
+          | _ -> execute (program, pid, steps', inbox', comp2, use_env, stack'))
+        | _ ->
+          (match status with
+            | Blocked -> (Blocked, (program, pid, steps', inbox', Seq (comp1, comp2), use_env, stack'))
+            | _ ->(Unfinished, (program, pid, steps', inbox', Seq (comp1_rest, comp2), use_env, stack'))))
 
     | Return v, env, Frame (x, env', cont) :: stack ->
+        let _ = check_and_update_mailboxes comp pid in
         let result = eval_of_var env v in
-        execute (program,pid, steps+1,inbox,cont, ValueEntry ( x, result) :: env', stack) 
+        execute (program,pid, steps+1,inbox,cont, ( x, result) :: env', stack) 
       
     | App {func; args}, env, stack -> 
         (match func with
         | Lam {parameters; body; _} -> 
-            let new_env = (bind_args_paras args parameters [] pid) @ env in
+            let new_env = (bind_args_paras args parameters) @ env in
             execute (program,pid, steps+1,inbox,body, new_env, stack)
         | Primitive op -> 
             (match op with
@@ -96,16 +109,15 @@ let rec execute (program,pid,steps,inbox,comp,env,stack) =
           let func_name = Var.name func_var in
           (match find_decl func_name program.prog_decls with
           | Some func_decl ->
-              let env' = bind_args_paras (List.map (fun arg -> eval_of_var env arg) args) (func_decl.decl_parameters) env pid in
+              let env' = bind_args_paras (List.map (fun arg -> eval_of_var env arg) args) (func_decl.decl_parameters) in
               execute (program,pid, steps+1,inbox,func_decl.decl_body, env', stack)
           | None ->
-            (match List.find_opt (fun entry -> match entry with
-                            | ValueEntry (binder, Lam _) when Binder.name binder = func_name -> true
+            (match List.find_opt (fun v -> match v with
+                            | (binder, Lam _) when Binder.name binder = func_name -> true
                             | _ -> false) env with
-              | Some (ValueEntry (_, Lam {parameters; body; _})) ->
-                  let env' = bind_args_paras (List.map (fun arg -> eval_of_var env arg) args) parameters [] pid in
-                  let  (_,(_, _, steps',inbox', comp_result, _, _)) = execute (program,pid, steps+1,inbox,body, env', []) in
-                  execute (program,pid, steps',inbox',comp_result, env, stack)
+              | Some (_, Lam {parameters; body; _}) ->
+                  let env' = bind_args_paras (List.map (fun arg -> eval_of_var env arg) args) parameters in
+                  execute (program,pid, steps+1,inbox,body, env', [])
               | _ -> failwith_and_print_buffer ("Function " ^ func_name ^ " not found in prog_decls or as a closure in env")))
           | _ -> failwith_and_print_buffer "Unhandled function expression in App")
 
@@ -120,10 +132,10 @@ let rec execute (program,pid,steps,inbox,comp,env,stack) =
       let term_value = eval_of_var env term in
       (match term_value with
       | Inl value ->
-          let env' = ValueEntry ( binder1, value) :: env in
+          let env' = ( binder1, value) :: env in
           execute (program,pid, steps+1,inbox, comp1, env', stack)
       | Inr value ->
-          let env' = ValueEntry ( binder2, value) :: env in
+          let env' = ( binder2, value) :: env in
           execute (program,pid, steps+1,inbox, comp2, env', stack)
       | _ -> failwith_and_print_buffer "Expected Inl or Inr value in Case expression")
 
@@ -131,12 +143,14 @@ let rec execute (program,pid,steps,inbox,comp,env,stack) =
       (match List.find_opt (fun iface -> name iface = interface_name) program.prog_interfaces with
       | Some _ -> 
           Hashtbl.add mailbox_map (x.name) pid;
-          let env' = ValueEntry (x,Mailbox x.name) :: env in
+          let env' =  (x,Mailbox x.name) :: env in
           execute (program,pid, steps+1,inbox, cont, env', stack)
       | None -> failwith_and_print_buffer ("Interface " ^ interface_name ^ " not found"))
     
     | Spawn comp, env, stack ->
-      let new_process = (program,generate_new_pid (), 0, [], comp, env, stack) in
+      let new_pid = generate_new_pid () in
+      let _ = check_and_update_mailboxes comp new_pid in
+      let new_process = (program,new_pid, 0, [], comp, env, []) in
         (Spawned new_process, (program, pid , steps+1, inbox, Return (Constant Unit), env, stack))
     
     | Send {target; message; _}, env, stack ->
@@ -155,18 +169,21 @@ let rec execute (program,pid,steps,inbox,comp,env,stack) =
             | messages ->
                 let rec match_guards = function
                   | [] -> 
+                    if(!limit <= 11) then begin
+                      limit := !limit + 1;
                       Buffer.add_string steps_buffer (Printf.sprintf "\n******** Process %d is waiting for messages ********\n" pid);
-                      (Unfinished, (program,pid, steps,inbox, comp, env, stack))
+                      (Blocked, (program,pid, steps,inbox, comp, env, stack))
+                    end
+                  else failwith_and_print_buffer "No guard matched"
                   | Receive {tag; payload_binders; mailbox_binder; cont} :: rest ->
                       if List.exists (fun (msg_tag, _) -> msg_tag = tag) messages then
                         let message_to_process, new_mailbox = extract_message tag messages in
-                        let new_env = bind_env message_to_process mailbox_binder payload_binders env in
+                        let new_env = bind_env message_to_process payload_binders env target mailbox_binder in
                         execute (program, pid, steps+1, new_mailbox, cont, new_env, stack)
                       else
                         match_guards rest
                   | _ :: rest ->  match_guards rest in
                 match_guards guards )
-        
 
     | _ ->  failwith_and_print_buffer "Invalid configuration"
 
@@ -182,22 +199,23 @@ let rec process_scheduling processes max_steps =
       if steps >= max_steps then begin
         process_scheduling (rest @ [(prog, pid, 0, inbox, comp, env, stack)]) max_steps
       end else
-        let (execution_status, ((_, _, _, _, _, env', _) as updated_process)) = execute (prog, pid, 0, inbox, comp, env, stack) in
+        let (execution_status, ((_, _, _,_, _, env',_) as updated_process)) = execute (prog, pid, 0, inbox, comp, env, stack) in
         match execution_status with
         | Finished -> 
             Buffer.add_string steps_buffer (Printf.sprintf "\n******** Process %d Finished \u{221A} ********\n" pid);
             process_scheduling rest max_steps
         | Unfinished -> 
-            process_scheduling (rest @ [updated_process]) max_steps
+              process_scheduling (rest @ [updated_process]) max_steps
         | Spawned new_process -> 
             Buffer.add_string steps_buffer (Printf.sprintf "\n******** Process %d generates a new Process ********\n" pid;);
-            process_scheduling (new_process :: rest @ [updated_process]) max_steps
-        | MessageToSend (target, message) ->
-            let target_names = interface_name_from_value env' target in
-            let tag, values = message in
-            let substituted_values = substitute_variables_in_message env' values in
-            let updated_processes = add_message_to_mailbox (updated_process::rest) target_names (tag,substituted_values) [] pid in 
+            process_scheduling (new_process :: [updated_process] @ rest) max_steps
+        | MessageToSend (target, ((tag, _) as message)) ->
+            let _,messages = message in
+            let (substituted_target, substituted_values) = substitute_in_message env' target messages in
+            let updated_processes = add_message_to_mailbox (updated_process::rest) substituted_target (tag,substituted_values) [] pid in 
             process_scheduling updated_processes max_steps
+        | Blocked ->
+              process_scheduling (rest @ [updated_process]) max_steps
 
 let generate program =
   Buffer.add_string steps_buffer (Printf.sprintf "\n=== Reduction steps: ===\n\nProgram: %s\n" (show_program program));
@@ -207,7 +225,7 @@ let generate program =
         let func_name = Var.name func_var in
         (match find_decl func_name program.prog_decls with
         | Some func_decl ->
-            let env = bind_args_paras args func_decl.decl_parameters [] 0 in
+            let env = bind_args_paras args func_decl.decl_parameters in
             (program, generate_new_pid (), 0, [] , func_decl.decl_body, env, [])
         | None -> failwith_and_print_buffer ("Function " ^ func_name ^ " not found in prog_decls"))
     | Some comp -> (program,generate_new_pid (),0, [], comp, [], [])
