@@ -6,9 +6,6 @@ open Common.Interface
 open Help_fun
 open Checker
 
-
-let limit = ref 0
-
 let rec execute (program,pid,steps,inbox,comp,env,stack) =
   Buffer.add_string steps_buffer (print_config (comp,env,stack,steps,pid,inbox,mailbox_map));
   (* Printf.printf "%s" (print_config (comp,env,stack,steps,pid,inbox,mailbox_map)); *)
@@ -169,12 +166,7 @@ let rec execute (program,pid,steps,inbox,comp,env,stack) =
             | messages ->
                 let rec match_guards = function
                   | [] -> 
-                    if(!limit <= 11) then begin
-                      limit := !limit + 1;
-                      Buffer.add_string steps_buffer (Printf.sprintf "\n******** Process %d is waiting for messages ********\n" pid);
                       (Blocked, (program,pid, steps,inbox, comp, env, stack))
-                    end
-                  else failwith_and_print_buffer "No guard matched"
                   | Receive {tag; payload_binders; mailbox_binder; cont} :: rest ->
                       if List.exists (fun (msg_tag, _) -> msg_tag = tag) messages then
                         let message_to_process, new_mailbox = extract_message tag messages in
@@ -187,7 +179,7 @@ let rec execute (program,pid,steps,inbox,comp,env,stack) =
 
     | _ ->  failwith_and_print_buffer "Invalid configuration"
 
-let rec process_scheduling processes max_steps =
+let rec process_scheduling processes blocked_processes max_steps =
   match processes with
   | [] -> ()
   | (prog, pid, steps, inbox, comp, env, stack) :: rest ->
@@ -197,25 +189,25 @@ let rec process_scheduling processes max_steps =
         in
         Hashtbl.replace step_counts pid total_steps;
       if steps >= max_steps then begin
-        process_scheduling (rest @ [(prog, pid, 0, inbox, comp, env, stack)]) max_steps
+        process_scheduling (rest @ [(prog, pid, 0, inbox, comp, env, stack)]) blocked_processes max_steps
       end else
         let (execution_status, ((_, _, _,_, _, env',_) as updated_process)) = execute (prog, pid, 0, inbox, comp, env, stack) in
         match execution_status with
         | Finished -> 
             Buffer.add_string steps_buffer (Printf.sprintf "\n******** Process %d Finished \u{221A} ********\n" pid);
-            process_scheduling rest max_steps
+            process_scheduling rest blocked_processes max_steps
         | Unfinished -> 
-              process_scheduling (rest @ [updated_process]) max_steps
+              process_scheduling (rest @ [updated_process]) blocked_processes max_steps
         | Spawned new_process -> 
             Buffer.add_string steps_buffer (Printf.sprintf "\n******** Process %d generates a new Process ********\n" pid;);
-            process_scheduling (new_process :: [updated_process] @ rest) max_steps
+            process_scheduling (new_process :: [updated_process] @ rest) blocked_processes max_steps
         | MessageToSend (target, ((tag, _) as message)) ->
             let _,messages = message in
             let (substituted_target, substituted_values) = substitute_in_message env' target messages in
-            let updated_processes = add_message_to_mailbox (updated_process::rest) substituted_target (tag,substituted_values) [] pid in 
-            process_scheduling updated_processes max_steps
+            let unblocked_process,updated_blocked_processes = add_message_to_mailbox blocked_processes substituted_target (tag,substituted_values) [] pid in 
+            process_scheduling ([updated_process] @ rest @ [unblocked_process]) updated_blocked_processes max_steps
         | Blocked ->
-              process_scheduling (rest @ [updated_process]) max_steps
+              process_scheduling rest (updated_process :: blocked_processes)  max_steps
 
 let generate program =
   Buffer.add_string steps_buffer (Printf.sprintf "\n=== Reduction steps: ===\n\nProgram: %s\n" (show_program program));
@@ -231,7 +223,7 @@ let generate program =
     | Some comp -> (program,generate_new_pid (),0, [], comp, [], [])
     | _ -> (program,generate_new_pid () , 0, [], Return (Constant Unit), [], [])
   in
-  process_scheduling [initial_process] step_limit
+  process_scheduling [initial_process] [] step_limit
 
 
         

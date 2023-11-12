@@ -2,7 +2,7 @@ open Common.Ir
 open Eval_types
 open Steps_printer
 
-let step_limit = 20
+let step_limit = 30
 
 let global_pid_counter = ref 1
 
@@ -34,21 +34,20 @@ let find_pid_by_name name =
   | Some pid -> pid
   | None -> -1
 
-let rec add_message_to_mailbox processes target_name message updated_processes current_pid =
+let rec add_message_to_mailbox blocked_processes target_name message updated_processes current_pid =
   match target_name with
     | Mailbox m ->
-        (match processes with
+        (match blocked_processes with
         | [] -> failwith_and_print_buffer "Process doesn't find"
         | (prog, pid, steps, inbox, comp, env, cont) as current_process :: rest -> 
             let target_pid = find_pid_by_name m in
             if pid = target_pid then begin
                 Buffer.add_string steps_buffer (Printf.sprintf "\n -> -> Process %d send a message to Process %d(%s)-> ->\n" current_pid pid m);
                 let updated_process = (prog, pid, steps, message :: inbox, comp, env, cont) in
-                (List.rev (updated_process :: updated_processes) @ rest) end
+                (updated_process, (List.rev (updated_processes) @ rest)) end
             else
                 add_message_to_mailbox rest target_name message (current_process :: updated_processes) current_pid)
     | _ -> failwith_and_print_buffer "Expected a variable"
-        
   
 let rec extract_message tag (inbox: inbox) : message * inbox =
   match inbox with
@@ -59,15 +58,6 @@ let rec extract_message tag (inbox: inbox) : message * inbox =
       else
         let (found_payload, new_mailbox) = extract_message tag rest in
         (found_payload, message :: new_mailbox)
-
-(* let bind_env msg payload_binders env =
-  match msg with
-  | (_, payload) ->
-    if List.length payload <> List.length payload_binders then
-      failwith_and_print_buffer "Payload does not match the number of binders"
-    else
-      let bindings = List.combine payload_binders payload in
-      bindings @ env *)
         
 let bind_env msg payload_binders env target mailbox_binder =
   match msg with
