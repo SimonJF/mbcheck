@@ -220,17 +220,25 @@ let rec process_scheduling processes blocked_processes max_steps =
             Buffer.add_string steps_buffer (Printf.sprintf "\n******** Process %d Finished \u{221A} ********\n" pid);
             process_scheduling rest blocked_processes max_steps
         | Unfinished -> 
-              process_scheduling (rest @ [updated_process]) blocked_processes max_steps
+            process_scheduling (rest @ [updated_process]) blocked_processes max_steps
         | Spawned new_process -> 
             Buffer.add_string steps_buffer (Printf.sprintf "\n******** Process %d generates a new Process ********\n" pid;);
             process_scheduling (new_process :: [updated_process] @ rest) blocked_processes max_steps
         | MessageToSend (target, ((tag, _) as message)) ->
             let _,messages = message in
             let (substituted_target, substituted_values) = substitute_in_message env' target messages in
-            let unblocked_process,updated_blocked_processes = add_message_to_mailbox blocked_processes substituted_target (tag,substituted_values) [] pid in 
-            process_scheduling ([updated_process] @ rest @ [unblocked_process]) updated_blocked_processes max_steps
+            let result = add_message_to_mailbox blocked_processes substituted_target (tag,substituted_values) [] pid in 
+              (match result with
+              | Some (unblocked_process, updated_blocked_processes) ->
+                  process_scheduling ([updated_process] @ rest @ [unblocked_process]) updated_blocked_processes max_steps
+              | None ->
+                  match add_message_to_mailbox rest substituted_target (tag,substituted_values) [] pid with
+                  | Some (updated_process', updated_processes) ->
+                      process_scheduling ([updated_process] @ updated_processes @ [updated_process']) blocked_processes max_steps
+                  | None -> 
+                      failwith_and_print_buffer "Process doesn't find")
         | Blocked ->
-              process_scheduling rest (updated_process :: blocked_processes)  max_steps
+            process_scheduling rest (updated_process :: blocked_processes)  max_steps
         | FreeMailbox mailboxName ->
             let new_processes = update_processes_after_free (updated_process::rest) mailboxName in
             let new_blocked_processes = update_processes_after_free blocked_processes mailboxName in

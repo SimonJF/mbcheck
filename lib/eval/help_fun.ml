@@ -34,20 +34,22 @@ let find_pid_by_name name =
   | Some pid -> pid
   | None -> -1
 
-let rec add_message_to_mailbox blocked_processes target_name message updated_processes current_pid =
+let rec add_message_to_mailbox blocked_processes target_name message updated_blocked_processes current_pid =
   match target_name with
-    | Mailbox m ->
-        (match blocked_processes with
-        | [] -> failwith_and_print_buffer "Process doesn't find"
-        | (prog, pid, steps, inbox, comp, env, cont) as current_process :: rest -> 
-            let target_pid = find_pid_by_name m in
-            if pid = target_pid then begin
-                Buffer.add_string steps_buffer (Printf.sprintf "\n -> -> Process %d send a message to Process %d(%s)-> ->\n" current_pid pid m);
-                let updated_process = (prog, pid, steps, message :: inbox, comp, env, cont) in
-                (updated_process, (List.rev (updated_processes) @ rest)) end
-            else
-                add_message_to_mailbox rest target_name message (current_process :: updated_processes) current_pid)
-    | _ -> failwith_and_print_buffer "Expected a variable"
+  | Mailbox m ->
+      (match blocked_processes with
+      | [] -> None
+      | (prog, pid, steps, inbox, comp, env, cont) as current_process :: rest -> 
+          let target_pid = find_pid_by_name m in
+          if pid = target_pid then begin
+              Buffer.add_string steps_buffer (Printf.sprintf "\n -> -> Process %d send a message to Process %d(%s)-> ->\n" current_pid pid m);
+              let updated_process = (prog, pid, steps, message :: inbox, comp, env, cont) in
+              Some (updated_process, (List.rev (updated_blocked_processes) @ rest))
+          end else
+            add_message_to_mailbox rest target_name message (current_process :: updated_blocked_processes) current_pid)
+  | _ -> 
+      failwith_and_print_buffer "Expected a variable"      
+  
   
 let rec extract_message tag (inbox: inbox) : message * inbox =
   match inbox with
