@@ -21,7 +21,8 @@ let process_buffer_print () =
   List.iter (fun (pid, steps) ->
     let pid_str = if pid = 1 then "1(Main)" else string_of_int pid in
     Printf.printf "Total steps of PID %s: %d\n" pid_str steps
-  ) sorted_steps
+  ) sorted_steps;
+  Printf.printf "\n>>>>>>>> Program done \u{221A} <<<<<<<<\n"
   
 
 let result_buffer_print () = 
@@ -44,11 +45,14 @@ let show_inbox inbox =
 
 let print_mailbox_map mailbox_map =
   let b = Buffer.create 100 in 
-  let _ = Buffer.add_string b (Printf.sprintf "\nGlobal mailbox mapping:") in
-  Hashtbl.iter (fun x_name pid ->
+  Buffer.add_string b "\nGlobal mailbox mapping:";
+  let mailbox_list = Hashtbl.fold (fun x_name pid acc -> (pid, x_name) :: acc) mailbox_map [] in
+  let sorted_mailbox_list = List.sort (fun (pid1, _) (pid2, _) -> compare pid1 pid2) mailbox_list in
+  List.iter (fun (pid, x_name) ->
     Buffer.add_string b (Printf.sprintf "\n  PID: %d -> Name: %s" pid x_name)
-  ) mailbox_map;
+  ) sorted_mailbox_list;
   Buffer.contents b
+  
 
 (* Convert a value to its string representation. *)
 let show_value v =

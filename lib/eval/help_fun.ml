@@ -79,11 +79,30 @@ let bind_env msg payload_binders env target mailbox_binder =
 let free_mailbox mailbox_binder env =
   match mailbox_binder with
   | Variable (binder, _) ->
-      let updated_env = List.filter (function
-        | (_, Mailbox m) -> (binder.name) <> m
-        | _ -> true) env
-      in updated_env
+      let updated_env, mailbox_to_remove = 
+        List.fold_right (fun (v, value) (acc_env, acc_mailbox) ->
+          match value with
+          | Mailbox m when (binder.name ^ string_of_int binder.id) = (Binder.name v ^ string_of_int v.id) ->
+              (acc_env, Some m) 
+          | _ -> ((v, value) :: acc_env, acc_mailbox)
+        ) env ([], None)
+      in
+      (match mailbox_to_remove with
+      | Some m -> Hashtbl.remove mailbox_map m
+      | _ -> failwith_and_print_buffer "Mailbox not found in mailbox map");
+      updated_env,mailbox_to_remove
   | _ -> failwith_and_print_buffer "Expected a variable for mailbox binder"
+      
+let update_processes_after_free processes mailboxName =
+  List.map (fun (prog, pid, steps, inbox, comp, env, stack) ->
+    let updated_env = List.filter (fun (_, value) ->
+      match value with
+      | Mailbox m -> m <> mailboxName
+      | _ -> true
+    ) env in
+    (prog, pid, steps, inbox, comp, updated_env, stack)
+  ) processes
+
       
 let find_decl name decls =
   List.find_opt (fun decl -> Binder.name decl.decl_name = name) decls

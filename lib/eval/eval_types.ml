@@ -15,5 +15,6 @@ type execution_status =
   | Spawned of process 
   | MessageToSend of value * message
   | Blocked
+  | FreeMailbox of string
 
 

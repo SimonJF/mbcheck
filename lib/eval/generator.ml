@@ -43,6 +43,7 @@ let rec execute (program,pid,steps,inbox,comp,env,stack) =
         | Return _ ->
           (match status with
           | Spawned _| MessageToSend _ ->  (status, (program, pid, steps', inbox', comp2, use_env, stack'))
+          | FreeMailbox _ -> (status, (program, pid, steps', inbox', comp2, use_env, stack'))
           | _ -> execute (program, pid, steps', inbox', comp2, use_env, stack'))
         | _ ->
           (match status with
@@ -157,9 +158,14 @@ let rec execute (program,pid,steps,inbox,comp,env,stack) =
       (match pattern with  
         | Type.Pattern.One ->
             (match List.find (function Free _ -> true | _ -> false) guards with
-            |  (Free cont) -> 
-                let new_env = free_mailbox target env in
-                execute (program, pid, steps+1, inbox, cont, new_env, stack)
+            |  (Free comp') ->
+                let new_env, mailbox_to_remove = free_mailbox target env in
+                  ( (match mailbox_to_remove with
+                  | Some m -> 
+                      (FreeMailbox m ,(program, pid, steps+1, inbox, comp', new_env, stack))
+                  | None -> 
+                      failwith_and_print_buffer "No mailbox to free"
+                  ))
             | _ -> failwith_and_print_buffer "No Free guard matched")
         | _ ->
           match inbox with
@@ -181,7 +187,24 @@ let rec execute (program,pid,steps,inbox,comp,env,stack) =
 
 let rec process_scheduling processes blocked_processes max_steps =
   match processes with
-  | [] -> ()
+  | [] -> 
+       (match blocked_processes with
+          | (program,pid,steps,inbox,comp,env,stack) :: rest_blocked_processes ->
+              (match comp with
+                | Guard {target; pattern = _; guards; _}->
+                  (match List.find (function Free _ -> true | _ -> false) guards with
+                    | (Free comp') ->
+                      let new_env, _ = free_mailbox target env in
+                      let unblock_process = (program, pid, steps+1, inbox, comp', new_env, stack) in
+                      process_scheduling (unblock_process::processes) rest_blocked_processes max_steps
+                    | _ ->
+                      failwith_and_print_buffer "No free guard matched"
+                      )
+                | _ ->
+                  failwith_and_print_buffer "No guard matched")
+              
+          | [] -> 
+              ())
   | (prog, pid, steps, inbox, comp, env, stack) :: rest ->
       let total_steps = match Hashtbl.find_opt step_counts pid with
           | Some count -> count
@@ -208,7 +231,13 @@ let rec process_scheduling processes blocked_processes max_steps =
             process_scheduling ([updated_process] @ rest @ [unblocked_process]) updated_blocked_processes max_steps
         | Blocked ->
               process_scheduling rest (updated_process :: blocked_processes)  max_steps
+        | FreeMailbox mailboxName ->
+            let new_processes = update_processes_after_free (updated_process::rest) mailboxName in
+            let new_blocked_processes = update_processes_after_free blocked_processes mailboxName in
+            process_scheduling new_processes new_blocked_processes max_steps
 
+
+            
 let generate program =
   Buffer.add_string steps_buffer (Printf.sprintf "\n=== Reduction steps: ===\n\nProgram: %s\n" (show_program program));
   let initial_process =

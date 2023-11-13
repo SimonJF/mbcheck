@@ -28,7 +28,31 @@ let check_and_update_mailboxes expr current_pid =
   | _ -> () 
 
 
-(* ... rest of the code ... *)
+let check_and_Free expr current_pid =
+  match expr with
+  | Return Variable(v,_) -> 
+    if Hashtbl.mem mailbox_map v.name then (
+      Hashtbl.replace mailbox_map v.name current_pid
+    )
+  | App { func = _; args } ->
+    List.iter (fun arg ->  
+      match arg with
+      | Variable (v, _) -> 
+        if Hashtbl.mem mailbox_map v.name then (
+          Hashtbl.replace mailbox_map v.name current_pid
+        )
+      | _ -> () 
+    ) args
+  | Send { target = _; message = (_, msg_values); iname = _ } ->
+    List.iter (fun msg_value ->
+      match msg_value with
+      | Variable (v, _) -> 
+        if Hashtbl.mem mailbox_map v.name then (
+          Hashtbl.replace mailbox_map v.name current_pid;
+        )
+      | _ -> ()
+    ) msg_values
+  | _ -> () 
 
 
 
