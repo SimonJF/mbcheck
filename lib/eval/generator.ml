@@ -47,7 +47,7 @@ let rec execute (program,pid,steps,inbox,comp,env,stack) =
           | _ -> execute (program, pid, steps', inbox', comp2, use_env, stack'))
         | _ ->
           (match status with
-            | Blocked -> (Blocked, (program, pid, steps', inbox', Seq (comp1, comp2), use_env, stack'))
+            | Blocked -> (Blocked, (program, pid, steps', inbox, Seq (comp1, comp2), use_env, stack'))
             | _ ->(Unfinished, (program, pid, steps', inbox', Seq (comp1_rest, comp2), use_env, stack'))))
 
     | Return v, env, Frame (x, env', cont) :: stack ->
@@ -137,11 +137,11 @@ let rec execute (program,pid,steps,inbox,comp,env,stack) =
           execute (program,pid, steps+1,inbox, comp2, env', stack)
       | _ -> failwith_and_print_buffer "Expected Inl or Inr value in Case expression")
 
-    | New interface_name, env, Frame (x, _ ,cont) :: stack ->
+    | New interface_name, env, Frame (v, _ ,cont) :: stack ->
       (match List.find_opt (fun iface -> name iface = interface_name) program.prog_interfaces with
       | Some _ -> 
-          Hashtbl.add mailbox_map (x.name) pid;
-          let env' =  (x,Mailbox x.name) :: env in
+          Hashtbl.add mailbox_map v.name pid;
+          let env' =  (v,Mailbox v.name) :: env in
           execute (program,pid, steps+1,inbox, cont, env', stack)
       | None -> failwith_and_print_buffer ("Interface " ^ interface_name ^ " not found"))
     
@@ -159,13 +159,8 @@ let rec execute (program,pid,steps,inbox,comp,env,stack) =
         | Type.Pattern.One ->
             (match List.find (function Free _ -> true | _ -> false) guards with
             |  (Free comp') ->
-                let new_env, mailbox_to_remove = free_mailbox target env in
-                  ( (match mailbox_to_remove with
-                  | Some m -> 
-                      (FreeMailbox m ,(program, pid, steps+1, inbox, comp', new_env, stack))
-                  | None -> 
-                      failwith_and_print_buffer "No mailbox to free"
-                  ))
+                let new_env, mailbox_to_remove = free_mailbox target env pid in
+                  (FreeMailbox mailbox_to_remove ,(program, pid, steps+1, inbox, comp', new_env, stack))
             | _ -> failwith_and_print_buffer "No Free guard matched")
         | _ ->
           match inbox with
@@ -194,7 +189,7 @@ let rec process_scheduling processes blocked_processes max_steps =
                 | Guard {target; pattern = _; guards; _}->
                   (match List.find (function Free _ -> true | _ -> false) guards with
                     | (Free comp') ->
-                      let new_env, _ = free_mailbox target env in
+                      let new_env, _ = free_mailbox target env pid in
                       let unblock_process = (program, pid, steps+1, inbox, comp', new_env, stack) in
                       process_scheduling (unblock_process::processes) rest_blocked_processes max_steps
                     | _ ->

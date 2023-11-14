@@ -77,34 +77,56 @@ let bind_env msg payload_binders env target mailbox_binder =
           failwith_and_print_buffer "Target variable not found in environment")
       | _ -> failwith_and_print_buffer "Expected a variable for target")
 
-
-let free_mailbox mailbox_binder env =
+let free_mailbox mailbox_binder env pid_to_check =
   match mailbox_binder with
   | Variable (binder, _) ->
-      let updated_env, mailbox_to_remove = 
-        List.fold_right (fun (v, value) (acc_env, acc_mailbox) ->
+      ( let matched_mailbox_name, updated_env =
+        List.fold_right (fun (v, value) (acc_name, acc_env) ->
           match value with
           | Mailbox m when (binder.name ^ string_of_int binder.id) = (Binder.name v ^ string_of_int v.id) ->
-              (acc_env, Some m) 
-          | _ -> ((v, value) :: acc_env, acc_mailbox)
-        ) env ([], None)
-      in
-      (match mailbox_to_remove with
-      | Some m -> Hashtbl.remove mailbox_map m
-      | _ -> failwith_and_print_buffer "Mailbox not found in mailbox map");
-      updated_env,mailbox_to_remove
-  | _ -> failwith_and_print_buffer "Expected a variable for mailbox binder"
+              (Some m, acc_env) 
+          | _ -> 
+              (acc_name, (v, value) :: acc_env)
+        ) env (None, [])
+        in
+        let mailbox_list = Hashtbl.fold (fun m pid acc -> (m, pid) :: acc) mailbox_map [] in
+        let _, remaining_mailboxes = 
+          List.partition (fun (name, pid) -> 
+            pid = pid_to_check && (match matched_mailbox_name with
+                                  | Some matched_name -> 
+                                      Buffer.add_string steps_buffer (Printf.sprintf "\n******** Mailbox %s(PID:%d) has been freed \u{221A} ********\n" matched_name pid);
+                                      name = matched_name
+                                  | None -> false)
+          ) mailbox_list in
+        Hashtbl.clear mailbox_map;
+        
+        List.iter (fun (m, pid) -> Hashtbl.add mailbox_map m pid) remaining_mailboxes;
+        updated_env,(binder.name ^ string_of_int binder.id))
+  | _ -> 
+    failwith_and_print_buffer "Expected a variable for mailbox binder"   
+
+
       
 let update_processes_after_free processes mailboxName =
   List.map (fun (prog, pid, steps, inbox, comp, env, stack) ->
-    let updated_env = List.filter (fun (_, value) ->
+    let updated_env = List.filter (fun (v, value) ->
       match value with
-      | Mailbox m -> m <> mailboxName
+      | Mailbox _ -> (Binder.name v ^ string_of_int v.id) <> mailboxName
       | _ -> true
     ) env in
-    (prog, pid, steps, inbox, comp, updated_env, stack)
+    let updated_stack = List.map (fun frame ->
+      match frame with
+      | Frame (binder, frame_env, frame_comp) ->
+          let updated_frame_env = List.filter (fun (v, value) ->
+            match value with
+            | Mailbox _ -> (Binder.name v ^ string_of_int v.id) <> mailboxName
+            | _ -> true
+          ) frame_env in
+          Frame (binder, updated_frame_env, frame_comp)
+    ) stack in
+    (prog, pid, steps, inbox, comp, updated_env, updated_stack)
   ) processes
-
+    
       
 let find_decl name decls =
   List.find_opt (fun decl -> Binder.name decl.decl_name = name) decls
