@@ -61,6 +61,11 @@ let rec synthesise_val :
                         ty, Ty_env.singleton v ty, Constraint_set.empty
                     | _, PFun _ ->
                         Gripers.synth_mailbox_function v
+                    (* Although we have an interface pretype annotation, it's not possible
+                       to reliably infer a mailbox type (even with a fresh constraint) since
+                       we don't, a priori, know the capability. Even if we record the initial
+                       capability, it may be used at different 'modes' throughout the function,
+                       so any inference would in effect be a guess. *)
                     | _, _ ->
                         Gripers.synth_variable v
             end

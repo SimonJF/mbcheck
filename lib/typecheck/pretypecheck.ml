@@ -210,7 +210,7 @@ and synthesise_comp ienv env comp =
             let e1, e1_ty = synthesise_comp ienv e1_env e1 in
             let e2 = check_comp ienv e2_env e2 e1_ty in
             Case { term; branch1 = ((bnd1, ty1), e1); branch2 = ((bnd2, ty2), e2) }, e1_ty
-        | LetPair { binders = (b1, b2); pair; cont } ->
+        | LetPair { binders = ((b1, _), (b2, _)); pair; cont } ->
             let pair, pair_ty = synthv pair in
             let (t1, t2) =
                 match pair_ty with
@@ -226,7 +226,7 @@ and synthesise_comp ienv env comp =
                 |> PretypeEnv.bind (Var.of_binder b2) t2
             in
             let cont, cont_ty = synthesise_comp ienv env' cont in
-            LetPair { binders = (b1, b2); pair; cont }, cont_ty
+            LetPair { binders = ((b1, t1), (b2, t2)); pair; cont }, cont_ty
         | Seq (e1, e2) ->
             let e1 = check_comp ienv env e1 (Pretype.PBase Unit) in
             let e2, e2_ty = synth e2 in
