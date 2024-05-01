@@ -130,7 +130,7 @@ and transform_expr :
                         |> bind_var bnd2
                     in
                     Ir.LetPair {
-                        binders = (bnd1, bnd2);
+                        binders = ((bnd1, None), (bnd2, None));
                         pair = v;
                         cont = transform_expr env' cont k })
         | Case {
