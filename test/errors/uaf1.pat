@@ -1,10 +1,9 @@
 interface UAF { Message(Unit) }
 
 def go(x : UAF?) : Unit {
-    guard x : (1 + *Message) {
+    guard x : (*Message) {
         free -> x ! Message(())
         receive Message(z) from y ->
-            x ! Message(());
             go(y)
     }
 }

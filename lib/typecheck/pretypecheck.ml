@@ -226,7 +226,7 @@ and synthesise_comp ienv env comp =
                 |> PretypeEnv.bind (Var.of_binder b2) t2
             in
             let cont, cont_ty = synthesise_comp ienv env' cont in
-            LetPair { binders = ((b1, t1), (b2, t2)); pair; cont }, cont_ty
+            LetPair { binders = ((b1, Some t1), (b2, Some t2)); pair; cont }, cont_ty
         | Seq (e1, e2) ->
             let e1 = check_comp ienv env e1 (Pretype.PBase Unit) in
             let e2, e2_ty = synth e2 in
