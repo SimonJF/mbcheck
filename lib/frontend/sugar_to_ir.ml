@@ -111,8 +111,8 @@ and transform_expr :
                         term = c;
                         cont = transform_expr env' body k })
         | Pair (e1, e2) ->
-            transform_subterm env e1 (fun env v1 ->
-            transform_subterm env e2 (fun env v2 ->
+            transform_subterm env e1 (fun _ v1 ->
+            transform_subterm env e2 (fun _ v2 ->
                 Ir.Return (Ir.Pair (v1, v2)) |> k env))
         | LetPair {binders = (b1, b2); term; cont } ->
             (* let x = M in N*)
