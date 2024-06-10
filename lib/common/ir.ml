@@ -84,7 +84,10 @@ and comp =
       }
     | If of { test: value; then_expr: comp; else_expr: comp }
     | LetPair of {
-        binders: ((Binder.t[@name "binder"]) * (Binder.t[@name "binder"]));
+        (* By annotating with inferred pretypes, we can always use a checking rule
+           during inference, irrespective of whether both of the binders are used. *)
+        binders: ( ((Binder.t[@name "binder"]) * (Pretype.t[@name "pretype"]) option) *
+                   ((Binder.t[@name "binder"]) * (Pretype.t[@name "pretype"]) option));
         pair: value;
         cont: comp
     }
@@ -219,7 +222,7 @@ and pp_comp ppf = function
                         pp_value target
                         pp_message message
         end
-    | LetPair { binders = (b1, b2); pair; cont } ->
+    | LetPair { binders = ((b1, _), (b2, _)); pair; cont } ->
         fprintf ppf "let (%a, %a) = @[<v>%a@] in@,%a"
             Binder.pp b1
             Binder.pp b2

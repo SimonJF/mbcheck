@@ -61,6 +61,11 @@ let rec synthesise_val :
                         ty, Ty_env.singleton v ty, Constraint_set.empty
                     | _, PFun _ ->
                         Gripers.synth_mailbox_function v
+                    (* Although we have an interface pretype annotation, it's not possible
+                       to reliably infer a mailbox type (even with a fresh constraint) since
+                       we don't, a priori, know the capability. Even if we record the initial
+                       capability, it may be used at different 'modes' throughout the function,
+                       so any inference would in effect be a guess. *)
                     | _, _ ->
                         Gripers.synth_variable v
             end
@@ -502,18 +507,31 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
         (* LetPair is similar to Let. Annoyingly we must revert to synthesis of the pair if
            *either* binder is unused in the continuation. This could maybe be ameliorated somewhat
            if we had wildcard patterns. *)
-        | LetPair { binders = (b1, b2); pair; cont = body } ->
+        | LetPair { binders = ((b1, Some pty1), (b2, Some pty2)); pair; cont = body } ->
             (* Check body type and extract types for binders *)
             let body_env, body_constrs = chk body ty in
             (* Either binder might be unused.
                Revert to synthesis if we don't have type info for both. *)
             let b1var = Var.of_binder b1 in
             let b2var = Var.of_binder b2 in
+            (* Pretypes give us a little more type information, in case we can't check directly. *)
+            let inferred_ty_1 = Ty_env.lookup_opt b1var body_env in
+            let inferred_ty_2 = Ty_env.lookup_opt b2var body_env in
+            (* Default type: special case interface types -- only way something can be an MB but
+               not used is if it's a returnable !1 mailbox type*)
+            let default_ty = function
+                | Pretype.PInterface iname ->
+                        Some Type.(mailbox_send_unit iname Quasilinearity.Returnable)
+                | pty -> Pretype.to_type pty
+            in
+            let get_check_ty pty = function
+                | Some ty -> Some ty
+                | None -> default_ty pty
+            in
+            let check_ty_1 = get_check_ty pty1 inferred_ty_1 in
+            let check_ty_2 = get_check_ty pty2 inferred_ty_2 in
             let env, constrs =
-                match
-                    Ty_env.lookup_opt b1var body_env,
-                    Ty_env.lookup_opt b2var body_env
-                with
+                match (check_ty_1, check_ty_2) with
                     | Some b1ty, Some b2ty ->
                         (* Note: make_pair_type ensures both types are returnable *)
                         let target_ty =
@@ -532,7 +550,9 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                         (env, constrs)
                     | maybe_ty1, maybe_ty2 ->
                         (* In this case, all we can really do is synthesise and
-                           check it's not linear. *)
+                           check it's not linear.
+                           This should only happen for the case where we have a
+                           function returning an MB type.*)
                         let (pair_ty, pair_env, pair_constrs) =
                             synthesise_val ienv decl_env pair
                         in
@@ -570,6 +590,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                 |> Ty_env.delete b2var
             in
             (env, constrs)
+        | LetPair _ -> assert false (* Pretypes should have been filled in *)
         | Guard { iname = None; _ } -> (* Should have been filled in by pre-typing *)
             assert false
         | Guard { target; pattern; guards; iname = Some iname } ->

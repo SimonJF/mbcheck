@@ -297,6 +297,14 @@ let unit_type = Base Base.Unit
 let function_type linear args result =
     Fun { linear; args; result }
 
+let mailbox_send_unit interface quasilinearity =
+    Mailbox {
+        capability = Capability.Out;
+        interface;
+        pattern = Some (Pattern.One);
+        quasilinearity
+    }
+
 let rec pp ppf =
   let open Format in
   let ps = pp_print_string ppf in
