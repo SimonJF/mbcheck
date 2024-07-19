@@ -31,22 +31,25 @@ module Quasilinearity = struct
             | Returnable, Usable -> true
             | x1, x2 -> x1 = x2
 
+    let max ql1 ql2 =
+        if ql1 = Returnable || ql2 = Returnable then
+            Returnable
+        else
+            Usable
+
     (* The |> operator in the calculus.
        Idea: can have many Usable aliases but only one Returnable.
        Returnable use must be the last-used alias in the frame stack,
        preventing use-after-free errors and other nastiness.
      *)
     let sequence x1 x2 =
-        match x1, x2 with
-            | Usable, Usable -> Some Usable
-            | Usable, Returnable -> Some Returnable
-            | _, _ -> None
-
-    let max ql1 ql2 =
-        if ql1 = Returnable || ql2 = Returnable then
-            Returnable
+        if (Settings.(get disable_quasilinearity)) then
+            Some (max x1 x2)
         else
-            Usable
+            match x1, x2 with
+                | Usable, Usable -> Some Usable
+                | Usable, Returnable -> Some Returnable
+                | _, _ -> None
 
     let pp ppf =
         let open Format in
