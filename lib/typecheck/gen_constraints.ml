@@ -39,7 +39,7 @@ let rec synthesise_val :
         | Pair (v1, v2) ->
             let (t1, env1, constrs1) = synthesise_val ienv decl_env v1 in
             let (t2, env2, constrs2) = synthesise_val ienv decl_env v2 in
-            let env, constrs3 = Ty_env.combine ienv env1 env2 in
+            let env, constrs3 = Ty_env.join ienv env1 env2 in
             Type.Pair (t1, t2),
                 env,
                 Constraint_set.union_many [constrs1; constrs2; constrs3]
@@ -191,9 +191,9 @@ and check_val :
                 end
             in
             (* We can only construct a pair if its components are returnable. *)
-            let (env1, constrs1) = check_val ienv decl_env v1 (Type.make_returnable t1) in
-            let (env2, constrs2) = check_val ienv decl_env v2 (Type.make_returnable t2) in
-            let env, constrs3 = Ty_env.combine ienv env1 env2 in
+            let (env1, constrs1) = check_val ienv decl_env v1 t1 in
+            let (env2, constrs2) = check_val ienv decl_env v2 t2 in
+            let env, constrs3 = Ty_env.join ienv env1 env2 in
             env, Constraint_set.union_many [constrs1; constrs2; constrs3]
         | _ ->
             let synth_ty, synth_env, synth_constrs =
@@ -221,6 +221,19 @@ and synthesise_comp :
             },
             Ty_env.empty,
             Constraint_set.empty
+        | Free (v, Some interface) ->
+            let goal =
+                let open Type in
+                Mailbox {
+                    capability = Capability.In;
+                    interface; pattern = Some One;
+                    (* 'New' always produces a returnable MB type *)
+                    quasilinearity = Quasilinearity.Returnable;
+                }
+            in
+            let env, constrs = check_val ienv decl_env v goal in
+            (Type.unit_type, env, constrs)
+        | Free (_, None) -> assert false
         (* Application is a synthesis case, since functions are always annotated. *)
         | App { func; args } ->
             (* Synthesise the type for the function.
@@ -238,7 +251,7 @@ and synthesise_comp :
                 List.fold_right (fun (x, ty) (acc_env, acc_constrs) ->
                     let (arg_env, arg_constrs) = check_val ienv decl_env x ty in
                     (* Note: arguments must have disjoint type environments *)
-                    let (env, env_constrs) = Ty_env.combine ienv arg_env acc_env in
+                    let (env, env_constrs) = Ty_env.join ienv arg_env acc_env in
                     let constrs =
                         Constraint_set.union_many
                             [arg_constrs; env_constrs; acc_constrs]
@@ -249,7 +262,7 @@ and synthesise_comp :
             (* No nested evaluation contexts, so we combine function and
                argument environments, expecting disjointness. *)
             let (env, env_constrs) =
-                Ty_env.combine ienv fun_env arg_env
+                Ty_env.join ienv fun_env arg_env
             in
             (* Union constraint sets *)
             let constrs =
@@ -286,12 +299,12 @@ and synthesise_comp :
                 List.combine payloads payload_types
                 |> List.fold_left (fun (env, constrs) (payload, iface_ty)  ->
                     let (chk_env, chk_constrs) = check_val ienv decl_env payload iface_ty in
-                    let (env, env_constrs) = Ty_env.combine ienv env chk_env in
+                    let (env, env_constrs) = Ty_env.join ienv env chk_env in
                     (env, Constraint_set.union_many
                         [constrs; chk_constrs; env_constrs])
                 ) (Ty_env.empty, Constraint_set.empty)
             in
-            let (env, env_constrs) = Ty_env.combine ienv mb_env arg_env in
+            let (env, env_constrs) = Ty_env.join ienv mb_env arg_env in
             let constrs =
                 Constraint_set.union_many
                 [ mb_constrs; arg_constrs; env_constrs ] in
@@ -309,7 +322,7 @@ and synthesise_comp :
                 match Ty_env.lookup_opt (Var.of_binder binder) body_env with
                     | Some binder_ty ->
                         let (term_env, term_constrs) =
-                            check_comp ienv decl_env term (Type.make_returnable binder_ty)
+                            check_comp ienv decl_env term (Type.make_usable binder_ty)
                         in
                         (* Join environments, union constraints *)
                         let (env, env_constrs) =
@@ -428,7 +441,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                since there's no typable value with type 'bool' which will
                involve sending along a mailbox type. Using 'combine' for
                uniformity. *)
-            let (env, env2_constrs) = Ty_env.combine ienv test_env branches_env in
+            let (env, env2_constrs) = Ty_env.join ienv test_env branches_env in
             let constrs =
                 Constraint_set.union_many
                     [ test_constrs; then_constrs;
@@ -535,7 +548,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                             Constraint_set.union_many
                                 [body_constrs; term_constrs; env_constrs] in
                         (env, constrs)
-                    | _, _ ->
+                    | maybe_ty1, maybe_ty2 ->
                         (* In this case, all we can really do is synthesise and
                            check it's not linear.
                            This should only happen for the case where we have a
@@ -548,25 +561,26 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                                 | Type.Pair (pty1, pty2) -> (pty1, pty2)
                                 | _ -> Gripers.expected_pair_type pair_ty
                         in
-                        (* The synthesised type must be a returnable pair *)
+                        (* If either of the types is actually found in the continuation, then check subtype.
+                           If not, then we need to generate unrestrictedness constraints *)
+                        let ty_constrs declared maybe_ty =
+                            match maybe_ty with
+                                | Some inferred -> Type_utils.subtype ienv inferred declared
+                                | None -> Type_utils.make_unrestricted declared
+                        in
+                        let ty_consistency_constrs = 
+                            Constraint_set.union (ty_constrs pty1 maybe_ty1) (ty_constrs pty2 maybe_ty2)
+                        in
                         let () =
                             if not (Type.is_returnable pair_ty) then
                                 Gripers.let_not_returnable pair_ty
                         in
-                        let () =
-                            if Type.is_lin pty1 then
-                                Gripers.unused_synthesised_linear_var
-                                b1var pty1
-                            else if Type.is_lin pty2 then
-                                Gripers.unused_synthesised_linear_var
-                                b1var pty2
-                        in
                         let (env, env_constrs) =
-                            Ty_env.combine ienv pair_env body_env
+                            Ty_env.join ienv pair_env body_env
                         in
                         let constrs =
                             Constraint_set.union_many
-                                [body_constrs; pair_constrs; env_constrs]
+                                [body_constrs; pair_constrs; env_constrs; ty_consistency_constrs]
                         in
                         (env, constrs)
             in
@@ -638,23 +652,23 @@ and check_guards :
           let open Type in
           (* Do a duplication check on guards *)
           let _ =
-            List.fold_left (fun (free, fail, tags) x ->
+            List.fold_left (fun (empty, fail, tags) x ->
               match x with
-                | Free _ ->
-                    if free then
-                      Gripers.multiple_free ()
+                | Empty _ ->
+                    if empty then
+                      Gripers.multiple_empty ()
                     else
                       (true, fail, tags)
                 | Fail ->
                     if fail then
                       Gripers.multiple_fail ()
                     else
-                      (free, true, tags)
+                      (empty, true, tags)
                 | Receive { tag; _ } ->
                     if List.mem tag tags then
                       Gripers.multiple_receive tag
                     else
-                      (free, fail, tag :: tags)
+                      (empty, fail, tag :: tags)
             ) (false, false, []) gs in
 
           (* Typecheck each non-fail guard, and infer an environment. *)
@@ -784,9 +798,34 @@ and check_guard :
                    calculated resulting pattern. *)
                 let res_pat =  Pattern.(Concat (Message tag, deriv)) in
                 (Nullable_env.of_env env, res_pat, constrs)
-            | Free e ->
+            | Empty (mailbox_binder, e) ->
                 let (env, constrs) = check_comp ienv decl_env e ty in
-                (Nullable_env.of_env env, One, constrs)
+                let mb_ty =
+                    Ty_env.lookup_opt (Var.of_binder mailbox_binder) env
+                in
+                (* Inferred type should be ?1 *)
+                let goal =
+                    Type.Mailbox {
+                        capability = Capability.In;
+                        interface = iname;
+                        pattern = Some One;
+                        quasilinearity = Quasilinearity.Returnable;
+                    }
+                in
+                let mb_empty_constr =
+                    match mb_ty with
+                        | Some mb_ty -> Type_utils.subtype ienv goal mb_ty
+                        | None ->
+                            Gripers.unused_mailbox_variable
+                                (Var.of_binder mailbox_binder)
+                in
+                let env =
+                    env
+                    |> Ty_env.delete_binder mailbox_binder
+                    |> Nullable_env.of_env
+                in
+                (env, One,
+                    Constraint_set.union mb_empty_constr constrs)
             | Fail ->
                 (Nullable_env.null, Zero, Constraint_set.empty)
 
@@ -879,7 +918,7 @@ let synthesise_program { prog_interfaces; prog_decls; prog_body } =
     match prog_body with
         | Some body ->
             let ty, body_env, body_constrs = synthesise_comp ienv decl_env body in
-            let env, env_constrs = Ty_env.combine ienv decl_env body_env in
+            let env, env_constrs = Ty_env.join ienv decl_env body_env in
             let constrs =
                 Constraint_set.union_many
                     [decl_constrs; body_constrs; env_constrs]
@@ -898,7 +937,7 @@ let check_program { prog_interfaces; prog_decls; prog_body } ty =
     match prog_body with
         | Some body ->
             let body_env, body_constrs = check_comp ienv decl_env body ty in
-            let env, env_constrs = Ty_env.combine ienv decl_env body_env in
+            let env, env_constrs = Ty_env.join ienv decl_env body_env in
             let constrs =
                 Constraint_set.union_many
                     [decl_constrs; body_constrs; env_constrs]

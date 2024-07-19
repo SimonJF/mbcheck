@@ -65,21 +65,23 @@ let rec subtype_type :
                 capability = capability1;
                 interface = iname1;
                 pattern = Some pat1;
-                quasilinearity = ql1
+                quasilinearity = _ql1
               },
               Mailbox {
                 capability = capability2;
                 interface = iname2;
                 pattern = Some pat2;
-                quasilinearity = ql2
+                quasilinearity = _ql2
               } ->
                   (* First, ensure interface subtyping *)
                   let interface1 = Interface_env.lookup iname1 ienv in
                   let interface2 = Interface_env.lookup iname2 ienv in
+                  (*
                   let () =
                       if not (Type.Quasilinearity.is_sub ql1 ql2) then
                           Gripers.quasilinearity_mismatch t1 t2
                   in
+                  *)
                   let iface_constraints =
                       subtype_interface visited ienv interface1 interface2 in
                   let pat_constraints =
