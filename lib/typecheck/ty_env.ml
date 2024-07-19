@@ -25,47 +25,6 @@ let union = VarMap.union
 let from_list xs = List.to_seq xs |> VarMap.of_seq
 
 
-(* Combines two environments. The environments should only intersect
-   on unrestricted types. *)
-let combine : Interface_env.t -> t -> t -> t * Constraint_set.t =
-    fun ienv env1 env2 ->
-        (* Types must be *the same* and *unrestricted* *)
-        (* Subtype in both directions *)
-        let join_types var (ty1: Type.t) (ty2: Type.t) =
-            (* The subtyping and constraints are enough to rule out
-               re-use of mailboxes, but it's worth special-casing to
-               get a better error message. *)
-            if Type.contains_mailbox_type ty1 && Type.contains_mailbox_type ty2
-            then
-                Gripers.combine_mailbox_type var
-            else
-                Constraint_set.union_many
-                    [
-                        make_unrestricted ty1;
-                        make_unrestricted ty2;
-                        subtype ienv ty1 ty2;
-                        subtype ienv ty2 ty1
-                    ]
-        in
-        (* Find the overlapping keys, zip up, and join. *)
-        (* Since the subtyping in both directions will ensure equality of types,
-           and that the relevant constraints are generated, it is safe to just
-           use either type in the combined environment. *)
-        let overlap_constrs =
-            bindings env1
-            |> List.filter_map (fun (k, ty1) ->
-                    match lookup_opt k env2 with
-                        | None -> None
-                        | Some ty2 -> Some (join_types k ty1 ty2)
-
-            )
-            |> Constraint_set.union_many
-        in
-        let combined_env =
-            union (fun _ ty1 _ -> Some ty1) env1 env2
-        in
-        (combined_env, overlap_constrs)
-
 (* Joins two sequential or concurrent environments (i.e., where *both*
    actions will happen). *)
 let join : Interface_env.t -> t -> t -> t * Constraint_set.t =
@@ -154,6 +113,53 @@ let join : Interface_env.t -> t -> t -> t * Constraint_set.t =
                 ((name, ty) :: joined, Constraint_set.union join_constrs constrs)
             ) ([], Constraint_set.empty) isect1 in
         from_list (joined @ disjoint1 @ disjoint2), constrs
+
+(* Combines two environments. The environments should only intersect
+   on unrestricted types. *)
+let combine : Interface_env.t -> t -> t -> t * Constraint_set.t =
+    fun ienv env1 env2 ->
+        let combine_really ienv env1 env2 =
+            (* Types must be *the same* and *unrestricted* *)
+            (* Subtype in both directions *)
+            let join_types var (ty1: Type.t) (ty2: Type.t) =
+                (* The subtyping and constraints are enough to rule out
+                   re-use of mailboxes, but it's worth special-casing to
+                   get a better error message. *)
+                if Type.contains_mailbox_type ty1 && Type.contains_mailbox_type ty2
+                then
+                    Gripers.combine_mailbox_type var
+                else
+                    Constraint_set.union_many
+                        [
+                            make_unrestricted ty1;
+                            make_unrestricted ty2;
+                            subtype ienv ty1 ty2;
+                            subtype ienv ty2 ty1
+                        ]
+            in
+            (* Find the overlapping keys, zip up, and join. *)
+            (* Since the subtyping in both directions will ensure equality of types,
+               and that the relevant constraints are generated, it is safe to just
+               use either type in the combined environment. *)
+            let overlap_constrs =
+                bindings env1
+                |> List.filter_map (fun (k, ty1) ->
+                        match lookup_opt k env2 with
+                            | None -> None
+                            | Some ty2 -> Some (join_types k ty1 ty2)
+
+                )
+                |> Constraint_set.union_many
+            in
+            let combined_env =
+                union (fun _ ty1 _ -> Some ty1) env1 env2
+            in
+            (combined_env, overlap_constrs)
+        in
+        let fn =
+            if Settings.(get join_not_combine) then join else combine_really
+        in
+        fn ienv env1 env2
 
 (* Merges environments resulting from branching control flow. *)
 (* Core idea is that linear types must be used in precisely the same way in
