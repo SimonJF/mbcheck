@@ -103,6 +103,7 @@ and comp =
         message: (message[@name "msg"]);
         iname: string option
       }
+    | Free of (value * string option)
     | Guard of {
         target: value;
         pattern: (Type.Pattern.t[@name "pattern"]);
@@ -135,7 +136,7 @@ and guard =
         mailbox_binder: (Binder.t[@name "binder"]);
         cont: comp
     }
-    | Free of comp
+    | Empty of ((Binder.t[@name "binder"]) * comp)
     | Fail
     [@@deriving visitors {
         variety = "map";
@@ -193,8 +194,9 @@ and pp_comp ppf = function
             Binder.pp binder
             pp_comp term
             pp_comp cont
-    | Return v ->
-            pp_value ppf v
+    | Return v -> pp_value ppf v
+    | Free (v, _) ->
+            fprintf ppf "free(%a)" pp_value v
     | If { test; then_expr; else_expr } ->
             fprintf ppf "if (%a) {@[<v>%a@]} else {@[<v>%a@]}}"
             pp_value test
@@ -263,8 +265,8 @@ and pp_guard ppf = function
             (pp_print_comma_list Binder.pp) payload_binders
             Binder.pp mailbox_binder
             pp_comp cont
-    | Free e ->
-        fprintf ppf "free ->@,  @[<v>%a@]" pp_comp e
+    | Empty (x, e) ->
+        fprintf ppf "empty(%a) ->@,  @[<v>%a@]" Binder.pp x pp_comp e
     | Fail ->
         fprintf ppf "fail"
 

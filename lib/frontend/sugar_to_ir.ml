@@ -114,7 +114,7 @@ and transform_expr :
             transform_subterm env e1 (fun _ v1 ->
             transform_subterm env e2 (fun _ v2 ->
                 Ir.Return (Ir.Pair (v1, v2)) |> k env))
-        | LetPair {binders = (b1, b2); term; cont } ->
+        | LetPair {binders = (b1, b2); term; cont; _ } ->
             (* let x = M in N*)
             (* Create an IR variable based on x *)
             let bnd1 = Ir.Binder.make ~name:b1 () in
@@ -163,6 +163,8 @@ and transform_expr :
                     else_expr = transform_expr env else_expr id } |> k env)
         | New i -> Ir.New i |> k env
         | Spawn e -> Ir.Spawn (transform_expr env e id) |> k env
+        | Free e ->
+            transform_subterm env e (fun _ v -> Ir.Free (v, None)) |> k env
         | Send {target; message; iname} ->
             let (tag, payloads) = message in
             transform_subterm env target (fun env pid ->
@@ -180,7 +182,7 @@ and transform_expr :
                     guards = gs;
                     iname
                 } |> k env )
-        | SugarFree _ | SugarFail (_, _) -> (* shouldn't ever match *)
+        |  SugarFail (_, _) -> (* shouldn't ever match *)
                 raise (Errors.internal_error "sugar_to_ir.ml" "Encountered SugarFree/SugarFail expression during the IR translation stage")
 
 (* Transforms a subterm into an IR computation, naming if necessary. *)
@@ -221,9 +223,17 @@ and transform_subterm
                 let bnd = Ir.Binder.make () in
                 (* Create a new variable from the binder *)
                 let var = Ir.Variable ((Ir.Var.of_binder bnd), None) in
+                (* If we are translating an annotation, we need to create a value annotation
+                   in the IR such that we do not lose the type information and needlessly resort
+                   to synthesis *)
+                let var' =
+                    match x with
+                        | Annotate (_, ty) -> Ir.VAnnotate (var, ty)
+                        | _ -> var
+                in
                 (* Return a 'let' expression with the binder, binding the computation,
                    and apply the continuation to the bound variable *)
-                Ir.Let { binder = bnd; term = c; cont = (k env var) })
+                Ir.Let { binder = bnd; term = c; cont = (k env var') })
 
 and transform_guard :
     env ->
@@ -239,7 +249,11 @@ and transform_guard :
             mailbox_binder = mailbox_bnd;
             cont
         }
-    | Free e -> Ir.Free (transform_expr env e id)
+    | Empty (bnd, cont) ->
+        let (mailbox_bnd, env) = add_name env bnd in
+        let cont = transform_expr env cont id in
+        Ir.Empty (mailbox_bnd, cont)
+    | GFree _ -> raise (Errors.internal_error "sugar_to_ir.ml" "Encountered Free guard during the IR translation stage")
     (* type will have been expanded into an annotation by this point *)
     | Fail _ -> Ir.Fail
 
