@@ -23,12 +23,13 @@ let print_ir (prog, _prety, ir, _ty, _env, _constrs) =
         "=== Intermediate Representation: ===\n%a\n\n"
         (Ir.pp_program) ir
 
-let process filename is_verbose is_debug is_ir mode benchmark_count disable_ql () =
+let process filename is_verbose is_debug is_ir mode benchmark_count disable_ql use_join () =
     Settings.(set verbose is_verbose);
     Settings.(set debug is_debug);
     Settings.(set receive_typing_strategy mode);
     Settings.(set benchmark benchmark_count);
     Settings.(set disable_quasilinearity disable_ql);
+    Settings.(set join_not_combine use_join);
     try
         Frontend.Parse.parse_file filename ()
         |> Frontend.Pipeline.pipeline
@@ -51,6 +52,7 @@ let () =
     $ Arg.(value & opt int (-1) & info ["b"; "benchmark"]
       ~docv:"BENCHMARK" ~doc:"number of repetitions for benchmark; -1 (default) for no benchmarking")
     $ Arg.(value & flag & info ["q"; "disable-quasilinearity"] ~doc:"disable quasilinearity checking")
+    $ Arg.(value & flag & info ["j"; "join-not-combine"] ~doc:"use sequential join for value subterms, rather than requiring disjointness")
     $ const ()) in
   let info = Cmd.info "mbcheck" ~doc:"Typechecker for mailbox calculus" in
   Cmd.v info mbcheck_t
