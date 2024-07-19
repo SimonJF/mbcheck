@@ -64,8 +64,8 @@ let visitor =
                 decl_return_type = annotate_type decl.decl_return_type;
                 decl_body = self#visit_expr env decl.decl_body }
 
-
         method! visit_expr env = function
+            | Annotate (e, ty) -> Annotate (self#visit_expr env e, annotate_type ty)
             | Lam { linear; parameters; result_type; body } ->
                 let parameters =
                     List.map (fun (x, y) -> (x, annotate_type y)) parameters in
