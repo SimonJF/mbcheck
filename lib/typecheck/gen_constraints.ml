@@ -191,8 +191,8 @@ and check_val :
                 end
             in
             (* We can only construct a pair if its components are returnable. *)
-            let (env1, constrs1) = check_val ienv decl_env v1 t1 in
-            let (env2, constrs2) = check_val ienv decl_env v2 t2 in
+            let (env1, constrs1) = check_val ienv decl_env v1 (Type.make_returnable t1) in
+            let (env2, constrs2) = check_val ienv decl_env v2 (Type.make_returnable t2) in
             let env, constrs3 = Ty_env.combine ienv env1 env2 in
             env, Constraint_set.union_many [constrs1; constrs2; constrs3]
         | _ ->
@@ -322,7 +322,7 @@ and synthesise_comp :
                 match Ty_env.lookup_opt (Var.of_binder binder) body_env with
                     | Some binder_ty ->
                         let (term_env, term_constrs) =
-                            check_comp ienv decl_env term (Type.make_usable binder_ty)
+                            check_comp ienv decl_env term (Type.make_returnable binder_ty)
                         in
                         (* Join environments, union constraints *)
                         let (env, env_constrs) =
@@ -918,7 +918,7 @@ let synthesise_program { prog_interfaces; prog_decls; prog_body } =
     match prog_body with
         | Some body ->
             let ty, body_env, body_constrs = synthesise_comp ienv decl_env body in
-            let env, env_constrs = Ty_env.join ienv decl_env body_env in
+            let env, env_constrs = Ty_env.combine ienv decl_env body_env in
             let constrs =
                 Constraint_set.union_many
                     [decl_constrs; body_constrs; env_constrs]
@@ -937,7 +937,7 @@ let check_program { prog_interfaces; prog_decls; prog_body } ty =
     match prog_body with
         | Some body ->
             let body_env, body_constrs = check_comp ienv decl_env body ty in
-            let env, env_constrs = Ty_env.join ienv decl_env body_env in
+            let env, env_constrs = Ty_env.combine ienv decl_env body_env in
             let constrs =
                 Constraint_set.union_many
                     [decl_constrs; body_constrs; env_constrs]

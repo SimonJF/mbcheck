@@ -424,7 +424,7 @@ let make_function_type linear args result =
     Fun { linear; args; result }
 
 let make_pair_type ty1 ty2 =
-    Pair (ty1, ty2)
+    Pair (make_returnable ty1, make_returnable ty2)
 
 let make_sum_type ty1 ty2 =
     Sum (make_returnable ty1, make_returnable ty2)
