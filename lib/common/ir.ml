@@ -112,6 +112,7 @@ and comp =
       }
 and value =
     | VAnnotate of value * (Type.t[@name "ty"])
+    | Atom of atom_name
     | Constant of constant
     | Primitive of primitive_name
     | Variable of (Var.t[@name "var"]) * (Pretype.t[@name "pretype"]) option
@@ -127,6 +128,7 @@ and value =
 and message = (string * value list)
     [@@name "msg"]
 and primitive_name = string
+and atom_name = string
 and constant =
     [%import: Common_types.Constant.t]
 and guard =
@@ -244,6 +246,7 @@ and pp_value ppf = function
     (* Might want, at some stage, to print out pretype info *)
     | VAnnotate (value, ty) ->
         fprintf ppf "(%a : %a)" pp_value value Type.pp ty
+    | Atom name -> Format.pp_print_string ppf (":" ^ name)
     | Primitive prim -> Format.pp_print_string ppf prim
     | Variable (var, _) -> Var.pp ppf var
     | Constant c -> Constant.pp ppf c

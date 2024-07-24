@@ -6,6 +6,7 @@ open Format
 (* Expressions *)
 type expr =
     | Var of sugar_var
+    | Atom of atom_name
     | Primitive of (primitive_name[@name "primitive_name"])
     (* Type annotation, used for synthesis --> checking switch. *)
     | Annotate of expr * (Type.t[@name "ty"])
@@ -67,6 +68,7 @@ type expr =
 and constant =
     [%import: Common_types.Constant.t]
 and sugar_var = string
+and atom_name = string
 and sugar_binder = string
 and primitive_name = string
 (* Guards are either a receive expression, free, or fail *)
@@ -154,7 +156,8 @@ and pp_bnd_ann ppf (bnd, ann) =
 (* Expressions *)
 and pp_expr ppf = function
     (* Might want, at some stage, to print out pretype info *)
-    | Var x
+    | Var x -> pp_print_string ppf x
+    | Atom x -> pp_print_string ppf (":" ^ x)
     | Primitive x -> pp_print_string ppf x
     | Annotate (expr, ty) ->
         fprintf ppf "(%a : %a)" pp_expr expr Type.pp ty

@@ -295,6 +295,7 @@ let int_type = Base Base.Int
 let string_type = Base Base.String
 let bool_type = Base Base.Bool
 let unit_type = Base Base.Unit
+let atom = Base Base.Atom
 let function_type linear args result =
     Fun { linear; args; result }
 
@@ -308,16 +309,8 @@ let mailbox_send_unit interface quasilinearity =
 
 let rec pp ppf =
   let open Format in
-  let ps = pp_print_string ppf in
   function
-    | Base b ->
-       begin
-         match b with
-           | Unit -> ps "Unit"
-           | Int -> ps "Int"
-           | Bool -> ps "Bool"
-           | String -> ps "String"
-       end
+    | Base b -> Base.pp ppf b
     | Fun { linear; args; result } ->
         let arrow = if linear then "-o" else "->" in
         fprintf ppf "(%a) %s %a"
