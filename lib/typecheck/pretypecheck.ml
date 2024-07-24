@@ -117,6 +117,7 @@ let rec synthesise_val ienv env value : (value * Pretype.t) =
             let check_ty = Pretype.of_type ty in
             let v = check_val ienv env v check_ty in
             VAnnotate (v, ty), check_ty
+        | Atom a -> (Atom a, Pretype.PBase (Base.Atom))
         | Constant c ->
             (Constant c, Pretype.PBase (Constant.type_of c))
         | Variable (x, _) ->

@@ -73,6 +73,11 @@
                     "name": "Annotated let (3)",
                     "filename": "pat-tests/let-annot-3.pat",
                     "exit_code": 0
+                },
+                {
+                    "name": "Atoms",
+                    "filename": "pat-tests/atoms.pat",
+                    "exit_code": 0
                 }
             ]
         },

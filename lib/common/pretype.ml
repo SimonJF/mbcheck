@@ -22,14 +22,7 @@ and base = [%import: Common_types.Base.t]
 let rec pp ppf =
   let ps = Format.pp_print_string ppf in
   function
-    | PBase b ->
-       begin
-         match b with
-           | Unit -> ps "Unit"
-           | Int -> ps "Int"
-           | Bool -> ps "Bool"
-           | String -> ps "String"
-       end
+    | PBase b -> Common_types.Base.pp ppf b
     | PFun { linear; args; result } ->
         let arrow = if linear then "-o" else "->" in
         Format.fprintf ppf "(%a) %s %a"

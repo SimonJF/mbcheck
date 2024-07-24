@@ -42,6 +42,7 @@ let keywords = [
 
 (* Regular expressions (mostly taken from Links) *)
 let def_id = (['a'-'z' 'A'-'Z'] ['a'-'z' 'A'-'Z' '_' '0'-'9' '\'']*)
+let def_atom = (':' ['a'-'z' 'A'-'Z'] ['a'-'z' 'A'-'Z' '_' '0'-'9' '\'']*)
 let def_white = [' ' '\t']+
 let def_newline = '\r' | '\n' | "\r\n"
 let def_integer = (['1'-'9'] ['0'-'9']* | '0')
@@ -65,6 +66,7 @@ rule read =
                               CONSTRUCTOR var
                           else
                               VARIABLE var }
+    | def_atom as atom { ATOM atom } 
     | '"'      { read_string (Buffer.create 17) lexbuf }
     | '{'      { LEFT_BRACE }
     | '}'      { RIGHT_BRACE }
