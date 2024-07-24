@@ -2,11 +2,21 @@
 
 module Base = struct
     type t =
+        | Atom
         | Int
         | Bool
         | String
         | Unit
     [@@deriving show]
+
+    let pp ppf =
+        let ps = Format.pp_print_string ppf in
+        function
+           | Atom -> ps "Atom"
+           | Unit -> ps "Unit"
+           | Int -> ps "Int"
+           | Bool -> ps "Bool"
+           | String -> ps "String"
 end
 
 type interface_name = string

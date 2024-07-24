@@ -28,6 +28,7 @@ let rec synthesise_val :
         | VAnnotate (v, ty) ->
             let (env, constrs) = check_val ienv decl_env v ty in
             ty, env, constrs
+        | Atom _ -> Type.Base (Base.Atom), Ty_env.empty, Constraint_set.empty
         | Constant c ->
             Type.Base (Constant.type_of c),
             Ty_env.empty,

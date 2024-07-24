@@ -78,7 +78,8 @@ and transform_expr :
         | Var v ->
             let v = lookup_var v env in
             Ir.Return (Ir.Variable (v, None)) |> k env
-        | Primitive x -> Ir.Return (Ir.Primitive x) |> k env
+        | Primitive x -> Ir.(Return (Primitive x)) |> k env
+        | Atom x -> Ir.(Return (Atom x)) |> k env
         | Constant x ->
             Ir.Return (Ir.Constant x) |> k env
         | Lam {linear; parameters; result_type; body} ->
@@ -206,6 +207,7 @@ and transform_subterm
                administrative reduction.
              *)
             | Primitive p -> Ir.Primitive p |> k env
+            | Atom a -> Ir.Atom a |> k env
             | Var var ->
                 let v = lookup_var var env in
                 Ir.Variable (v, None) |> k env

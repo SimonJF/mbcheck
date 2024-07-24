@@ -14,6 +14,7 @@ let binary_op op_name x1 x2 = App { func = Primitive op_name; args = [x1; x2] }
 %token <string> STRING
 %token <string> VARIABLE
 %token <string> CONSTRUCTOR
+%token <string> ATOM
 
 (* %token NULL *)
 %token LEFT_BRACE RIGHT_BRACE
@@ -170,6 +171,7 @@ op:
 fact:
     (* Unit *)
     | LEFT_PAREN RIGHT_PAREN { Constant Constant.unit }
+    | ATOM { Atom (String.(sub $1 1 (length $1 - 1))) }
     | BOOL   { Constant (Constant.wrap_bool $1) }
     (* Var *)
     | VARIABLE {
@@ -274,11 +276,12 @@ simple_ty:
 base_ty:
     | CONSTRUCTOR {
         match $1 with
+            | "Atom" -> Base.Atom
             | "Unit" -> Base.Unit
             | "Int" -> Base.Int
             | "Bool" -> Base.Bool
             | "String" -> Base.String
-            | _ -> raise (parse_error "Expected Unit, Int, Bool, or String")
+            | _ -> raise (parse_error "Expected Atom, Unit, Int, Bool, or String")
     }
 
 message_ty:
