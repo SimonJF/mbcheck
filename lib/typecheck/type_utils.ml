@@ -1,6 +1,7 @@
 (* Various operations on types that only arise during typechecking. *)
 open Common
 open Common_types
+open Common.SourceCode
 
 
 (* Tries to ensure that a type is treated as unrestricted. All base types are
@@ -74,8 +75,8 @@ let rec subtype_type :
                 quasilinearity = _ql2
               } ->
                   (* First, ensure interface subtyping *)
-                  let interface1 = Interface_env.lookup iname1 ienv in
-                  let interface2 = Interface_env.lookup iname2 ienv in
+                  let interface1 = WithPos.node (Interface_env.lookup iname1 ienv []) in
+                  let interface2 =  WithPos.node (Interface_env.lookup iname2 ienv []) in
                   (*
                   let () =
                       if not (Type.Quasilinearity.is_sub ql1 ql2) then
@@ -112,7 +113,7 @@ and subtype_interface :
                  are subtypes of those of i2. *)
                 let visited = (Interface.name i1, Interface.name i2) :: visited in
                 List.fold_left (fun acc (tag, payloads1) ->
-                    let payloads2 = Interface.lookup tag i2 in
+                    let payloads2 = Interface.lookup [] tag i2 in
                     List.combine payloads1 payloads2
                     |> List.map (fun (p1, p2) -> subtype_type visited ienv p1 p2)
                     |> Constraint_set.union_many

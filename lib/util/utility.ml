@@ -50,6 +50,13 @@ let rec combine3 : 'a list -> 'b list -> 'c list -> ('a * 'b * 'c) list =
                 raise (Invalid_argument "mismatching lengths to combine3")
 end
 
+let find_char (s : bytes) (c : char) : int list =
+    let rec aux offset occurrences =
+      try let index = Bytes.index_from s offset c in
+            aux (index + 1) (index :: occurrences)
+      with Not_found -> occurrences
+    in List.rev (aux 0 [])
+
 (* Pretty-printing *)
 open Format
 let pp_comma ppf () =

@@ -8,7 +8,7 @@ type t = { name: string; env: (string * (Type.t[@name "ty"]) list) list }
     ancestors = ["Type.map"];
     data = false }]
 
-let lookup (x: tag) (iface: t) =
+let lookup pos_list (x: tag) (iface: t) =
     match List.assoc_opt x iface.env with
         | Some tys -> tys
         | None ->
@@ -17,7 +17,7 @@ let lookup (x: tag) (iface: t) =
                     "Message tag %s not supported by interface %s."
                     x iface.name
             in
-            raise (Errors.Type_error msg)
+            raise (Errors.Type_error (msg, pos_list))
 
 let make name env =
     { name; env }

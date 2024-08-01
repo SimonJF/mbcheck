@@ -1,6 +1,7 @@
 open Common
 open Common_types
 open Util.Utility
+open SourceCode
 
 (* Transforms the sugared AST to the FGCBV IR *)
 (* Takes a rather naive approach by assigning each subexpression
@@ -72,30 +73,32 @@ and transform_expr :
     env ->
     Sugar_ast.expr ->
         (env -> Ir.comp -> Ir.comp) -> Ir.comp = fun env x k ->
-    match x with
+    let pos = WithPos.pos x in
+    match WithPos.node x with
         (* Looks up a term-level variable in the environment,
            returns IR variable *)
         | Var v ->
             let v = lookup_var v env in
-            Ir.Return (Ir.Variable (v, None)) |> k env
-        | Primitive x -> Ir.(Return (Primitive x)) |> k env
-        | Atom x -> Ir.(Return (Atom x)) |> k env
+            WithPos.with_pos pos (Ir.Return (Ir.Variable (v, None))) |> k env
+        | Primitive x -> WithPos.with_pos pos (Ir.Return (Ir.Primitive x)) |> k env
+        | Atom x -> WithPos.with_pos pos (Ir.(Return (Atom x))) |> k env
         | Constant x ->
-            Ir.Return (Ir.Constant x) |> k env
+            WithPos.with_pos pos (Ir.Return (Ir.Constant x)) |> k env
         | Lam {linear; parameters; result_type; body} ->
             let (bnds, env') = add_names env fst parameters in
+            WithPos.with_pos pos (
             Ir.Return (Ir.Lam {
                 linear;
                 parameters = List.combine bnds (List.map snd parameters);
                 result_type;
-                body = transform_expr env' body id }) |> k env
+                body = transform_expr env' body id })) |> k env
         | Annotate (body, annotation) ->
-            Ir.Annotate (transform_expr env body id, annotation)
+            WithPos.with_pos pos (Ir.Annotate (transform_expr env body id, annotation))
             |> k env
         | Inl e ->
-            transform_subterm env e (fun env v -> Ir.Return (Ir.Inl v) |> k env)
+            transform_subterm env e (fun env v -> WithPos.with_pos pos (Ir.Return (Ir.Inl v)) |> k env)
         | Inr e ->
-            transform_subterm env e (fun env v -> Ir.Return (Ir.Inr v) |> k env)
+            transform_subterm env e (fun env v -> WithPos.with_pos pos (Ir.Return (Ir.Inr v)) |> k env)
         (* Note that annotation will have been desugared to subject annotation *)
         | Let {binder; term; body; _} ->
             (* let x = M in N*)
@@ -107,14 +110,15 @@ and transform_expr :
                 (fun env c ->
                     (* Bind it in the environment *)
                     let env' = bind_var bnd env in
+                    WithPos.with_pos pos (
                     Ir.Let {
                         binder = bnd;
                         term = c;
-                        cont = transform_expr env' body k })
+                        cont = transform_expr env' body k }))
         | Pair (e1, e2) ->
             transform_subterm env e1 (fun _ v1 ->
             transform_subterm env e2 (fun _ v2 ->
-                Ir.Return (Ir.Pair (v1, v2)) |> k env))
+                WithPos.with_pos pos (Ir.Return (Ir.Pair (v1, v2)) )|> k env))
         | LetPair {binders = (b1, b2); term; cont; _ } ->
             (* let x = M in N*)
             (* Create an IR variable based on x *)
@@ -130,10 +134,11 @@ and transform_expr :
                         |> bind_var bnd1
                         |> bind_var bnd2
                     in
+                    WithPos.with_pos pos (
                     Ir.LetPair {
                         binders = ((bnd1, None), (bnd2, None));
                         pair = v;
-                        cont = transform_expr env' cont k })
+                        cont = transform_expr env' cont k }))
         | Case {
             term;
             branch1 = ((bnd1, ty1), comp1);
@@ -141,48 +146,53 @@ and transform_expr :
             transform_subterm env term (fun env v ->
                 let (ir_bnd1, env1) = add_name env bnd1 in
                 let (ir_bnd2, env2) = add_name env bnd2 in
+                WithPos.with_pos pos (
                 Ir.Case {
                     term = v;
                     branch1 = (ir_bnd1, ty1), (transform_expr env1 comp1 id);
                     branch2 = (ir_bnd2, ty2), (transform_expr env2 comp2 id);
-                } |> k env)
+                }) |> k env)
         | Seq (e1, e2) ->
             transform_expr env e1 (fun env c1 ->
-            match c1 with
+            let pos' = WithPos.pos c1 in
+            match WithPos.node c1 with
                 | Ir.Return (Ir.Constant (Constant.Unit)) ->
                     transform_expr env e2 k
-                | _ -> Ir.Seq (c1, transform_expr env e2 k))
+                | _ -> WithPos.with_pos pos' (Ir.Seq (c1, transform_expr env e2 k)))
         | App {func; args} ->
             transform_subterm env func (fun env funcv ->
             transform_list env args (fun argvs ->
-                Ir.App { func = funcv; args = argvs }) k)
+                WithPos.with_pos pos (Ir.App { func = funcv; args = argvs })) k)
         | If {test; then_expr; else_expr} ->
                 transform_subterm env test (fun env v ->
+                WithPos.with_pos pos (
                 Ir.If {
                     test = v;
                     then_expr = transform_expr env then_expr id;
-                    else_expr = transform_expr env else_expr id } |> k env)
-        | New i -> Ir.New i |> k env
-        | Spawn e -> Ir.Spawn (transform_expr env e id) |> k env
+                    else_expr = transform_expr env else_expr id }) |> k env)
+        | New i -> WithPos.with_pos pos (Ir.New i) |> k env
+        | Spawn e -> WithPos.with_pos pos (Ir.Spawn (transform_expr env e id)) |> k env
         | Free e ->
-            transform_subterm env e (fun _ v -> Ir.Free (v, None)) |> k env
+            transform_subterm env e (fun _ v -> WithPos.with_pos pos (Ir.Free (v, None))) |> k env
         | Send {target; message; iname} ->
             let (tag, payloads) = message in
             transform_subterm env target (fun env pid ->
                 transform_list env payloads (fun payload_vs ->
+                    WithPos.with_pos pos (
                     Ir.Send {
                         target = pid;
                         message = (tag, payload_vs);
-                        iname }) k)
+                        iname })) k)
         | Guard {target; pattern; guards; iname} ->
             transform_subterm env target (fun env v ->
                 let gs = List.map (fun x -> transform_guard env x) guards in
+                WithPos.with_pos pos (
                 Ir.Guard {
                     target = v;
                     pattern;
                     guards = gs;
                     iname
-                } |> k env )
+                }) |> k env )
         |  SugarFail (_, _) -> (* shouldn't ever match *)
                 raise (Errors.internal_error "sugar_to_ir.ml" "Encountered SugarFree/SugarFail expression during the IR translation stage")
 
@@ -202,7 +212,8 @@ and transform_subterm
        sugared AST anymore! (Var, Lam, Constant)
      *)
     transform_expr env x (fun env c ->
-        match x with
+        let pos = WithPos.pos x in
+        match WithPos.node x with
             (* Translate syntactic values directly to avoid a needless
                administrative reduction.
              *)
@@ -229,35 +240,38 @@ and transform_subterm
                    in the IR such that we do not lose the type information and needlessly resort
                    to synthesis *)
                 let var' =
-                    match x with
+                    match WithPos.node x with
                         | Annotate (_, ty) -> Ir.VAnnotate (var, ty)
                         | _ -> var
                 in
                 (* Return a 'let' expression with the binder, binding the computation,
                    and apply the continuation to the bound variable *)
-                Ir.Let { binder = bnd; term = c; cont = (k env var') })
+                WithPos.with_pos pos (Ir.Let { binder = bnd; term = c; cont = (k env var') }))
 
 and transform_guard :
     env ->
     Sugar_ast.guard -> Ir.guard = fun env x ->
-    match x with
+    let guard_node = WithPos.node x in
+    let pos = WithPos.pos x in
+    match guard_node with
     | Receive { tag; payload_binders; mailbox_binder; cont } ->
         let (payload_bnds, env) = add_names env (id 1) payload_binders in
         let (mailbox_bnd, env') = add_name env mailbox_binder in
         let cont = transform_expr env' cont id in
+        WithPos.with_pos pos (
         Ir.Receive {
             tag;
             payload_binders = payload_bnds;
             mailbox_binder = mailbox_bnd;
             cont
-        }
+        })
     | Empty (bnd, cont) ->
         let (mailbox_bnd, env) = add_name env bnd in
         let cont = transform_expr env cont id in
-        Ir.Empty (mailbox_bnd, cont)
+        WithPos.with_pos pos (Ir.Empty (mailbox_bnd, cont))
     | GFree _ -> raise (Errors.internal_error "sugar_to_ir.ml" "Encountered Free guard during the IR translation stage")
     (* type will have been expanded into an annotation by this point *)
-    | Fail _ -> Ir.Fail
+    | Fail _ -> WithPos.with_pos pos (Ir.Fail)
 
 and transform_list :
     env ->

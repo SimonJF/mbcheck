@@ -2,6 +2,7 @@
 open Common_types
 open Format
 open Util.Utility
+open SourceCode
 
 module Binder = struct
     type t = { id: int; name: string }
@@ -59,17 +60,19 @@ end
 
 
 type program = {
-    prog_interfaces: (Interface.t[@name "interface"]) list;
+    prog_interfaces: (prog_interfaces_node WithPos.t [@name "withP"]) list;
     prog_decls: decl list;
     prog_body: comp option
 }
+and prog_interfaces_node = (Interface.t[@name "interface"])
 and decl = {
     decl_name: (Binder.t[@name "binder"]);
     decl_parameters: ((Binder.t[@name "binder"]) * (Type.t[@name "ty"])) list;
     decl_return_type: (Type.t[@name "ty"]);
     decl_body: comp
 }
-and comp =
+and comp = (comp_node WithPos.t [@name "withP"])
+and comp_node =
     | Annotate of comp * (Type.t[@name "ty"])
     | Let of {
         binder: (Binder.t[@name "binder"]);
@@ -131,7 +134,8 @@ and primitive_name = string
 and atom_name = string
 and constant =
     [%import: Common_types.Constant.t]
-and guard =
+and guard = (guard_node WithPos.t [@name "withP"])
+and guard_node =
     | Receive of {
         tag: string;
         payload_binders: (Binder.t[@name "binder"]) list;
@@ -144,7 +148,7 @@ and guard =
         variety = "map";
         ancestors = [
             "Type.map"; "Pretype.map"; "Binder.map";
-            "Interface.map"; "Var.map"];
+            "Interface.map"; "Var.map"; "WithPos.map"];
         data = false },
     show]
 
@@ -161,9 +165,9 @@ and pp_interface ppf iface =
         fprintf ppf "%s(%a)" tag
         (pp_print_comma_list Type.pp) tys
     in
-    let xs = Interface.bindings iface in
+    let xs = Interface.bindings (WithPos.node iface) in
     fprintf ppf "interface %s { %a }"
-        (Interface.name iface)
+        (Interface.name (WithPos.node iface))
         (pp_print_comma_list pp_msg_ty) xs
 (* Declarations *)
 and pp_decl ppf { decl_name; decl_parameters; decl_return_type; decl_body } =
@@ -186,7 +190,9 @@ and pp_branch name ppf ((bnd, ty), c) =
         Type.pp ty
         pp_comp c
 (* Expressions *)
-and pp_comp ppf = function
+and pp_comp ppf comp_with_pos =
+    let comp_node = WithPos.node comp_with_pos in
+    match comp_node with
     | Annotate (c, ty) ->
         fprintf ppf "(%a : %a)" pp_comp c Type.pp ty
     | Seq (c1, c2) ->
@@ -261,7 +267,9 @@ and pp_value ppf = function
             (pp_print_comma_list pp_param) parameters
             Type.pp result_type
             pp_comp body
-and pp_guard ppf = function
+and pp_guard ppf guard_with_pos = 
+    let guard_node = WithPos.node guard_with_pos in
+    match guard_node with
     | Receive { tag; payload_binders; mailbox_binder; cont } ->
             fprintf ppf "receive %s(%a) from %a ->@,@[<v 2>  %a@]"
             tag
@@ -282,7 +290,8 @@ let is_free_guard = function
     | Free _ -> true
     | _ -> false
 
-let is_fail_guard = function
+let is_fail_guard guard = 
+    match WithPos.node guard with
     | Fail -> true
     | _ -> false
 

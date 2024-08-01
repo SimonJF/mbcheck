@@ -52,15 +52,15 @@ module Constant = struct
     let wrap_string s = String s
     let wrap_bool b = Bool b
 
-    let unwrap_int = function
+    let unwrap_int pos_list = function
         | Int i -> i
-        | _ -> raise (Errors.type_error "unwrap_int on non-int")
+        | _ -> raise (Errors.type_error "unwrap_int on non-int" pos_list)
 
-    let unwrap_string = function
+    let unwrap_string pos_list = function
         | String s -> s
-        | _ -> raise (Errors.type_error "unwrap_string on non-string")
+        | _ -> raise (Errors.type_error "unwrap_string on non-string" pos_list)
 
-    let unwrap_bool = function
+    let unwrap_bool pos_list = function
         | Bool b -> b
-        | _ -> raise (Errors.type_error "unwrap_bool on non-bool")
+        | _ -> raise (Errors.type_error "unwrap_bool on non-bool" pos_list)
 end

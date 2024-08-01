@@ -1,23 +1,31 @@
 open Common
 open Lexer
 open Lexing
+open SourceCode
 
-let print_position ppf lexbuf =
-  let pos = lexbuf.lex_curr_p in
-  Format.fprintf ppf "%s:%d:%d" pos.pos_fname
-    pos.pos_lnum (pos.pos_cnum - pos.pos_bol + 1)
+let pos lexbuf = Position.make 
+                    ~start:
+                        { lexbuf.lex_start_p with
+                          Lexing.pos_lnum = 
+                            if lexbuf.lex_start_p.Lexing.pos_lnum > 1 then
+                              lexbuf.lex_start_p.Lexing.pos_lnum - 2
+                            else
+                              lexbuf.lex_start_p.Lexing.pos_lnum
+                        }
+                    ~finish:lexbuf.lex_curr_p
+                    ~code:(SourceCodeManager.get_instance ())
 
 let parse_with_error lexbuf =
   try Parser.program Lexer.read lexbuf with
   | SyntaxError msg ->
-    let msg = Format.asprintf "%a: %s" print_position lexbuf msg in
-    raise (Errors.parse_error msg)
+    let msg = Format.asprintf "%s" msg in
+    raise (Errors.parse_error msg [pos lexbuf])
   | Parser.Error ->
-    let msg = Format.asprintf "%a: syntax error" print_position lexbuf in
-    raise (Errors.parse_error msg)
+    let msg = Format.asprintf "syntax error" in
+    raise (Errors.parse_error msg [pos lexbuf])
 
 let parse_and_print lexbuf =
-  let program = parse_with_error lexbuf in
+  let (program, _) = parse_with_error lexbuf in
   Settings.if_verbose (fun () ->
       Format.printf "=== Parsed Program ===\n%a\n\n" Sugar_ast.pp_program program);
   program

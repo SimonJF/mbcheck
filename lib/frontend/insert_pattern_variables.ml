@@ -6,6 +6,7 @@
 (* Additionally, for interfaces, sets the quasilinearity to Usable. *)
 open Common
 open Sugar_ast
+open SourceCode
 
 let rec annotate_type =
     let open Type in
@@ -30,7 +31,7 @@ let rec annotate_type =
                 quasilinearity
             }
 
-let annotate_interface_type =
+(* let annotate_interface_type =  TODO: remember to recover
     let open Type in
     function
         (* Outermost MB types (i.e., payloads) are treated as usable. *)
@@ -42,13 +43,13 @@ let annotate_interface_type =
                 pattern = Some (Pattern.fresh ());
                 quasilinearity = Quasilinearity.Usable
             }
-        | t -> annotate_type t
+        | t -> annotate_type t *)
 
-(* Annotates all types in an interface *)
-let annotate_interface iface =
+(* Annotates all types in an interface TODO: remember to recover *)
+(* let annotate_interface iface =
     Interface.bindings iface
     |> List.map (fun (tag, tys) -> (tag, List.map annotate_interface_type tys))
-    |> Interface.(make (name iface))
+    |> Interface.(make (name iface)) *)
 
 (* The visitor traverses the AST to annotate parameters of higher-order
    functions. *)
@@ -64,19 +65,26 @@ let visitor =
                 decl_return_type = annotate_type decl.decl_return_type;
                 decl_body = self#visit_expr env decl.decl_body }
 
-        method! visit_expr env = function
-            | Annotate (e, ty) -> Annotate (self#visit_expr env e, annotate_type ty)
+        method! visit_expr env expr_with_pos =
+            let open Sugar_ast in
+            let expr = WithPos.node expr_with_pos in
+            match expr with
+            | Annotate (e, ty) ->
+                let new_e = self#visit_expr env e in
+                let new_annotate = Annotate (new_e, annotate_type ty) in
+                { expr_with_pos with node = new_annotate }
             | Lam { linear; parameters; result_type; body } ->
                 let parameters =
                     List.map (fun (x, y) -> (x, annotate_type y)) parameters in
                 let result_type = annotate_type result_type in
-                let body = self#visit_expr env body in
-                Lam { linear; parameters; result_type; body }
-            | e -> super#visit_expr env e
+                let new_body = self#visit_expr env body in
+                let new_lam = Lam { linear; parameters; result_type; body = new_body } in
+                { expr_with_pos with node = new_lam }
+            | _ -> super#visit_expr env expr_with_pos
 
         method! visit_program env p =
             let prog_interfaces =
-                List.map annotate_interface p.prog_interfaces in
+                self#visit_list (self#visit_withP self#visit_interface) env p.prog_interfaces in
             let prog_decls =
                 self#visit_list (self#visit_decl) env p.prog_decls in
             let prog_body =

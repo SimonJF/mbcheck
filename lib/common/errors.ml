@@ -1,4 +1,5 @@
 open Util
+open SourceCode
 
 (* Auxiliary definitions / types *)
 type subsystem =
@@ -22,9 +23,9 @@ let show_subsystem = function
     | GenCheckDecls -> "Check declarations"
 
 (* Exceptions *)
-exception Parse_error of string
-exception Pretype_error of string
-exception Type_error of string (* Used for errors common to both pretyping and constraint generation *)
+exception Parse_error of string * Position.t list
+exception Pretype_error of string * Position.t list
+exception Type_error of string * Position.t list (* Used for errors common to both pretyping and constraint generation *)
 exception Constraint_gen_error of { subsystem: subsystem option; message: string }
 (* It would be a bit nicer to have the constraints on the LHS and RHS here,
    but it would introduce a cyclic library dependency. *)
@@ -36,8 +37,8 @@ exception Transform_error of string
 
 
 let internal_error filename message = Internal_error { filename; message }
-let parse_error msg = Parse_error msg
-let type_error message = Type_error message
+let parse_error msg pos_list = Parse_error (msg, pos_list)
+let type_error message pos_list = Type_error (message, pos_list)
 let constraint_solver_error lhs rhs = Constraint_solver_error { lhs; rhs }
 let constraint_solver_zero_error var = Constraint_solver_zero_error var
 let bad_receive_typing_argument bad = Bad_receive_typing_argument bad
@@ -48,14 +49,17 @@ let format_error = function
     | Internal_error { filename; message } ->
         let note = Printf.sprintf "INTERNAL (%s)" filename in
         Utility.print_error ~note message
-    | Parse_error s ->
-        Utility.print_error ~note:"PARSE" s
-    | Pretype_error s ->
-        Utility.print_error ~note:"PRETYPE" s
+    | Parse_error (s, pos_list) ->
+        let pos_info = Position.format_pos pos_list in
+        Utility.print_error ~note:"PARSE" (s ^ " \n " ^ pos_info)
+    | Pretype_error (s, pos_list) ->
+        let pos_info = Position.format_pos pos_list in
+        Utility.print_error ~note:"PRETYPE" (s ^ " \n " ^ pos_info)
     | Transform_error s ->
         Utility.print_error ~note:"TRANSFORM" s
-    | Type_error s ->
-        Utility.print_error ~note:"TYPE" s
+    | Type_error (s, pos_list) ->
+        let pos_info = Position.format_pos pos_list in
+        Utility.print_error ~note:"TYPE" (s ^ " \n " ^ pos_info)
     | Constraint_gen_error { subsystem; message } ->
         let note =
             match subsystem with
