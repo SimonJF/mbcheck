@@ -31,7 +31,7 @@ let rec annotate_type =
                 quasilinearity
             }
 
-(* let annotate_interface_type =  TODO: remember to recover
+let annotate_interface_type = 
     let open Type in
     function
         (* Outermost MB types (i.e., payloads) are treated as usable. *)
@@ -43,13 +43,13 @@ let rec annotate_type =
                 pattern = Some (Pattern.fresh ());
                 quasilinearity = Quasilinearity.Usable
             }
-        | t -> annotate_type t *)
+        | t -> annotate_type t
 
-(* Annotates all types in an interface TODO: remember to recover *)
-(* let annotate_interface iface =
+(* Annotates all types in an interface *)
+let annotate_interface iface =
     Interface.bindings iface
     |> List.map (fun (tag, tys) -> (tag, List.map annotate_interface_type tys))
-    |> Interface.(make (name iface)) *)
+    |> Interface.(make (name iface))
 
 (* The visitor traverses the AST to annotate parameters of higher-order
    functions. *)
@@ -84,12 +84,14 @@ let visitor =
 
         method! visit_program env p =
             let prog_interfaces =
-                self#visit_list (self#visit_withP self#visit_interface) env p.prog_interfaces in
+                List.map annotate_interface ((fun x -> List.map WithPos.node x ) p.prog_interfaces) in
+            let prog_interfaces_with_pos =
+                List.map2 (fun iface pos -> WithPos.with_pos pos iface) prog_interfaces (List.map WithPos.pos p.prog_interfaces) in
             let prog_decls =
                 self#visit_list (self#visit_decl) env p.prog_decls in
             let prog_body =
                 self#visit_option (self#visit_expr) env p.prog_body in
-            { prog_interfaces; prog_decls; prog_body }
+            { prog_interfaces = prog_interfaces_with_pos; prog_decls; prog_body }
 
     end
 

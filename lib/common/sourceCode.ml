@@ -96,6 +96,16 @@ module Position = struct
   }
   [@@name "position"]
 
+  let adjust_position pos =
+    let adjust_lexpos lexpos line =
+      { lexpos with
+        Lexing.pos_lnum = if lexpos.Lexing.pos_lnum = 1 then 1 else lexpos.Lexing.pos_lnum + line
+      }
+    in
+    let new_start = adjust_lexpos pos.start (-2) in
+    let new_finish = adjust_lexpos pos.finish 1 in
+    { pos with start = new_start; finish = new_finish }
+
 
   let pp : Format.formatter -> t -> unit = fun fmt pos ->
     let pp_non_dummy () =

@@ -7,10 +7,10 @@ let pos lexbuf = Position.make
                     ~start:
                         { lexbuf.lex_start_p with
                           Lexing.pos_lnum = 
-                            if lexbuf.lex_start_p.Lexing.pos_lnum > 1 then
-                              lexbuf.lex_start_p.Lexing.pos_lnum - 2
+                            if lexbuf.lex_start_p.pos_lnum > 1 then
+                              lexbuf.lex_start_p.pos_lnum - 2
                             else
-                              lexbuf.lex_start_p.Lexing.pos_lnum
+                              lexbuf.lex_start_p.pos_lnum
                         }
                     ~finish:lexbuf.lex_curr_p
                     ~code:(SourceCodeManager.get_instance ())

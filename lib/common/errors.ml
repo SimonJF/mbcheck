@@ -26,7 +26,7 @@ let show_subsystem = function
 exception Parse_error of string * Position.t list
 exception Pretype_error of string * Position.t list
 exception Type_error of string * Position.t list (* Used for errors common to both pretyping and constraint generation *)
-exception Constraint_gen_error of { subsystem: subsystem option; message: string }
+exception Constraint_gen_error of { subsystem: subsystem option; message: string; pos_list: Position.t list  }
 (* It would be a bit nicer to have the constraints on the LHS and RHS here,
    but it would introduce a cyclic library dependency. *)
 exception Constraint_solver_error of { lhs: string; rhs: string }
@@ -60,7 +60,7 @@ let format_error = function
     | Type_error (s, pos_list) ->
         let pos_info = Position.format_pos pos_list in
         Utility.print_error ~note:"TYPE" (s ^ " \n " ^ pos_info)
-    | Constraint_gen_error { subsystem; message } ->
+    | Constraint_gen_error { subsystem; message; pos_list } ->
         let note =
             match subsystem with
                 | Some subsystem ->
@@ -69,7 +69,8 @@ let format_error = function
                         (show_subsystem subsystem)
                 | None -> "CONSTRAINT GENERATION"
         in
-        Utility.print_error ~note message
+        let pos_info = Position.format_pos pos_list in
+        Utility.print_error ~note (message ^ " \n " ^ pos_info)
     | Constraint_solver_error { lhs; rhs } ->
         let msg =
             Printf.sprintf
