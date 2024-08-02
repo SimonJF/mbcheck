@@ -154,7 +154,7 @@ let rec synthesise_val pos ienv env value : (value * Pretype.t) =
             in
             let result_prety = Pretype.of_type result_type in
             let env = PretypeEnv.bind_many pretype_params env in
-            let body = check_comp ienv env body result_prety in
+            let body = check_comp ienv env body result_prety pos in
             Lam { linear; parameters; body; result_type },
             Pretype.PFun {
                 linear = linear;
@@ -185,7 +185,7 @@ and synthesise_comp ienv env comp =
     match WithPos.node comp with
         | Annotate (c, ty) ->
             let check_ty = Pretype.of_type ty in
-            let c = check_comp ienv env c check_ty in
+            let c = check_comp ienv env c check_ty pos in
             WithPos.with_pos pos(Annotate (c, ty)), check_ty
         | Return v ->
             let (v, ty) = synthv v in
@@ -194,15 +194,15 @@ and synthesise_comp ienv env comp =
             WithPos.with_pos pos(New iname), Pretype.PInterface iname
         | Spawn e ->
             let e =
-                check_comp ienv env e (Pretype.PBase Unit)
+                check_comp ienv env e (Pretype.PBase Unit) pos 
             in
-            WithPos.with_pos pos(Spawn e), Pretype.PBase Unit
+            WithPos.with_pos pos (Spawn e), Pretype.PBase Unit
         | If { test; then_expr; else_expr } ->
             let test =
                 check_val pos ienv env test (Pretype.PBase Bool)
             in
             let then_expr, ty = synth then_expr in
-            let else_expr = check_comp ienv env else_expr ty in
+            let else_expr = check_comp ienv env else_expr ty pos in
             WithPos.with_pos pos(If { test; then_expr; else_expr }), ty
         | Let { binder; term; cont } ->
             let term, term_ty = synth term in
@@ -218,7 +218,7 @@ and synthesise_comp ienv env comp =
             let e1_env = PretypeEnv.bind (Var.of_binder bnd1) prety1 env in
             let e2_env = PretypeEnv.bind (Var.of_binder bnd2) prety2 env in
             let e1, e1_ty = synthesise_comp ienv e1_env e1 in
-            let e2 = check_comp ienv e2_env e2 e1_ty in
+            let e2 = check_comp ienv e2_env e2 e1_ty pos in
             WithPos.with_pos pos(Case { term; branch1 = ((bnd1, ty1), e1); branch2 = ((bnd2, ty2), e2) }), e1_ty
         | LetPair { binders = ((b1, _), (b2, _)); pair; cont } ->
             let pair, pair_ty = synthv pair in
@@ -238,7 +238,7 @@ and synthesise_comp ienv env comp =
             let cont, cont_ty = synthesise_comp ienv env' cont in
             WithPos.with_pos pos(LetPair { binders = ((b1, Some t1), (b2, Some t2)); pair; cont }), cont_ty
         | Seq (e1, e2) ->
-            let e1 = check_comp ienv env e1 (Pretype.PBase Unit) in
+            let e1 = check_comp ienv env e1 (Pretype.PBase Unit) pos in
             let e2, e2_ty = synth e2 in
             WithPos.with_pos pos(Seq (e1, e2)), e2_ty
         | App { func; args } ->
@@ -337,7 +337,7 @@ and synthesise_comp ienv env comp =
                         g :: gs, g_ty
             in
             WithPos.with_pos pos(Guard { target; pattern; guards; iname = Some iname }), g_ty
-and check_comp ienv env comp ty =
+and check_comp ienv env comp ty declPos =
     let pos = WithPos.pos comp in
     match WithPos.node comp with
         | Return v ->
@@ -353,7 +353,7 @@ and check_comp ienv env comp ty =
             WithPos.with_pos pos (Guard { target; pattern; guards = [(WithPos.with_pos pos Fail)]; iname = Some iname })
         | _ ->
             let comp, inferred_ty = synthesise_comp ienv env comp in
-            check_tys [pos] ty inferred_ty;
+            check_tys [Position.adjust_position declPos] ty inferred_ty;
             comp
 and synth_guard ienv env iname g =
     let interface_withPos = IEnv.lookup iname ienv [(WithPos.pos g)] in
@@ -418,20 +418,22 @@ let check { prog_interfaces; prog_decls; prog_body } =
                     linear = false;
                     args = param_tys;
                     result = Pretype.of_type d.decl_return_type
-                })) prog_decls
+                })) (WithPos.extract_list_node prog_decls)
         |> PretypeEnv.from_list
     in
 
     (* Checks a declaration *)
     let check_decl d =
+        let pos = WithPos.pos d in
+        let node = WithPos.node d in
         (* Add parameters to environment *)
-        let params = param_pretypes d.decl_parameters in
+        let params = param_pretypes node.decl_parameters in
         let env = PretypeEnv.bind_many params decl_env in
         (* Typecheck according to return annotation *)
         let decl_body =
-            check_comp ienv env d.decl_body (Pretype.of_type d.decl_return_type)
+            check_comp ienv env node.decl_body (Pretype.of_type node.decl_return_type) pos
         in
-        { d with decl_body }
+        WithPos.with_pos pos { node with decl_body }
     in
 
     let prog_decls = List.map check_decl prog_decls in

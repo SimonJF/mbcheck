@@ -233,6 +233,16 @@ module WithPos = struct
 
   let extract_pos_pair w1 w2 = [w1.pos; w2.pos]
 
+  let split_with_pos_list lst = 
+    ((List.map pos lst),( List.map node lst))
+  
+  let extract_list_node lst = List.map node lst
+
+  let extract_list_pos lst = List.map pos lst
+
+  let combine_with_pos_list pos_list node_list = 
+    List.map2 (fun pos node -> make ~pos node) pos_list node_list
+
   (* let nodes_of_list xs = List.map node xs
 
   let traverse t ~o ~f_pos ~f_node =

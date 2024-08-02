@@ -344,12 +344,13 @@ interface:
 decl:
     | DEF VARIABLE LEFT_PAREN annotated_var_list RIGHT_PAREN COLON ty LEFT_BRACE expr
     RIGHT_BRACE {
+        with_pos_from_positions $startpos $endpos ( 
         {
           decl_name = $2;
           decl_parameters = $4;
           decl_return_type = $7;
           decl_body = $9
-        }
+        })
     }
 
 expr_main:

@@ -47,10 +47,12 @@ let rec transform_prog :
     Sugar_ast.program ->
         (env -> Ir.program -> Ir.program) -> Ir.program =
             fun env {prog_interfaces;prog_decls;prog_body} k ->
-    let (bnds, env') = add_names env (fun d -> d.Sugar_ast.decl_name) prog_decls in
+    let (poses, nodes) = WithPos.split_with_pos_list prog_decls in
+    let (bnds, env') = add_names env (fun d -> d.Sugar_ast.decl_name) nodes in
     {
         prog_interfaces;
-        prog_decls = List.map (fun (b, d) -> transform_decl env' d b id) (List.combine bnds prog_decls);
+        prog_decls = WithPos.combine_with_pos_list poses 
+                    (List.map (fun (b, d) -> transform_decl env' d b id) (List.combine bnds nodes));
         prog_body =
             match prog_body with
             | Some prog_body -> Some (transform_expr env' prog_body id)

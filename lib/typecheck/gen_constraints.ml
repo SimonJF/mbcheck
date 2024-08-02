@@ -923,7 +923,7 @@ let check_decls ienv decls =
    interfaces should be decorated with at least a pattern variable. *)
 let synthesise_program { prog_interfaces; prog_decls; prog_body } =
     let ienv = IEnv.from_list prog_interfaces in
-    let (decl_env, decl_constrs) = check_decls ienv prog_decls in
+    let (decl_env, decl_constrs) = check_decls ienv (WithPos.extract_list_node prog_decls) in
     (* If we have a body, synthesise type and combine environments.
        Otherwise, return unit and the decl env / constraints. *)
     match prog_body with
@@ -934,6 +934,7 @@ let synthesise_program { prog_interfaces; prog_decls; prog_body } =
                 Constraint_set.union_many
                     [decl_constrs; body_constrs; env_constrs]
             in
+            (* Format.printf "Synthesised type: %a\n" Constraint_set.pp constrs; *)
             ty, env, constrs
         | None ->
             Type.unit_type, decl_env, decl_constrs
@@ -942,7 +943,7 @@ let synthesise_program { prog_interfaces; prog_decls; prog_body } =
    synthesising it. *)
 let check_program { prog_interfaces; prog_decls; prog_body } ty =
     let ienv = IEnv.from_list prog_interfaces in
-    let (decl_env, decl_constrs) = check_decls ienv prog_decls in
+    let (decl_env, decl_constrs) = check_decls ienv (WithPos.extract_list_node prog_decls) in
     (* If we have a body, synthesise type and combine environments.
        Otherwise,  *)
     match prog_body with

@@ -61,7 +61,7 @@ end
 
 type program = {
     prog_interfaces: (prog_interfaces_node WithPos.t [@name "withP"]) list;
-    prog_decls: decl list;
+    prog_decls: (decl WithPos.t [@name "withP"]) list;
     prog_body: comp option
 }
 and prog_interfaces_node = (Interface.t[@name "interface"])
@@ -170,7 +170,8 @@ and pp_interface ppf iface =
         (Interface.name (WithPos.node iface))
         (pp_print_comma_list pp_msg_ty) xs
 (* Declarations *)
-and pp_decl ppf { decl_name; decl_parameters; decl_return_type; decl_body } =
+and pp_decl ppf decl_with_pos =
+    let { WithPos.node = { decl_name; decl_parameters; decl_return_type; decl_body }; _ } = decl_with_pos in
     fprintf ppf "def %a(%a): %a {@,@[<v 2>  %a@]@,}"
         Binder.pp decl_name
         (pp_print_comma_list pp_param) decl_parameters

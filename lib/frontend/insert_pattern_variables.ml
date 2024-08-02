@@ -84,11 +84,13 @@ let visitor =
 
         method! visit_program env p =
             let prog_interfaces =
-                List.map annotate_interface ((fun x -> List.map WithPos.node x ) p.prog_interfaces) in
+                List.map annotate_interface (WithPos.extract_list_node p.prog_interfaces) in
             let prog_interfaces_with_pos =
                 List.map2 (fun iface pos -> WithPos.with_pos pos iface) prog_interfaces (List.map WithPos.pos p.prog_interfaces) in
             let prog_decls =
-                self#visit_list (self#visit_decl) env p.prog_decls in
+                let (poses, nodes) = WithPos.split_with_pos_list p.prog_decls in
+                let visited_nodes = self#visit_list (self#visit_decl) env nodes in
+                WithPos.combine_with_pos_list poses visited_nodes in
             let prog_body =
                 self#visit_option (self#visit_expr) env p.prog_body in
             { prog_interfaces = prog_interfaces_with_pos; prog_decls; prog_body }

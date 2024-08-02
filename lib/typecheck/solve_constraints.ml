@@ -358,7 +358,7 @@ let constraint_to_goal constr =
    to closed formule) and a set of upper bounds (i.e., formulae where the RHS
    contains no pattern variables), ensure that the inclusions hold.
  *)
-let check_satisfiability resolved_lowers =
+let check_satisfiability resolved_lowers pos_list =
 
     let check_result constr goal =
         let open Format in
@@ -373,12 +373,12 @@ let check_satisfiability resolved_lowers =
                 Settings.if_debug (fun () ->
                     printf "UNSATISFIABLE: %a\n" Presburger.pp_goal goal
                 );
-                raise (Errors.constraint_solver_error lhs rhs)
+                raise (Errors.constraint_solver_error lhs rhs pos_list)
             | Unknown ->
                 Settings.if_debug (fun () ->
                     printf "DUNNO: %a\n" Presburger.pp_goal goal
                 );
-                raise (Errors.constraint_solver_error lhs rhs)
+                raise (Errors.constraint_solver_error lhs rhs pos_list)
     in
 
     (* For each upper bound:
@@ -433,7 +433,7 @@ let pipeline constrs =
         substitute_solutions lbs
     in
     (* Check if solutions are satisfiable *)
-    check_satisfiability resolved_constraints (get_upper_bounds constrs);
+    check_satisfiability resolved_constraints [] (get_upper_bounds constrs);
     (* Ensure that none of the pattern variables have been solved as zero *)
     check_nonzero resolved_constraints;
     resolved_constraints

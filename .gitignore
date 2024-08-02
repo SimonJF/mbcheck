@@ -16,3 +16,5 @@ mbcheck
 *.synctex.gz
 *.tmp
 *.DS_Store
+/.idea
+/.history

@@ -29,7 +29,7 @@ exception Type_error of string * Position.t list (* Used for errors common to bo
 exception Constraint_gen_error of { subsystem: subsystem option; message: string; pos_list: Position.t list  }
 (* It would be a bit nicer to have the constraints on the LHS and RHS here,
    but it would introduce a cyclic library dependency. *)
-exception Constraint_solver_error of { lhs: string; rhs: string }
+exception Constraint_solver_error of { lhs: string; rhs: string; pos_list: Position.t list  }
 exception Constraint_solver_zero_error of string
 exception Internal_error of { filename: string; message: string }
 exception Bad_receive_typing_argument of string
@@ -39,7 +39,7 @@ exception Transform_error of string
 let internal_error filename message = Internal_error { filename; message }
 let parse_error msg pos_list = Parse_error (msg, pos_list)
 let type_error message pos_list = Type_error (message, pos_list)
-let constraint_solver_error lhs rhs = Constraint_solver_error { lhs; rhs }
+let constraint_solver_error lhs rhs pos_list = Constraint_solver_error { lhs; rhs; pos_list }
 let constraint_solver_zero_error var = Constraint_solver_zero_error var
 let bad_receive_typing_argument bad = Bad_receive_typing_argument bad
 let transform_error err = Transform_error err
@@ -71,13 +71,14 @@ let format_error = function
         in
         let pos_info = Position.format_pos pos_list in
         Utility.print_error ~note (message ^ " \n " ^ pos_info)
-    | Constraint_solver_error { lhs; rhs } ->
+    | Constraint_solver_error { lhs; rhs; pos_list } ->
         let msg =
             Printf.sprintf
                 "%s is not included in %s"
                 lhs rhs
         in
-        Utility.print_error ~note:"CONSTRAINT SOLVING" msg
+        let pos_info = Position.format_pos pos_list in
+        Utility.print_error ~note:"CONSTRAINT SOLVING" (msg ^ " \n " ^ pos_info)
     | Constraint_solver_zero_error var ->
         let msg =
             Printf.sprintf
