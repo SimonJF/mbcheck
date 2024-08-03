@@ -850,10 +850,11 @@ and check_guard :
    type for each declaration.
 *)
 let check_decls ienv decls =
+    let (_, decl_nodes) = WithPos.split_with_pos_list decls in
     (* List of allowed free names: all declaration names. Primitive names won't
      get added into the environment at all. *)
     let allowed_free_names =
-        List.map (fun d -> Var.of_binder d.decl_name) decls
+        List.map (fun d -> Var.of_binder d.decl_name) decl_nodes
     in
     let decl_env =
         let decl_entry d =
@@ -861,7 +862,7 @@ let check_decls ienv decls =
             Var.of_binder d.decl_name,
             Type.make_function_type false args d.decl_return_type
         in
-        List.map decl_entry decls
+        List.map decl_entry decl_nodes
         |> Ty_env.from_list
     in
 
@@ -912,7 +913,7 @@ let check_decls ienv decls =
     in
 
     let decl_constrs =
-        List.map check_decl decls
+        List.map check_decl decl_nodes
         |> Constraint_set.union_many
     in
     (* Finally, return reference environment and gathered constraints *)
@@ -923,7 +924,7 @@ let check_decls ienv decls =
    interfaces should be decorated with at least a pattern variable. *)
 let synthesise_program { prog_interfaces; prog_decls; prog_body } =
     let ienv = IEnv.from_list prog_interfaces in
-    let (decl_env, decl_constrs) = check_decls ienv (WithPos.extract_list_node prog_decls) in
+    let (decl_env, decl_constrs) = check_decls ienv prog_decls in
     (* If we have a body, synthesise type and combine environments.
        Otherwise, return unit and the decl env / constraints. *)
     match prog_body with
@@ -943,7 +944,7 @@ let synthesise_program { prog_interfaces; prog_decls; prog_body } =
    synthesising it. *)
 let check_program { prog_interfaces; prog_decls; prog_body } ty =
     let ienv = IEnv.from_list prog_interfaces in
-    let (decl_env, decl_constrs) = check_decls ienv (WithPos.extract_list_node prog_decls) in
+    let (decl_env, decl_constrs) = check_decls ienv prog_decls in
     (* If we have a body, synthesise type and combine environments.
        Otherwise,  *)
     match prog_body with
