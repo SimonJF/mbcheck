@@ -11,7 +11,7 @@ exception SyntaxError of string
 let next_line lexbuf =
     let pos = lexbuf.lex_curr_p in
     lexbuf.lex_curr_p <-
-        { pos with pos_bol = lexbuf.lex_curr_pos;
+        { pos with pos_bol = pos.Lexing.pos_cnum;
                    pos_lnum = pos.pos_lnum + 1
         }
 (* Function to add lexeme to the source code instance *)

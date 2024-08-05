@@ -3,8 +3,10 @@
    We only need to support intersection between two nullable environments,
    and disjoint combination with a defined environment.
  *)
+open Common.SourceCode
+
 type t
-val intersect : t -> t -> (t * Constraint_set.t)
-val combine : Interface_env.t -> Ty_env.t -> t -> (Ty_env.t * Constraint_set.t)
+val intersect : t -> t -> Position.t -> (t * Constraint_set.t)
+val combine : Interface_env.t -> Ty_env.t -> t -> Position.t -> (Ty_env.t * Constraint_set.t)
 val of_env : Ty_env.t -> t
 val null : t

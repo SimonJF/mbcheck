@@ -1,6 +1,7 @@
 open Common
 open Util.Utility
 open Type_utils
+open Common.SourceCode
 
 module type VARMAP = (Map.S with type key = Ir.Var.t)
 module VarMap = Map.Make(Ir.Var)
@@ -27,15 +28,15 @@ let from_list xs = List.to_seq xs |> VarMap.of_seq
 
 (* Joins two sequential or concurrent environments (i.e., where *both*
    actions will happen). *)
-let join : Interface_env.t -> t -> t -> t * Constraint_set.t =
-    fun ienv env1 env2 ->
+let join : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t =
+    fun ienv env1 env2 pos ->
 
         let join_mailbox_types var mb1 mb2 =
             let open Type in
             let open Capability in
             match mb1, mb2 with
                 | (In, _), (In, _) ->
-                    Gripers.join_two_recvs var
+                    Gripers.join_two_recvs var [pos]
                 (* 2 output capabilities: resulting pattern is a conjunction *)
                 | (Out, pat1), (Out, pat2) ->
                         (Out, Pattern.Concat (pat1, pat2)), Constraint_set.empty
@@ -45,7 +46,7 @@ let join : Interface_env.t -> t -> t -> t * Constraint_set.t =
                 | (In, in_pat), (Out, out_pat) ->
                         let pat = Pattern.fresh () in
                         let constrs = Constraint_set.single_constraint
-                            (Concat (out_pat, pat)) in_pat
+                            (Concat (out_pat, pat)) in_pat pos
                         in
                         ((In, pat), constrs)
         in
@@ -60,8 +61,8 @@ let join : Interface_env.t -> t -> t -> t * Constraint_set.t =
                     when (not linear1) && (not linear2) && dom1 = dom2 && cod1 = cod2 ->
                         let subty_constrs =
                             Constraint_set.union
-                                (subtype ienv t1 t2)
-                                (subtype ienv t2 t1)
+                                (subtype ienv t1 t2 pos)
+                                (subtype ienv t2 t1 pos)
                         in
                         (Fun { linear = false; args = dom1; result = cod1 }, subty_constrs)
                 | Mailbox { pattern = None; _ }, _ | _, Mailbox { pattern = None; _ } ->
@@ -74,14 +75,14 @@ let join : Interface_env.t -> t -> t -> t * Constraint_set.t =
                          name. If these match, we can join the types. *)
                       if iface1 <> iface2 then
                           Gripers.env_interface_mismatch true
-                            t1 t2 var iface1 iface2
+                            t1 t2 var iface1 iface2 [pos]
                       else
                           (* Check sequencing of QL *)
                           let ql =
                               match Quasilinearity.sequence ql1 ql2 with
                                 | Some ql -> ql
                                 | None ->
-                                    Gripers.invalid_ql_sequencing var
+                                    Gripers.invalid_ql_sequencing var [pos]
                           in
                           let ((cap, pat), constrs) =
                               join_mailbox_types var
@@ -93,7 +94,7 @@ let join : Interface_env.t -> t -> t -> t * Constraint_set.t =
                               quasilinearity = ql
                           }, constrs
                 | _, _ ->
-                    Gripers.type_mismatch true t1 t2 var
+                    Gripers.type_mismatch true t1 t2 var [pos]
         in
         (* Calculate intersection of the two typing environments, and join
            each type. *)
@@ -116,9 +117,9 @@ let join : Interface_env.t -> t -> t -> t * Constraint_set.t =
 
 (* Combines two environments. The environments should only intersect
    on unrestricted types. *)
-let combine : Interface_env.t -> t -> t -> t * Constraint_set.t =
-    fun ienv env1 env2 ->
-        let combine_really ienv env1 env2 =
+let combine : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t =
+    fun ienv env1 env2 pos ->
+        let combine_really ienv env1 env2 pos =
             (* Types must be *the same* and *unrestricted* *)
             (* Subtype in both directions *)
             let join_types var (ty1: Type.t) (ty2: Type.t) =
@@ -127,14 +128,14 @@ let combine : Interface_env.t -> t -> t -> t * Constraint_set.t =
                    get a better error message. *)
                 if Type.contains_mailbox_type ty1 && Type.contains_mailbox_type ty2
                 then
-                    Gripers.combine_mailbox_type var
+                    Gripers.combine_mailbox_type var [pos]
                 else
                     Constraint_set.union_many
                         [
-                            make_unrestricted ty1;
-                            make_unrestricted ty2;
-                            subtype ienv ty1 ty2;
-                            subtype ienv ty2 ty1
+                            make_unrestricted ty1 pos;
+                            make_unrestricted ty2 pos;
+                            subtype ienv ty1 ty2 pos;
+                            subtype ienv ty2 ty1 pos
                         ]
             in
             (* Find the overlapping keys, zip up, and join. *)
@@ -159,14 +160,14 @@ let combine : Interface_env.t -> t -> t -> t * Constraint_set.t =
         let fn =
             if Settings.(get join_not_combine) then join else combine_really
         in
-        fn ienv env1 env2
+        fn ienv env1 env2 pos
 
 (* Merges environments resulting from branching control flow. *)
 (* Core idea is that linear types must be used in precisely the same way in
     each branch. Unrestricted types must be used at the same type, but need
     not be present in each branch (and will appear in the output environment.) *)
-let intersect : t -> t -> t * Constraint_set.t =
-    fun env1 env2 ->
+let intersect : t -> t -> Position.t -> t * Constraint_set.t =
+    fun env1 env2 pos ->
         let open Type in
         let intersect_mailbox_types var mb1 mb2 =
             let open Capability in
@@ -180,11 +181,11 @@ let intersect : t -> t -> t * Constraint_set.t =
                        that the new pattern is included in both patterns. *)
                     let pat = Pattern.fresh () in
                     let constrs =
-                      [ Constraint.make pat pat1; Constraint.make pat pat2 ]
+                      [ Constraint.make pat pat1 pos; Constraint.make pat pat2 pos]
                       |> Constraint_set.of_list in
                     (In, pat), constrs
                 | _, _ ->
-                    Gripers.inconsistent_branch_capabilities var
+                    Gripers.inconsistent_branch_capabilities var [pos]
         in
         let intersect_types var (t1: Type.t) (t2: Type.t) : (Type.t * Constraint_set.t) =
             match t1, t2 with
@@ -203,7 +204,7 @@ let intersect : t -> t -> t * Constraint_set.t =
                       (* As before -- interface names must be the same*)
                       if iface1 <> iface2 then
                           Gripers.env_interface_mismatch
-                            false t1 t2 var iface1 iface2
+                            false t1 t2 var iface1 iface2 [pos]
                       else
                           let ((cap, pat), constrs) =
                               intersect_mailbox_types var
@@ -216,7 +217,7 @@ let intersect : t -> t -> t * Constraint_set.t =
                               quasilinearity = Quasilinearity.max ql1 ql2
                           }, constrs
                 | _, _ ->
-                    Gripers.type_mismatch false t1 t2 var
+                    Gripers.type_mismatch false t1 t2 var [pos]
         in
 
         (* As in the join case, calculate intersection of the two typing
@@ -261,7 +262,7 @@ let intersect : t -> t -> t * Constraint_set.t =
               let () =
                 List.iter (fun (var, ty) ->
                     if Type.is_lin ty then
-                        Gripers.branch_linearity var
+                        Gripers.branch_linearity var [pos]
                     else ()
                 ) disjoint_others
               in
@@ -298,8 +299,8 @@ let check_type ienv var declared env =
         | Some inferred -> subtype ienv declared inferred
         | None -> Type_utils.make_unrestricted declared
 
-let make_unrestricted env =
+let make_unrestricted env pos =
     List.fold_left (fun acc (_, ty) ->
-        Constraint_set.union acc (make_unrestricted ty)
+        Constraint_set.union acc (make_unrestricted ty pos)
     ) Constraint_set.empty (bindings env)
 

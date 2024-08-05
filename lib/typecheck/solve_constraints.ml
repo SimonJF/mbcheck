@@ -322,7 +322,7 @@ let semilinear_to_presburger tags sls =
 
 
 let resolve_constraint resolved_lowers constr =
-    let (lhs, rhs) = Constraint.((lhs constr, rhs constr)) in
+    let (lhs, rhs, pos) = Constraint.(lhs constr, rhs constr, pos constr) in
     (* Pattern should be an upper bound, and therefore have no variables on its
      RHS. *)
     let () = assert (Pattern.defined rhs) in
@@ -332,14 +332,14 @@ let resolve_constraint resolved_lowers constr =
             |> Pattern.simplify
     in
     let rhs = Pattern.simplify rhs in
-    Constraint.make lhs rhs
+    Constraint.make lhs rhs pos
 
 (* Translates a constraint into a Presburger goal *)
 (* PRECONDITION: Requires the constraint to be fully resolved *)
 let constraint_to_goal constr =
-    let (lhs, rhs) = Constraint.((lhs constr, rhs constr)) in
+    let (lhs, rhs, pos) = Constraint.(lhs constr, rhs constr, pos constr) in
     Settings.if_debug (fun () ->
-        Format.printf "Checking constraint %a\n" Constraint.pp (Constraint.make lhs rhs)
+        Format.printf "Checking constraint %a\n" Constraint.pp (Constraint.make lhs rhs pos)
     );
     let tags =
         StringSet.union (Pattern.tags lhs) (Pattern.tags rhs)
@@ -358,12 +358,12 @@ let constraint_to_goal constr =
    to closed formule) and a set of upper bounds (i.e., formulae where the RHS
    contains no pattern variables), ensure that the inclusions hold.
  *)
-let check_satisfiability resolved_lowers pos_list =
+let check_satisfiability resolved_lowers =
 
     let check_result constr goal =
         let open Format in
         let open Solver_result in
-        let (lhs, rhs) = Constraint.((lhs constr, rhs constr)) in
+        let (lhs, rhs, pos) = Constraint.((lhs constr, rhs constr, pos constr)) in
         let (lhs, rhs) = Pattern.((show lhs, show rhs)) in
         function
             | Satisfiable ->
@@ -373,12 +373,12 @@ let check_satisfiability resolved_lowers pos_list =
                 Settings.if_debug (fun () ->
                     printf "UNSATISFIABLE: %a\n" Presburger.pp_goal goal
                 );
-                raise (Errors.constraint_solver_error lhs rhs pos_list)
+                raise (Errors.constraint_solver_error lhs rhs [pos])
             | Unknown ->
                 Settings.if_debug (fun () ->
                     printf "DUNNO: %a\n" Presburger.pp_goal goal
                 );
-                raise (Errors.constraint_solver_error lhs rhs pos_list)
+                raise (Errors.constraint_solver_error lhs rhs [pos])
     in
 
     (* For each upper bound:
@@ -433,7 +433,7 @@ let pipeline constrs =
         substitute_solutions lbs
     in
     (* Check if solutions are satisfiable *)
-    check_satisfiability resolved_constraints [] (get_upper_bounds constrs);
+    check_satisfiability resolved_constraints (get_upper_bounds constrs);
     (* Ensure that none of the pattern variables have been solved as zero *)
     check_nonzero resolved_constraints;
     resolved_constraints

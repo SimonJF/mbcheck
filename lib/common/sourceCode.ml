@@ -111,7 +111,10 @@ module Position = struct
     let pp_non_dummy () =
       let file = pos.start.Lexing.pos_fname in
   
-      Format.fprintf fmt "-> File %s, " file;
+      let bold = "\027[1m"
+      and reset = "\027[0m" in
+  
+      Format.fprintf fmt "%sFile %s, " bold file;
   
       let start_line = pos.start.Lexing.pos_lnum in
       let start_char = pos.start.Lexing.pos_cnum - pos.start.Lexing.pos_bol in
@@ -120,11 +123,11 @@ module Position = struct
   
       if start_line = finish_line then
         if start_char = finish_char then
-          Format.fprintf fmt "line %d, column %d" start_line start_char
+          Format.fprintf fmt "line %d, column %d%s" start_line start_char reset
         else
-          Format.fprintf fmt "line %d, columns %d to %d" start_line start_char finish_char
+          Format.fprintf fmt "line %d, columns %d to %d%s" start_line start_char finish_char reset
       else
-        Format.fprintf fmt "line %d, column %d, to line %d, column %d" start_line start_char finish_line finish_char;
+        Format.fprintf fmt "line %d, column %d, to line %d, column %d%s" start_line start_char finish_line finish_char reset;
   
       let source_code_str =
         if start_line = finish_line then
@@ -157,7 +160,7 @@ module Position = struct
   let make ~start ~finish ~code =
     { start; finish; code; }
 
-  let dummy = make ~start:Lexing.dummy_pos ~finish:Lexing.dummy_pos ~code:(new source_code)
+  let dummy = make ~start:Lexing.dummy_pos ~finish:Lexing.dummy_pos ~code:(SourceCodeManager.get_instance ())
 
   let start t = t.start
 
