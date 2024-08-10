@@ -129,11 +129,22 @@ module Position = struct
       else
         Format.fprintf fmt "line %d, column %d, to line %d, column %d%s" start_line start_char finish_line finish_char reset;
   
+      let line_number_width = String.length (string_of_int finish_line) in
+      let pad_line_number n =
+        let line_number_str = string_of_int n in
+        let padding = String.make (line_number_width - String.length line_number_str) ' ' in
+        padding ^ line_number_str
+      in
+  
+      (* Adjust this part to include line numbers with padding for alignment *)
       let source_code_str =
         if start_line = finish_line then
-          pos.code#extract_line start_line
+          Format.sprintf "%s| %s" (pad_line_number start_line) (pos.code#extract_line start_line)
         else
-          pos.code#extract_line_range start_line finish_line
+          let full_string = pos.code#extract_line_range start_line finish_line in
+          let lines = String.split_on_char '\n' full_string in
+          List.mapi (fun i line -> Format.sprintf "%s| %s" (pad_line_number (start_line + i)) line) lines
+          |> String.concat "\n"
       in
 
       (* ANSI escape codes for red color *)
@@ -142,7 +153,7 @@ module Position = struct
 
       (* Generate the marker line with ^ symbols in red *)
       let marker_line =
-          String.make start_char ' ' ^ red ^ String.make (finish_char - start_char + 1) '^' ^ reset
+          String.make (line_number_width + 2 + start_char) ' ' ^ red ^ String.make (finish_char - start_char + 1) '^' ^ reset
       in
 
       if marker_line <> "" then
