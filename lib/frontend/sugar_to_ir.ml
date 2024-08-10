@@ -14,11 +14,11 @@ type env = { var_env: Ir.Var.t stringmap }
 let empty_env = { var_env = StringMap.empty }
 
 let bind_var bnd env = { var_env = StringMap.add (Ir.Binder.name bnd) (Ir.Var.of_binder bnd) (env.var_env) }
-let lookup_var key env =
+let lookup_var key env pos =
     match StringMap.find_opt key (env.var_env) with
         | Some ty -> ty
         | None ->
-            raise (Errors.transform_error ("Unbound variable " ^ key))
+            raise (Errors.transform_error ("Unbound variable " ^ key) [pos] )
 
 let id = fun _ x -> x
 
@@ -80,7 +80,7 @@ and transform_expr :
         (* Looks up a term-level variable in the environment,
            returns IR variable *)
         | Var v ->
-            let v = lookup_var v env in
+            let v = lookup_var v env pos in
             WithPos.with_pos pos (Ir.Return (Ir.Variable (v, None))) |> k env
         | Primitive x -> WithPos.with_pos pos (Ir.Return (Ir.Primitive x)) |> k env
         | Atom x -> WithPos.with_pos pos (Ir.(Return (Atom x))) |> k env
@@ -222,7 +222,7 @@ and transform_subterm
             | Primitive p -> Ir.Primitive p |> k env
             | Atom a -> Ir.Atom a |> k env
             | Var var ->
-                let v = lookup_var var env in
+                let v = lookup_var var env pos in
                 Ir.Variable (v, None) |> k env
             | Constant c -> Ir.Constant c |> k env
             | Lam {linear; parameters; result_type; body} ->
