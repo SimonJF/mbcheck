@@ -109,6 +109,14 @@ module Position = struct
       let start_char = pos.start.Lexing.pos_cnum - pos.start.Lexing.pos_bol in
       let finish_line = pos.finish.Lexing.pos_lnum in
       let finish_char = pos.finish.Lexing.pos_cnum - pos.finish.Lexing.pos_bol in
+
+      (* Show only first six line if the source code too long *)
+      let finish_line =
+        if finish_line - start_line > 5 then
+          start_line + 5
+        else
+          finish_line
+      in
   
       if start_line = finish_line then
         if start_char = finish_char then
@@ -124,7 +132,6 @@ module Position = struct
         let padding = String.make (line_number_width - String.length line_number_str) ' ' in
         padding ^ line_number_str
       in
-  
       (* Adjust this part to include line numbers with padding for alignment *)
       let source_code_str =
         if start_line = finish_line then
