@@ -1,5 +1,5 @@
 open Common
-open Common.SourceCode
+open Common.Source_code
 type t
 
 val lookup : Common_types.interface_name -> t -> Position.t list -> Interface.t WithPos.t

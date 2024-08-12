@@ -6,7 +6,7 @@
 (* Additionally, for interfaces, sets the quasilinearity to Usable. *)
 open Common
 open Sugar_ast
-open SourceCode
+open Source_code
 
 let rec annotate_type =
     let open Type in

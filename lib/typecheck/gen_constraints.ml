@@ -13,7 +13,7 @@ open Common
 open Common_types
 open Ir
 open Type_utils
-open SourceCode
+open Source_code
 
 (* Modules *)
 

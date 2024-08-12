@@ -1,6 +1,5 @@
 (* Type errors. *)
 open Common
-open Common.SourceCode
 
 let constraint_gen_error ?subsystem message pos_list =
     Errors.Constraint_gen_error { subsystem; message; pos_list}
@@ -127,7 +126,7 @@ let unused_mailbox_variable v pos_list =
             "Mailbox variable %a unused in receive guard body"
             Ir.Var.pp_name v
     in
-    raise (constraint_gen_error ~subsystem:(Errors.GenCheckGuard) msg (List.map Position.adjust_position pos_list))
+    raise (constraint_gen_error ~subsystem:(Errors.GenCheckGuard) msg pos_list)
 
 let unexpected_free_var v decl pos_list =
     let msg =

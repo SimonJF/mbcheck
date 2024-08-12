@@ -3,7 +3,7 @@
    We only need to support intersection between two nullable environments,
    and disjoint combination with a defined environment.
  *)
-open Common.SourceCode
+open Common.Source_code
 
 type t
 val intersect : t -> t -> Position.t -> (t * Constraint_set.t)

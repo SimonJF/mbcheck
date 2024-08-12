@@ -2,7 +2,7 @@
 open Common
 open Sugar_ast
 open Common_types
-open SourceCode
+open Source_code
 open SourceCodeManager
 
 module type Pos = sig
@@ -12,15 +12,15 @@ module type Pos = sig
 end
 
 module ParserPosition
-    : Pos with type t = (SourceCode.Lexpos.t * SourceCode.Lexpos.t) = struct
+    : Pos with type t = (Lexpos.t * Lexpos.t) = struct
     (* parser position produced by Menhir *)
-    type t = SourceCode.Lexpos.t * SourceCode.Lexpos.t
+    type t = Lexpos.t * Lexpos.t
     (* Convert position produced by a parser to SourceCode position *)
     let pos (start, finish) = 
         let code = get_instance () in
-        SourceCode.Position.make ~start ~finish ~code:code
+        Position.make ~start ~finish ~code:code
     (* Wrapper around SourceCode.WithPos.make.  Accepts parser positions. *)
-    let with_pos (start, finish) v = SourceCode.WithPos.make ~pos:(pos (start, finish)) v
+    let with_pos (start, finish) v = WithPos.make ~pos:(pos (start, finish)) v
 end
 
 let get_start_pos e = Position.start (WithPos.pos e)

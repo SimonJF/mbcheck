@@ -96,17 +96,6 @@ module Position = struct
   }
   [@@name "position"]
 
-  let adjust_position pos =
-    let adjust_lexpos lexpos line =
-      { lexpos with
-        Lexing.pos_lnum = if lexpos.Lexing.pos_lnum = 1 then 1 else lexpos.Lexing.pos_lnum + line
-      }
-    in
-    let new_start = adjust_lexpos pos.start (-2) in
-    let new_finish = adjust_lexpos pos.finish 1 in
-    { pos with start = new_start; finish = new_finish }
-
-
   let pp : Format.formatter -> t -> unit = fun fmt pos ->
     let pp_non_dummy () =
       let file = pos.start.Lexing.pos_fname in
@@ -115,7 +104,7 @@ module Position = struct
       and reset = "\027[0m" in
   
       Format.fprintf fmt "%sFile %s, " bold file;
-  
+      
       let start_line = pos.start.Lexing.pos_lnum in
       let start_char = pos.start.Lexing.pos_cnum - pos.start.Lexing.pos_bol in
       let finish_line = pos.finish.Lexing.pos_lnum in
@@ -141,7 +130,7 @@ module Position = struct
         if start_line = finish_line then
           Format.sprintf "%s| %s" (pad_line_number start_line) (pos.code#extract_line start_line)
         else
-          let full_string = pos.code#extract_line_range start_line finish_line in
+          let full_string = pos.code#extract_line_range (start_line-1) finish_line in
           let lines = String.split_on_char '\n' full_string in
           List.mapi (fun i line -> Format.sprintf "%s| %s" (pad_line_number (start_line + i)) line) lines
           |> String.concat "\n"

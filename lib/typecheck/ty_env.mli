@@ -1,6 +1,6 @@
 (* Typing environments, used as an output of the typing algorithm. *)
 open Common
-open Common.SourceCode
+open Common.Source_code
 
 type t
 

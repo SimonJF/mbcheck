@@ -3,7 +3,7 @@
 open Lexing
 open Parser
 open Util
-open Common.SourceCode
+open Common.Source_code
 
 exception SyntaxError of string
 

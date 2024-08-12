@@ -1,7 +1,7 @@
 open Common
 open Common_types
 open Util.Utility
-open SourceCode
+open Source_code
 
 (* Transforms the sugared AST to the FGCBV IR *)
 (* Takes a rather naive approach by assigning each subexpression

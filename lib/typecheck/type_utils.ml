@@ -1,7 +1,7 @@
 (* Various operations on types that only arise during typechecking. *)
 open Common
 open Common_types
-open Common.SourceCode
+open Common.Source_code
 
 
 (* Tries to ensure that a type is treated as unrestricted. All base types are

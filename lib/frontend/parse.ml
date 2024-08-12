@@ -1,7 +1,7 @@
 open Common
 open Lexer
 open Lexing
-open SourceCode
+open Source_code
 
 let pos lexbuf = Position.make 
                     ~start:

@@ -1,7 +1,7 @@
 open Common_types
 open Util.Utility
 open Format
-open SourceCode
+open Source_code
 
 (* Basic sugared AST *)
 (* Expressions *)

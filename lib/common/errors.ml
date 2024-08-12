@@ -1,5 +1,5 @@
 open Util
-open SourceCode
+open Source_code
 
 (* Auxiliary definitions / types *)
 type subsystem =

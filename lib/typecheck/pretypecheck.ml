@@ -6,7 +6,7 @@ open Common
 open Common_types
 open Ir
 open Util.Utility
-open SourceCode
+open Source_code
 
 let pretype_error msg pos_list = Errors.Pretype_error (msg,pos_list) 
 
@@ -353,7 +353,7 @@ and check_comp ienv env comp ty declPos =
             WithPos.with_pos pos (Guard { target; pattern; guards = [(WithPos.with_pos pos Fail)]; iname = Some iname })
         | _ ->
             let comp, inferred_ty = synthesise_comp ienv env comp in
-            check_tys [Position.adjust_position declPos] ty inferred_ty;
+            check_tys [declPos] ty inferred_ty;
             comp
 and synth_guard ienv env iname g =
     let interface_withPos = IEnv.lookup iname ienv [(WithPos.pos g)] in

@@ -2,7 +2,7 @@
 open Common_types
 open Format
 open Util.Utility
-open SourceCode
+open Source_code
 
 module Binder = struct
     type t = { id: int; name: string }

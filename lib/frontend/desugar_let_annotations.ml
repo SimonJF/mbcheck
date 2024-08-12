@@ -9,7 +9,7 @@ let visitor =
 
         method! visit_expr env expr_with_pos =
             let open Sugar_ast in
-            let open SourceCode in
+            let open Source_code in
             let expr_node = WithPos.node expr_with_pos in
             match expr_node with
                 | Let { binder; annot = Some annot'; term; body } ->

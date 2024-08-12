@@ -1,7 +1,7 @@
 open Common
 open Util.Utility
 open Type_utils
-open Common.SourceCode
+open Common.Source_code
 
 module type VARMAP = (Map.S with type key = Ir.Var.t)
 module VarMap = Map.Make(Ir.Var)

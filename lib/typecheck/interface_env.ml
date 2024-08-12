@@ -1,6 +1,6 @@
 open Util.Utility
 open Common
-open Common.SourceCode
+open Common.Source_code
 
 type t = (Interface.t WithPos.t) StringMap.t
 

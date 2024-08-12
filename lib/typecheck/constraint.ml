@@ -1,7 +1,7 @@
 (* A constraint is a language inclusion relation between two patterns. *)
 open Common
 open Type
-open Common.SourceCode
+open Common.Source_code
 
 type t = (Pattern.t * Pattern.t) WithPos.t
 
