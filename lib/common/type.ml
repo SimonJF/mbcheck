@@ -273,7 +273,6 @@ type t =
         pattern: (Pattern.t [@name "pattern"]) option
     }
     [@@name "ty"]
-and message = { tag: string; ty: (t [@name "ty"]) }
 and base = [%import: Common_types.Base.t]
     [@@deriving visitors {
         variety = "map";
@@ -341,8 +340,6 @@ let rec pp ppf =
             op
             (pp_print_option pp_pattern) pattern
             ql
-and pp_msg ppf { tag; ty } =
-    Format.fprintf ppf "%s[%a]" tag pp ty
 and pp_capability = Capability.pp
 and pp_base = Base.pp
 and pp_pattern = Pattern.pp
