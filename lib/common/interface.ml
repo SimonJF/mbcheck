@@ -8,7 +8,7 @@ type t = { name: string; env: (string * (Type.t[@name "ty"]) list) list }
     ancestors = ["Type.map"];
     data = false }]
 
-let lookup pos_list (x: tag) (iface: t) =
+let lookup ?(pos_list=[]) (x: tag) (iface: t) =
     match List.assoc_opt x iface.env with
         | Some tys -> tys
         | None ->

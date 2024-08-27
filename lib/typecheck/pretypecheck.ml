@@ -283,7 +283,7 @@ and synthesise_comp ienv env comp =
                         let interface_withPos = IEnv.lookup iname ienv [(WithPos.pos comp)] in
                         let payload_target_tys =
                             WithPos.node interface_withPos
-                            |> Interface.lookup (WithPos.extract_pos_pair interface_withPos comp)  tag
+                            |> Interface.lookup ~pos_list:(WithPos.extract_pos_pair interface_withPos comp)  tag
                             |> List.map Pretype.of_type
                         in
                         let () =
@@ -361,7 +361,7 @@ and synth_guard ienv env iname g =
     let pos = WithPos.pos g in
     match WithPos.node g with
         | Receive { tag; payload_binders; mailbox_binder; cont } ->
-            let payload_tys = Interface.lookup [(WithPos.pos interface_withPos);pos] tag iface in
+            let payload_tys = Interface.lookup ~pos_list:[(WithPos.pos interface_withPos);pos] tag iface in
             let expected_len = List.length payload_tys in
             (* Arity check *)
             let actual_len = List.length payload_binders in

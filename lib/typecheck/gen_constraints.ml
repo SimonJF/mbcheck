@@ -280,7 +280,7 @@ and synthesise_comp :
             let iname = Option.get iname in
             let interface_withPos = IEnv.lookup iname ienv [pos] in
             let payload_types =
-                Interface.lookup [WithPos.pos interface_withPos; pos] tag (WithPos.node interface_withPos)
+                Interface.lookup ~pos_list:[WithPos.pos interface_withPos; pos] tag (WithPos.node interface_withPos)
             in
             (* Check target has correct output type *)
             let target_ty =
@@ -708,7 +708,7 @@ and check_guard :
                 let (env, cont_constrs) = check_comp ienv decl_env cont ty in
                 let payload_iface_tys =
                         let interface_withPos = IEnv.lookup iname ienv [pos] in
-                        Interface.lookup [(WithPos.pos interface_withPos); pos] tag interface_withPos.node
+                        Interface.lookup ~pos_list:[(WithPos.pos interface_withPos); pos] tag interface_withPos.node
                 in
                 (* Check that the received values have types consistent with the
                    interface annotations. *)

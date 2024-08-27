@@ -113,7 +113,7 @@ and subtype_interface :
                  are subtypes of those of i2. *)
                 let visited = (Interface.name i1, Interface.name i2) :: visited in
                 List.fold_left (fun acc (tag, payloads1) ->
-                    let payloads2 = Interface.lookup [] tag i2 in
+                    let payloads2 = Interface.lookup tag i2 in
                     List.combine payloads1 payloads2
                     |> List.map (fun (p1, p2) -> subtype_type visited ienv p1 p2 pos)
                     |> Constraint_set.union_many
