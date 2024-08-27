@@ -217,7 +217,7 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
                               quasilinearity = Quasilinearity.max ql1 ql2
                           }, constrs
                 | _, _ ->
-                    Gripers.type_mismatch false t1 t2 var
+                    Gripers.type_mismatch false t1 t2 var [pos]
         in
 
         (* As in the join case, calculate intersection of the two typing
@@ -262,7 +262,7 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
               let () =
                 List.iter (fun (var, ty) ->
                     if Type.is_lin ty then
-                        Gripers.branch_linearity var
+                        Gripers.branch_linearity var [pos]
                     else ()
                 ) disjoint_others
               in

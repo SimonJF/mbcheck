@@ -76,7 +76,8 @@ and transform_expr :
     Sugar_ast.expr ->
         (env -> Ir.comp -> Ir.comp) -> Ir.comp = fun env x k ->
     let pos = WithPos.pos x in
-    let with_same_pos = WithPos.make ~pos in
+    (* Explicit eta here to allow with_same_pos to be used polymorphically *)
+    let with_same_pos v = WithPos.make ~pos v in
     match WithPos.node x with
         (* Looks up a term-level variable in the environment,
            returns IR variable *)
@@ -121,7 +122,7 @@ and transform_expr :
         | Pair (e1, e2) ->
             transform_subterm env e1 (fun _ v1 ->
             transform_subterm env e2 (fun _ v2 ->
-                with_same_pos (Ir.Return (Ir.Pair (v1, v2)) )|> k env))
+                with_same_pos (Ir.Return (with_same_pos (Ir.Pair (v1, v2))) )|> k env))
         | LetPair {binders = (b1, b2); term; cont; _ } ->
             (* let x = M in N*)
             (* Create an IR variable based on x *)
@@ -159,9 +160,9 @@ and transform_expr :
             transform_expr env e1 (fun env c1 ->
             let pos' = WithPos.pos c1 in
             match WithPos.node c1 with
-                | Ir.Return (Ir.Constant (Constant.Unit)) ->
+                | Ir.Return ({ node = Ir.Constant (Constant.Unit); _ }) ->
                     transform_expr env e2 k
-                | _ -> with_same_pos' (Ir.Seq (c1, transform_expr env e2 k)))
+                | _ -> WithPos.make ~pos:pos' (Ir.Seq (c1, transform_expr env e2 k)))
         | App {func; args} ->
             transform_subterm env func (fun env funcv ->
             transform_list env args (fun argvs ->
@@ -216,23 +217,25 @@ and transform_subterm
      *)
     transform_expr env x (fun env c ->
         let pos = WithPos.pos x in
+        let wrap v = WithPos.make ~pos v in
         match WithPos.node x with
             (* Translate syntactic values directly to avoid a needless
                administrative reduction.
              *)
-            | Primitive p -> Ir.Primitive p |> k env
-            | Atom a -> Ir.Atom a |> k env
+            | Primitive p -> wrap (Ir.Primitive p) |> k env
+            | Atom a -> wrap (Ir.Atom a) |> k env
             | Var var ->
                 let v = lookup_var var env pos in
-                Ir.Variable (v, None) |> k env
-            | Constant c -> Ir.Constant c |> k env
+                wrap (Ir.Variable (v, None)) |> k env
+            | Constant c -> wrap (Ir.Constant c) |> k env
             | Lam {linear; parameters; result_type; body} ->
                 let (bnds, env') = add_names env fst parameters in
-                Ir.Lam {
-                    linear;
-                    parameters = List.combine bnds (List.map snd parameters);
-                    result_type;
-                    body = transform_expr env' body id } |> k env
+                wrap (
+                    Ir.Lam {
+                        linear;
+                        parameters = List.combine bnds (List.map snd parameters);
+                        result_type;
+                        body = transform_expr env' body id }) |> k env
             (* Other expressions need to be bound to an intermediate variable *)
             | _ ->
                 (* Create a new binder *)
@@ -244,12 +247,12 @@ and transform_subterm
                    to synthesis *)
                 let var' =
                     match WithPos.node x with
-                        | Annotate (_, ty) -> Ir.VAnnotate (var, ty)
+                        | Annotate (_, ty) -> Ir.VAnnotate (wrap var, ty)
                         | _ -> var
                 in
                 (* Return a 'let' expression with the binder, binding the computation,
                    and apply the continuation to the bound variable *)
-                WithPos.make ~pos (Ir.Let { binder = bnd; term = c; cont = (k env var') }))
+                WithPos.make ~pos (Ir.Let { binder = bnd; term = c; cont = (k env (wrap var')) }))
 
 and transform_guard :
     env ->
