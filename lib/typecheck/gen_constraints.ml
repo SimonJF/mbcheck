@@ -28,7 +28,7 @@ let rec synthesise_val :
     let pos = WithPos.pos v in
     match WithPos.node v with
         | VAnnotate (v, ty) ->
-            let (env, constrs) = check_val ienv decl_env v ty pos in
+            let (env, constrs) = check_val ienv decl_env v ty in
             ty, env, constrs
         | Atom _ -> Type.Base (Base.Atom), Ty_env.empty, Constraint_set.empty
         | Constant c ->
@@ -144,8 +144,9 @@ let rec synthesise_val :
             (ty, returnable_env, constrs)
         | _ -> Gripers.cannot_synthesise_value v [pos]
 and check_val :
-    IEnv.t -> Ty_env.t -> Ir.value -> Type.t -> Position.t -> Ty_env.t * Constraint_set.t =
-        fun ienv decl_env v ty pos ->
+    IEnv.t -> Ty_env.t -> Ir.value -> Type.t -> Ty_env.t * Constraint_set.t =
+        fun ienv decl_env v ty ->
+    let pos = WithPos.pos v in
     (* Checks consistency between a pretype pair annotation and the check type *)
     let rec check_pretype_consistency ty pty =
         let open Type in
@@ -175,14 +176,14 @@ and check_val :
             begin
                 match ty with
                     | Type.Sum (t1, _) ->
-                        check_val ienv decl_env v (Type.make_returnable t1) pos
+                        check_val ienv decl_env v (Type.make_returnable t1)
                     | _ -> Gripers.expected_sum_type ty [pos]
             end
         | Inr v ->
             begin
                 match ty with
                     | Type.Sum (_, t2) ->
-                        check_val ienv decl_env v (Type.make_returnable t2) pos
+                        check_val ienv decl_env v (Type.make_returnable t2)
                     | _ -> Gripers.expected_sum_type ty [pos]
             end
         | Pair (v1, v2) ->
@@ -194,8 +195,8 @@ and check_val :
                 end
             in
             (* We can only construct a pair if its components are returnable. *)
-            let (env1, constrs1) = check_val ienv decl_env v1 (Type.make_returnable t1) pos in
-            let (env2, constrs2) = check_val ienv decl_env v2 (Type.make_returnable t2) pos in
+            let (env1, constrs1) = check_val ienv decl_env v1 (Type.make_returnable t1) in
+            let (env2, constrs2) = check_val ienv decl_env v2 (Type.make_returnable t2) in
             let env, constrs3 = Ty_env.combine ienv env1 env2 pos in
             env, Constraint_set.union_many [constrs1; constrs2; constrs3]
         | _ ->
@@ -235,7 +236,7 @@ and synthesise_comp :
                     quasilinearity = Quasilinearity.Returnable;
                 }
             in
-            let env, constrs = check_val ienv decl_env v goal pos in
+            let env, constrs = check_val ienv decl_env v goal in
             (Type.unit_type, env, constrs)
         | Free (_, None) -> assert false
         (* Application is a synthesis case, since functions are always annotated. *)
@@ -253,7 +254,7 @@ and synthesise_comp :
             let zipped = List.combine args arg_tys in
             let (arg_env, arg_constrs) =
                 List.fold_right (fun (x, ty) (acc_env, acc_constrs) ->
-                    let (arg_env, arg_constrs) = check_val ienv decl_env x ty pos in
+                    let (arg_env, arg_constrs) = check_val ienv decl_env x ty in
                     (* Note: arguments must have disjoint type environments *)
                     let (env, env_constrs) = Ty_env.combine ienv arg_env acc_env pos in
                     let constrs =
@@ -296,14 +297,14 @@ and synthesise_comp :
                        it. *)
                     quasilinearity = Quasilinearity.Usable
                 } in
-            let (mb_env, mb_constrs) = check_val ienv decl_env target target_ty pos in
+            let (mb_env, mb_constrs) = check_val ienv decl_env target target_ty in
             (* Check arguments have type specified by interface *)
             (* Now that we're TC-ing the IR, this is much more precise since
                intermediate computations will be A-normalised. *)
             let arg_env, arg_constrs =
                 List.combine payloads payload_types
                 |> List.fold_left (fun (env, constrs) (payload, iface_ty)  ->
-                    let (chk_env, chk_constrs) = check_val ienv decl_env payload iface_ty pos in
+                    let (chk_env, chk_constrs) = check_val ienv decl_env payload iface_ty in
                     let (env, env_constrs) = Ty_env.combine ienv env chk_env pos in
                     (env, Constraint_set.union_many
                         [constrs; chk_constrs; env_constrs])
@@ -400,10 +401,10 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
     let chkv = check_val ienv decl_env in
     let pos = WithPos.pos e in
     match (WithPos.node e) with
-        | Return v -> check_val ienv decl_env v ty pos
+        | Return v -> check_val ienv decl_env v ty
         | Case { term; branch1 = ((bnd1, ty1), comp1); branch2 = ((bnd2, ty2), comp2) } ->
             let (term_env, term_constrs) =
-                check_val ienv decl_env term (Type.make_sum_type ty1 ty2) pos
+                check_val ienv decl_env term (Type.make_sum_type ty1 ty2)
             in
             let var1 = Var.of_binder bnd1 in
             let var2 = Var.of_binder bnd2 in
@@ -440,7 +441,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
             (env, constrs)
 
         | If { test; then_expr; else_expr } ->
-            let (test_env, test_constrs) = chkv test Type.bool_type pos in
+            let (test_env, test_constrs) = chkv test Type.bool_type in
             let (then_env, then_constrs) = chk then_expr ty in
             let (else_env, else_constrs) = chk else_expr ty in
             let (branches_env, env1_constrs) = Ty_env.intersect then_env else_env pos in
@@ -545,7 +546,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                             Type.make_pair_type b1ty b2ty
                         in
                         let (term_env, term_constrs) =
-                            check_val ienv decl_env pair target_ty pos
+                            check_val ienv decl_env pair target_ty
                         in
                         (* Combine environments, union constraints *)
                         let (env, env_constrs) =
@@ -618,7 +619,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
             (* Regardless of how it is used in the continuation, the mailbox
                we're receiving from must be returnable. *)
             let (target_env, target_constrs) =
-                chkv target (Type.make_returnable target_ty) pos
+                chkv target (Type.make_returnable target_ty)
             in
             let (env, env_constrs) =
                 Nullable_env.combine ienv target_env guards_env pos
