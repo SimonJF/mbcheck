@@ -42,15 +42,6 @@ module Gripers = struct
         in
         raise (pretype_error msg pos_list)
 
-    (* let type_mismatch_with_message pos custom_msg expected actual =
-        let msg =
-            asprintf "%s. Expected %a but got %a."
-                custom_msg
-                Pretype.pp expected
-                Pretype.pp actual
-        in
-        raise (pretype_error msg) *)
-
     let type_mismatch_with_expected pos expected_msg actual =
         let msg =
             asprintf "Type mismatch. Expected %s but got %a."                
@@ -58,12 +49,6 @@ module Gripers = struct
                 Pretype.pp actual
         in
         raise (pretype_error msg [pos])
-
-    (* let empty_guards pos () =
-        let msg =
-            asprintf "Guards cannot be empty \n At %a" Position.pp pos
-        in
-        raise (pretype_error msg) *)
 
     let cannot_synth_empty_guards pos () =
         let msg =

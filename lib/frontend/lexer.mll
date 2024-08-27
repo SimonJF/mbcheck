@@ -77,6 +77,7 @@ rule read =
                           CONSTRUCTOR var
                       else
                           VARIABLE var }
+    | def_atom as atom { ATOM atom } 
     | '"'      { add_to_source_code lexbuf; read_string (Buffer.create 17) lexbuf }
     | '{'      { add_to_source_code lexbuf; LEFT_BRACE }
     | '}'      { add_to_source_code lexbuf; RIGHT_BRACE }
