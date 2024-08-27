@@ -199,8 +199,6 @@ module WithPos = struct
   let pp_pos_only fmt { pos; _ } =
     Position.pp fmt pos
 
-  let with_pos pos comp = make ~pos comp
-
   let extract_pos_pair w1 w2 = [w1.pos; w2.pos]
 
   let split_with_pos_list lst = 
@@ -212,5 +210,4 @@ module WithPos = struct
 
   let combine_with_pos_list pos_list node_list = 
     List.map2 (fun pos node -> make ~pos node) pos_list node_list
-
 end

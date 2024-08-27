@@ -1,7 +1,9 @@
 open Common_types
 open Util.Utility
 open Format
-open Source_code
+
+
+module WithPos = Source_code.WithPos
 
 (* Basic sugared AST *)
 (* Expressions *)
@@ -138,14 +140,15 @@ and pp_interface ppf iface =
     (Interface.name (WithPos.node iface) )
         (pp_print_comma_list pp_msg_ty) xs
 (* Declarations *)
-and pp_decl ppf decl_with_pos =
-    let { WithPos.node = { decl_name; decl_parameters; decl_return_type; decl_body }; pos } = decl_with_pos in
-    fprintf ppf "def %s(%a): %a {@,@[<v 2>  %a@]@,} at %a"
+and pp_decl ppf decl =
+    let  { decl_name; decl_parameters; decl_return_type; decl_body } =
+        WithPos.node decl
+    in
+    fprintf ppf "def %s(%a): %a {@,@[<v 2>  %a@]@,}"
       decl_name
       (pp_print_comma_list pp_param) decl_parameters
       Type.pp decl_return_type
       pp_expr decl_body
-      Position.pp pos
 (* Messages *)
 and pp_message ppf (tag, es) =
     fprintf ppf "%s(%a)"

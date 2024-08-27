@@ -42,15 +42,6 @@ module Gripers = struct
         in
         raise (pretype_error msg pos_list)
 
-    (* let type_mismatch_with_message pos custom_msg expected actual =
-        let msg =
-            asprintf "%s. Expected %a but got %a."
-                custom_msg
-                Pretype.pp expected
-                Pretype.pp actual
-        in
-        raise (pretype_error msg) *)
-
     let type_mismatch_with_expected pos expected_msg actual =
         let msg =
             asprintf "Type mismatch. Expected %s but got %a."                
@@ -58,12 +49,6 @@ module Gripers = struct
                 Pretype.pp actual
         in
         raise (pretype_error msg [pos])
-
-    (* let empty_guards pos () =
-        let msg =
-            asprintf "Guards cannot be empty \n At %a" Position.pp pos
-        in
-        raise (pretype_error msg) *)
 
     let cannot_synth_empty_guards pos () =
         let msg =
@@ -77,7 +62,8 @@ module Gripers = struct
         in
         raise (pretype_error msg [pos])
 
-    let cannot_synth_sum pos term =
+    let cannot_synth_sum (term: value) =
+        let pos = WithPos.pos term in
         let msg =
             asprintf "Cannot synthesise a type for a sum constructor %a."
                 Ir.pp_value term
@@ -119,18 +105,20 @@ module IEnv = Interface_env
    as with most bidirectional systems, we try and synthesise as much
    as we can, since we carry around the type environment with us and
    don't need to preserve as much contextual type information. *)
-let rec synthesise_val pos ienv env value : (value * Pretype.t) =
-    match value with
+let rec synthesise_val ienv env value : (value * Pretype.t) =
+    let (v, pos) = WithPos.(node value, pos value) in
+    let wrap = WithPos.make ~pos in
+    match v with
         | VAnnotate (v, ty) ->
             let check_ty = Pretype.of_type ty in
-            let v = check_val pos ienv env v check_ty in
-            VAnnotate (v, ty), check_ty
-        | Atom a -> (Atom a, Pretype.PBase (Base.Atom))
+            let v = check_val ienv env v check_ty in
+            wrap (VAnnotate (v, ty)), check_ty
+        | Atom a -> wrap (Atom a), Pretype.PBase (Base.Atom)
         | Constant c ->
-            (Constant c, Pretype.PBase (Constant.type_of c))
+            wrap (Constant c), Pretype.PBase (Constant.type_of c)
         | Variable (x, _) ->
             let ty = PretypeEnv.lookup pos x env in
-            Variable (x, Some ty), ty
+            wrap (Variable (x, Some ty)), ty
         | Primitive prim ->
             (* Look up primitive type from Lib_types *)
             (* The only way something should be parsed as a primitive
@@ -139,11 +127,11 @@ let rec synthesise_val pos ienv env value : (value * Pretype.t) =
                 List.assoc prim Lib_types.signatures
                 |> Pretype.of_type
             in
-            (Primitive prim, ty)
+            wrap (Primitive prim), ty
         | Pair (v1, v2) ->
-            let (v1, ty1) = synthesise_val pos ienv env v1 in
-            let (v2, ty2) = synthesise_val pos ienv env v2 in
-            (Pair (v1, v2), Pretype.PPair (ty1, ty2))
+            let (v1, ty1) = synthesise_val ienv env v1 in
+            let (v2, ty2) = synthesise_val ienv env v2 in
+            wrap (Pair (v1, v2)), Pretype.PPair (ty1, ty2)
         | Lam { linear; parameters; result_type; body } ->
             (* Defer linearity checking to constraint generation. *)
             let param_types  = List.map snd parameters in
@@ -155,71 +143,74 @@ let rec synthesise_val pos ienv env value : (value * Pretype.t) =
             let result_prety = Pretype.of_type result_type in
             let env = PretypeEnv.bind_many pretype_params env in
             let body = check_comp ienv env body result_prety pos in
-            Lam { linear; parameters; body; result_type },
+            wrap (Lam { linear; parameters; body; result_type }),
             Pretype.PFun {
                 linear = linear;
                 args = param_types;
                 result = result_prety
             }
-        | ((Inl _) as x) | ((Inr _) as x) -> Gripers.cannot_synth_sum pos x
-and check_val pos ienv env value ty =
-    match value, ty with
+        | Inl _ | Inr _ -> Gripers.cannot_synth_sum value
+and check_val ienv env value ty =
+    let (value_node, pos) = WithPos.(node value, pos value) in
+    let wrap = WithPos.make ~pos in
+    match value_node, ty with
         | Inl v, (Pretype.PSum (pty1, _)) ->
-            let v = check_val pos ienv env v pty1 in
-            Inl v
+            let v = check_val ienv env v pty1 in
+            wrap (Inl v)
         | Inr v, (Pretype.PSum (_, pty2)) ->
-            let v = check_val pos ienv env v pty2 in
-            Inr v
+            let v = check_val ienv env v pty2 in
+            wrap (Inr v)
         | Inl _, ty | Inr _, ty ->
             raise
                 (Gripers.type_mismatch_with_expected pos
                     "a sum type" ty)
         | _ ->
-            let value, inferred_ty = synthesise_val pos ienv env value in
+            let value, inferred_ty = synthesise_val ienv env value in
             check_tys [pos] ty inferred_ty;
             value
 and synthesise_comp ienv env comp =
     let pos = WithPos.pos comp in
     let synth = synthesise_comp ienv env in
-    let synthv = synthesise_val pos ienv env in
+    let synthv = synthesise_val ienv env in
     match WithPos.node comp with
         | Annotate (c, ty) ->
             let check_ty = Pretype.of_type ty in
             let c = check_comp ienv env c check_ty pos in
-            WithPos.with_pos pos(Annotate (c, ty)), check_ty
+            WithPos.make ~pos (Annotate (c, ty)), check_ty
         | Return v ->
             let (v, ty) = synthv v in
-            WithPos.with_pos pos(Return v), ty
+            WithPos.make ~pos (Return v), ty
         | New iname ->
-            WithPos.with_pos pos(New iname), Pretype.PInterface iname
+            WithPos.make ~pos (New iname), Pretype.PInterface iname
         | Spawn e ->
             let e =
                 check_comp ienv env e (Pretype.PBase Unit) pos 
             in
-            WithPos.with_pos pos (Spawn e), Pretype.PBase Unit
+            WithPos.make ~pos (Spawn e), Pretype.PBase Unit
         | If { test; then_expr; else_expr } ->
             let test =
-                check_val pos ienv env test (Pretype.PBase Bool)
+                check_val ienv env test (Pretype.PBase Bool)
             in
             let then_expr, ty = synth then_expr in
             let else_expr = check_comp ienv env else_expr ty pos in
-            WithPos.with_pos pos(If { test; then_expr; else_expr }), ty
+            WithPos.make ~pos (If { test; then_expr; else_expr }), ty
         | Let { binder; term; cont } ->
             let term, term_ty = synth term in
             let env' = PretypeEnv.bind (Var.of_binder binder) term_ty env in
             let cont, cont_ty = synthesise_comp ienv env' cont in
-            WithPos.with_pos pos(Let { binder; term; cont }), cont_ty
+            WithPos.make ~pos (Let { binder; term; cont }), cont_ty
         | Case { term; branch1 = ((bnd1, ty1), e1); branch2 = ((bnd2, ty2), e2) } ->
             let prety1 = Pretype.of_type ty1 in
             let prety2 = Pretype.of_type ty2 in
             let term =
-                check_val pos ienv env term (Pretype.PSum (prety1, prety2))
+                check_val ienv env term (Pretype.PSum (prety1, prety2))
             in
             let e1_env = PretypeEnv.bind (Var.of_binder bnd1) prety1 env in
             let e2_env = PretypeEnv.bind (Var.of_binder bnd2) prety2 env in
             let e1, e1_ty = synthesise_comp ienv e1_env e1 in
             let e2 = check_comp ienv e2_env e2 e1_ty pos in
-            WithPos.with_pos pos(Case { term; branch1 = ((bnd1, ty1), e1); branch2 = ((bnd2, ty2), e2) }), e1_ty
+            WithPos.make ~pos
+                (Case { term; branch1 = ((bnd1, ty1), e1); branch2 = ((bnd2, ty2), e2) }), e1_ty
         | LetPair { binders = ((b1, _), (b2, _)); pair; cont } ->
             let pair, pair_ty = synthv pair in
             let (t1, t2) =
@@ -236,11 +227,12 @@ and synthesise_comp ienv env comp =
                 |> PretypeEnv.bind (Var.of_binder b2) t2
             in
             let cont, cont_ty = synthesise_comp ienv env' cont in
-            WithPos.with_pos pos(LetPair { binders = ((b1, Some t1), (b2, Some t2)); pair; cont }), cont_ty
+            WithPos.make ~pos
+                (LetPair { binders = ((b1, Some t1), (b2, Some t2)); pair; cont }), cont_ty
         | Seq (e1, e2) ->
             let e1 = check_comp ienv env e1 (Pretype.PBase Unit) pos in
             let e2, e2_ty = synth e2 in
-            WithPos.with_pos pos(Seq (e1, e2)), e2_ty
+            WithPos.make ~pos(Seq (e1, e2)), e2_ty
         | App { func; args } ->
             let open Pretype in
             (* Synthesise type for function; ensure it is a function type *)
@@ -265,10 +257,10 @@ and synthesise_comp ienv env comp =
             let args =
                 List.combine args arg_anns
                 |> List.map (fun (arg, arg_ty) ->
-                    check_val pos ienv env arg arg_ty)
+                    check_val ienv env arg arg_ty)
             in
             (* Synthesise result type *)
-            WithPos.with_pos pos(App { func; args }), result_ann
+            WithPos.make ~pos(App { func; args }), result_ann
         | Send { target; message = (tag, vals); _ } ->
             let open Pretype in
             (* Typecheck target *)
@@ -295,10 +287,10 @@ and synthesise_comp ienv env comp =
                         let vals =
                             List.combine vals payload_target_tys
                             |> List.map (fun (e, iface_ty) ->
-                                check_val pos ienv env e iface_ty
+                                check_val ienv env e iface_ty
                             )
                         in
-                        WithPos.with_pos pos(
+                        WithPos.make ~pos(
                         Send {
                             target;
                             message = (tag, vals);
@@ -313,7 +305,7 @@ and synthesise_comp ienv env comp =
                     | PInterface iface -> iface
                     | t -> Gripers.type_mismatch_with_expected pos "an interface type" t
             in
-            WithPos.with_pos pos(Free (v, Some iface)), Pretype.PBase Unit
+            WithPos.make ~pos(Free (v, Some iface)), Pretype.PBase Unit
         | Guard { target; pattern; guards; _ } ->
             let (target, target_ty) = synthv target in
             let iname =
@@ -336,21 +328,21 @@ and synthesise_comp ienv env comp =
                         in
                         g :: gs, g_ty
             in
-            WithPos.with_pos pos(Guard { target; pattern; guards; iname = Some iname }), g_ty
+            WithPos.make ~pos(Guard { target; pattern; guards; iname = Some iname }), g_ty
 and check_comp ienv env comp ty declPos =
     let pos = WithPos.pos comp in
     match WithPos.node comp with
         | Return v ->
-            let v = check_val pos ienv env v ty in
-            WithPos.with_pos pos (Return v)
-        | Guard { target; pattern; guards; _ } when guards = [(WithPos.with_pos pos Fail)] ->
-            let target, target_ty = synthesise_val pos ienv env target in
+            let v = check_val ienv env v ty in
+            WithPos.make ~pos (Return v)
+        | Guard { target; pattern; guards; _ } when guards = [(WithPos.make ~pos Fail)] ->
+            let target, target_ty = synthesise_val ienv env target in
             let iname =
                 match target_ty with
                     | PInterface iname -> iname
                     | t -> Gripers.type_mismatch_with_expected pos "an interface type" t
             in
-            WithPos.with_pos pos (Guard { target; pattern; guards = [(WithPos.with_pos pos Fail)]; iname = Some iname })
+            WithPos.make ~pos (Guard { target; pattern; guards = [(WithPos.make ~pos Fail)]; iname = Some iname })
         | _ ->
             let comp, inferred_ty = synthesise_comp ienv env comp in
             check_tys [declPos] ty inferred_ty;
@@ -383,11 +375,11 @@ and synth_guard ienv env iname g =
                     (Pretype.PInterface iname)
             in
             let cont, cont_ty = synthesise_comp ienv env cont in
-            WithPos.with_pos pos (Receive { tag; payload_binders; mailbox_binder; cont }), cont_ty
+            WithPos.make ~pos (Receive { tag; payload_binders; mailbox_binder; cont }), cont_ty
         | Empty (x, e) ->
             let env = PretypeEnv.bind (Var.of_binder x) (Pretype.PInterface iname) env in
             let e, e_ty = synthesise_comp ienv env e in
-            WithPos.with_pos pos (Empty (x, e)), e_ty
+            WithPos.make ~pos (Empty (x, e)), e_ty
         | Fail ->
             Gripers.cannot_synth_fail pos ()
 and check_guard pos ienv env iname g ty =
@@ -433,7 +425,7 @@ let check { prog_interfaces; prog_decls; prog_body } =
         let decl_body =
             check_comp ienv env node.decl_body (Pretype.of_type node.decl_return_type) pos
         in
-        WithPos.with_pos pos { node with decl_body }
+        WithPos.make ~pos { node with decl_body }
     in
 
     let prog_decls = List.map check_decl prog_decls in

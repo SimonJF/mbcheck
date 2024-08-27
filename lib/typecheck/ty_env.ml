@@ -46,7 +46,7 @@ let join : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t =
                 | (In, in_pat), (Out, out_pat) ->
                         let pat = Pattern.fresh () in
                         let constrs = Constraint_set.single_constraint
-                            (Concat (out_pat, pat)) in_pat pos
+                            (Concat (out_pat, pat)) in_pat
                         in
                         ((In, pat), constrs)
         in
@@ -181,7 +181,7 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
                        that the new pattern is included in both patterns. *)
                     let pat = Pattern.fresh () in
                     let constrs =
-                      [ Constraint.make pat pat1 pos; Constraint.make pat pat2 pos]
+                      [ Constraint.make pat pat1; Constraint.make pat pat2]
                       |> Constraint_set.of_list in
                     (In, pat), constrs
                 | _, _ ->

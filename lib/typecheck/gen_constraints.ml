@@ -23,9 +23,10 @@ module IEnv = Interface_env
 
 (* Synthesis mode *)
 let rec synthesise_val :
-    IEnv.t -> Ty_env.t -> Ir.value -> Position.t -> Type.t * Ty_env.t * Constraint_set.t =
-        fun ienv decl_env v pos ->
-    match v with
+    IEnv.t -> Ty_env.t -> Ir.value -> Type.t * Ty_env.t * Constraint_set.t =
+        fun ienv decl_env v ->
+    let pos = WithPos.pos v in
+    match WithPos.node v with
         | VAnnotate (v, ty) ->
             let (env, constrs) = check_val ienv decl_env v ty pos in
             ty, env, constrs
@@ -39,8 +40,8 @@ let rec synthesise_val :
             ty, Ty_env.empty, Constraint_set.empty
         (* No harm having this as a synth case as well *)
         | Pair (v1, v2) ->
-            let (t1, env1, constrs1) = synthesise_val ienv decl_env v1 pos in
-            let (t2, env2, constrs2) = synthesise_val ienv decl_env v2 pos in
+            let (t1, env1, constrs1) = synthesise_val ienv decl_env v1 in
+            let (t2, env2, constrs2) = synthesise_val ienv decl_env v2 in
             let env, constrs3 = Ty_env.combine ienv env1 env2 pos in
             Type.Pair (t1, t2),
                 env,
@@ -141,7 +142,7 @@ let rec synthesise_val :
             in
             let ty = Type.function_type linear parameter_tys result_type in
             (ty, returnable_env, constrs)
-        | other -> Gripers.cannot_synthesise_value other [pos]
+        | _ -> Gripers.cannot_synthesise_value v [pos]
 and check_val :
     IEnv.t -> Ty_env.t -> Ir.value -> Type.t -> Position.t -> Ty_env.t * Constraint_set.t =
         fun ienv decl_env v ty pos ->
@@ -162,7 +163,7 @@ and check_val :
                 check_pretype_consistency t2 pt2
             | _, _ -> Gripers.pretype_consistency ty pty [pos]
     in
-    match v with
+    match WithPos.node v with
         (* Crucial case: note that we are *checking* this variable's type, not
            synthesising! This is how we propagate the type information upwards.
            We check the interfaces, and then assign the type. *)
@@ -199,7 +200,7 @@ and check_val :
             env, Constraint_set.union_many [constrs1; constrs2; constrs3]
         | _ ->
             let synth_ty, synth_env, synth_constrs =
-                synthesise_val ienv decl_env v pos
+                synthesise_val ienv decl_env v
             in
             let subty_constrs = subtype ienv synth_ty ty pos in
             synth_env, Constraint_set.union synth_constrs subty_constrs
@@ -213,7 +214,7 @@ and synthesise_comp :
             (* Mode switch: synthesis --> checking *)
             let env, constrs = check_comp ienv decl_env e ty in
             ty, env, constrs
-        | Return v -> synthesise_val ienv decl_env v pos
+        | Return v -> synthesise_val ienv decl_env v
         | New interface ->
             let open Type in
             Mailbox {
@@ -241,7 +242,7 @@ and synthesise_comp :
         | App { func; args } ->
             (* Synthesise the type for the function.
                Note that the function will always be annotated. *)
-            let fun_ty, fun_env, fun_constrs = synthesise_val ienv decl_env func pos in
+            let fun_ty, fun_env, fun_constrs = synthesise_val ienv decl_env func in
             let arg_tys, result_ty =
                 match fun_ty with
                     | Type.Fun { args; result; _ } ->
@@ -379,18 +380,18 @@ and synthesise_comp :
                For the purposes of the spawning thread, we treat all inferred
                usages as Usable. *)
             Type.unit_type, Ty_env.make_usable env, constrs
-        | c -> Gripers.cannot_synthesise (WithPos.with_pos pos c) [pos]
+        | _ -> Gripers.cannot_synthesise e [pos]
 
 (* Check --> Synth switch. Ensures synthesised type is subtype of checked type. *)
 (* Note: This results in the loss of contextual checking information. Really,
    should only be invoked when checking constants, base variables, or
    side-effecting terms. *)
-and check_to_synth : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Position.t -> Ty_env.t * Constraint_set.t =
-    fun ienv decl_env e check_ty pos ->
+and check_to_synth : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constraint_set.t =
+    fun ienv decl_env e check_ty ->
         let synth_ty, synth_env, synth_constrs =
             synthesise_comp ienv decl_env e
         in
-        let subty_constrs = subtype ienv synth_ty check_ty pos in
+        let subty_constrs = subtype ienv synth_ty check_ty (WithPos.pos e) in
         synth_env, Constraint_set.union synth_constrs subty_constrs
 (* Checking mode *)
 and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constraint_set.t =
@@ -560,7 +561,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                            This should only happen for the case where we have a
                            function returning an MB type.*)
                         let (pair_ty, pair_env, pair_constrs) =
-                            synthesise_val ienv decl_env pair pos
+                            synthesise_val ienv decl_env pair
                         in
                         let (pty1, pty2) =
                             match pair_ty with
@@ -630,7 +631,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                'fail'.)
              *)
             let pat_constrs =
-                Constraint_set.single_constraint pattern guards_pat pos
+                Constraint_set.single_constraint pattern guards_pat
             in
             let constrs =
                 Constraint_set.union_many
@@ -640,13 +641,13 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                      pat_constrs]
             in
             (env, constrs)
-        | e ->
+        | _ ->
             (* If we don't have a checking rule, it might be possible to
                synthesise and then check the result. *)
             (* This is certainly the case for base variables and constants. *)
             (* We want to avoid this if we can otherwise, though, since it means
                we've lost any contextual information about variable typing. *)
-            check_to_synth ienv decl_env (WithPos.with_pos pos e) ty pos
+            check_to_synth ienv decl_env e ty
 
 (* Synthesises types for all guards, checks that their types are compatible, and
  * returns the intersection of the resulting environments and generated pattern. *)
@@ -801,7 +802,7 @@ and check_guard :
                    type. *)
                 let deriv = Pattern.tag_derivative tag pat in
                 let constrs =
-                      Constraint_set.single_constraint deriv mb_pat pos
+                      Constraint_set.single_constraint deriv mb_pat
                       |> Constraint_set.union cont_constrs
                       |> Constraint_set.union payload_ty_constrs
                 in
