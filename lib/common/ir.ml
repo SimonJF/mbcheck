@@ -60,11 +60,10 @@ end
 
 
 type program = {
-    prog_interfaces: (prog_interfaces_node WithPos.t [@name "withP"]) list;
+    prog_interfaces: ((Interface.t[@name "interface"]) WithPos.t [@name "withP"]) list;
     prog_decls: (decl WithPos.t [@name "withP"]) list;
     prog_body: comp option
 }
-and prog_interfaces_node = (Interface.t[@name "interface"])
 and decl = {
     decl_name: (Binder.t[@name "binder"]);
     decl_parameters: ((Binder.t[@name "binder"]) * (Type.t[@name "ty"])) list;
