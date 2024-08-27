@@ -14,7 +14,8 @@ let next_line lexbuf =
         { pos with pos_bol = pos.Lexing.pos_cnum;
                    pos_lnum = pos.pos_lnum + 1
         }
-(* Function to add lexeme to the source code instance *)
+(* Adds a lexeme along with its position to the source code memory, 
+   enabling accurate error reporting later. *)
 let add_to_source_code lexbuf =
     let lexeme = Lexing.lexeme lexbuf in
     let source_code = SourceCodeManager.get_instance () in

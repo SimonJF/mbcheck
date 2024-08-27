@@ -177,23 +177,6 @@ module Position = struct
 
   let format_pos pos_list = 
     String.concat "\n " (List.map (fun pos -> Format.asprintf "%a" pp pos) pos_list)
-(* 
-  let map_code t ~f =
-    let code = f t.code in
-    { t with code }
-
-  let traverse t ~o ~f_start ~f_finish ~f_code =
-    let o = f_start o t.start in
-    let o = f_finish o t.finish in
-    let o = f_code o t.code in
-    o
-
-  let traverse_map t ~o ~f_start ~f_finish ~f_code =
-    let o, start = f_start o t.start in
-    let o, finish = f_finish o t.finish in
-    let o, code = f_code o t.code in
-    o, make ~start ~finish ~code
- *)
 end
 
 module WithPos = struct
@@ -210,36 +193,13 @@ module WithPos = struct
 
   let pos t = t.pos
 
-  (* let show_sugar_positions
-    = Settings.(flag "show_sugar_positions"
-                |> synopsis "Toggles whether to show source positions in dumped ASTs"
-                |> convert parse_bool
-                |> sync)
-    = Settings.if_verbose (fun () ->
-        Format.printf "=== Parsed Program ===\n%a\n\n" Sugar_ast.pp_program program); *)
-(* 
-  let pp polyfmt fmt t =
-    polyfmt fmt t.node *)
-
   let pp pp_node ppf { node; pos } =
     Format.fprintf ppf "%a at %a" pp_node node Position.pp pos
 
   let pp_pos_only fmt { pos; _ } =
     Position.pp fmt pos
 
-  (* let map t ~f =
-    let { node; pos } = t in
-    let node = f node in
-    make ~pos node
-
-  let map2 t ~f_pos ~f_node =
-    let pos = f_pos t.pos in
-    let node = f_node t.node in
-    make ~pos node *)
-
   let with_pos pos comp = make ~pos comp
-
-  (* Format a list of positions for error messages *)
 
   let extract_pos_pair w1 w2 = [w1.pos; w2.pos]
 
@@ -253,15 +213,4 @@ module WithPos = struct
   let combine_with_pos_list pos_list node_list = 
     List.map2 (fun pos node -> make ~pos node) pos_list node_list
 
-  (* let nodes_of_list xs = List.map node xs
-
-  let traverse t ~o ~f_pos ~f_node =
-    let o = f_pos o t.pos in
-    let o = f_node o t.node in
-    o
-
-  let traverse_map t ~o ~f_pos ~f_node =
-    let o, pos = f_pos o t.pos in
-    let o, node = f_node o t.node in
-    o, make ~pos node *)
 end
