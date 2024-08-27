@@ -46,7 +46,7 @@ let join : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t =
                 | (In, in_pat), (Out, out_pat) ->
                         let pat = Pattern.fresh () in
                         let constrs = Constraint_set.single_constraint
-                            (Concat (out_pat, pat)) in_pat pos
+                            (Concat (out_pat, pat)) in_pat
                         in
                         ((In, pat), constrs)
         in
@@ -181,7 +181,7 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
                        that the new pattern is included in both patterns. *)
                     let pat = Pattern.fresh () in
                     let constrs =
-                      [ Constraint.make pat pat1 pos; Constraint.make pat pat2 pos]
+                      [ Constraint.make pat pat1; Constraint.make pat pat2]
                       |> Constraint_set.of_list in
                     (In, pat), constrs
                 | _, _ ->
@@ -217,7 +217,7 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
                               quasilinearity = Quasilinearity.max ql1 ql2
                           }, constrs
                 | _, _ ->
-                    Gripers.type_mismatch false t1 t2 var [pos]
+                    Gripers.type_mismatch false t1 t2 var
         in
 
         (* As in the join case, calculate intersection of the two typing
@@ -262,7 +262,7 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
               let () =
                 List.iter (fun (var, ty) ->
                     if Type.is_lin ty then
-                        Gripers.branch_linearity var [pos]
+                        Gripers.branch_linearity var
                     else ()
                 ) disjoint_others
               in

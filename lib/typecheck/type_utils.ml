@@ -21,7 +21,7 @@ let make_unrestricted t pos =
         (* Generate a pattern constraint in order to ensure linearity *)
         | Mailbox { capability = Capability.Out; pattern = Some pat; _ } ->
                 Constraint_set.of_list
-                    [Constraint.make (Pattern.One) pat pos]
+                    [Constraint.make (Pattern.One) pat]
         | _ -> assert false
 
 (* Auxiliary definitions*)
@@ -90,10 +90,10 @@ let rec subtype_type :
                           match capability1 with
                             | In ->
                                 (* Input types are covariant *)
-                                Constraint_set.single_constraint pat1 pat2 pos
+                                Constraint_set.single_constraint pat1 pat2
                             | Out ->
                                 (* Output types are contravariant *)
-                                Constraint_set.single_constraint pat2 pat1 pos
+                                Constraint_set.single_constraint pat2 pat1
                       else
                           Gripers.subtype_cap_mismatch t1 t2 [pos]
                   in

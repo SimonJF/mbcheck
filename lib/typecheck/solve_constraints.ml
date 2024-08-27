@@ -322,7 +322,7 @@ let semilinear_to_presburger tags sls =
 
 
 let resolve_constraint resolved_lowers constr =
-    let (lhs, rhs, pos) = Constraint.(lhs constr, rhs constr, pos constr) in
+    let lhs, rhs = Constraint.(lhs constr, rhs constr) in
     (* Pattern should be an upper bound, and therefore have no variables on its
      RHS. *)
     let () = assert (Pattern.defined rhs) in
@@ -332,14 +332,14 @@ let resolve_constraint resolved_lowers constr =
             |> Pattern.simplify
     in
     let rhs = Pattern.simplify rhs in
-    Constraint.make lhs rhs pos
+    Constraint.make lhs rhs
 
 (* Translates a constraint into a Presburger goal *)
 (* PRECONDITION: Requires the constraint to be fully resolved *)
 let constraint_to_goal constr =
-    let (lhs, rhs, pos) = Constraint.(lhs constr, rhs constr, pos constr) in
+    let lhs, rhs = Constraint.(lhs constr, rhs constr) in
     Settings.if_debug (fun () ->
-        Format.printf "Checking constraint %a\n" Constraint.pp (Constraint.make lhs rhs pos)
+        Format.printf "Checking constraint %a\n" Constraint.pp (Constraint.make lhs rhs)
     );
     let tags =
         StringSet.union (Pattern.tags lhs) (Pattern.tags rhs)
@@ -363,7 +363,7 @@ let check_satisfiability resolved_lowers =
     let check_result constr goal =
         let open Format in
         let open Solver_result in
-        let (lhs, rhs, pos) = Constraint.((lhs constr, rhs constr, pos constr)) in
+        let (lhs, rhs) = Constraint.((lhs constr, rhs constr)) in
         let (lhs, rhs) = Pattern.((show lhs, show rhs)) in
         function
             | Satisfiable ->
@@ -373,12 +373,12 @@ let check_satisfiability resolved_lowers =
                 Settings.if_debug (fun () ->
                     printf "UNSATISFIABLE: %a\n" Presburger.pp_goal goal
                 );
-                raise (Errors.constraint_solver_error lhs rhs [pos])
+                raise (Errors.constraint_solver_error lhs rhs)
             | Unknown ->
                 Settings.if_debug (fun () ->
                     printf "DUNNO: %a\n" Presburger.pp_goal goal
                 );
-                raise (Errors.constraint_solver_error lhs rhs [pos])
+                raise (Errors.constraint_solver_error lhs rhs)
     in
 
     (* For each upper bound:

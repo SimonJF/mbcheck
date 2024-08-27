@@ -113,7 +113,8 @@ and comp_node =
         guards: guard list;
         iname: string option
       }
-and value =
+and value = (value_node WithPos.t [@name "withP"])
+and value_node =
     | VAnnotate of value * (Type.t[@name "ty"])
     | Atom of atom_name
     | Constant of constant
@@ -221,7 +222,7 @@ and pp_comp ppf comp_with_pos =
         (* Special-case the common case of sending to a variable.
            Bracket the rest for readability. *)
         begin
-            match target with
+            match WithPos.node target with
                 | Variable _ ->
                     fprintf ppf "%a ! %a"
                         pp_value target
@@ -249,7 +250,9 @@ and pp_comp ppf comp_with_pos =
             pp_value target
             Type.Pattern.pp pattern
             (pp_print_newline_list pp_guard) guards
-and pp_value ppf = function
+and pp_value ppf v =
+    let value = WithPos.node v in
+    match value with
     (* Might want, at some stage, to print out pretype info *)
     | VAnnotate (value, ty) ->
         fprintf ppf "(%a : %a)" pp_value value Type.pp ty

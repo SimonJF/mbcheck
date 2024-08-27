@@ -237,8 +237,6 @@ module WithPos = struct
     let node = f_node t.node in
     make ~pos node *)
 
-  let with_pos pos comp = make ~pos comp
-
   (* Format a list of positions for error messages *)
 
   let extract_pos_pair w1 w2 = [w1.pos; w2.pos]
