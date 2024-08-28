@@ -87,8 +87,8 @@ let print_debug err =
 let curry f (a, b) = f a b
 let uncurry f a b = f (a, b)
 
-let split3 = function
+let rec split3 = function
     | [] -> ([], [], [])
     | (x, y, z) :: rest ->
-        let (xs, ys, zs) = go rest in
+        let (xs, ys, zs) = split3 rest in
         (x :: xs, y :: ys, z :: zs)

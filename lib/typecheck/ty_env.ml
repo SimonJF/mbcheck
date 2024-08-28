@@ -16,6 +16,10 @@ let lookup = VarMap.find
 let lookup_opt = VarMap.find_opt
 
 let delete = VarMap.remove
+
+let delete_many vars env =
+    List.fold_right (delete) env vars
+
 let delete_binder x = VarMap.remove (Ir.Var.of_binder x)
 let singleton = VarMap.singleton
 let bindings = VarMap.bindings
