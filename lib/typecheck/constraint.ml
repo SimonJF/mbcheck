@@ -6,7 +6,7 @@ type t = (Pattern.t * Pattern.t)
 
 exception Trap of string
 
-let make p1 p2 = (p1, p2)
+let make p1 p2 = p1, p2
 
 let lhs = fst
 let rhs = snd
@@ -14,8 +14,8 @@ let rhs = snd
 let is_upper_bound =
     let open Pattern in
     function
-        | _, PatVar _  -> true
-        | _, _ -> false
+        | (_, PatVar _) -> true
+        | _ -> false
 
 let is_lower_bound (_, p2) = Pattern.defined p2
 

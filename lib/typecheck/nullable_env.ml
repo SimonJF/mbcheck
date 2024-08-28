@@ -5,18 +5,18 @@
  *)
 type t = Ty_env.t option
 
-let intersect nenv1 nenv2 =
+let intersect nenv1 nenv2 pos =
     match nenv1, nenv2 with
         | None, None -> None, Constraint_set.empty
         | Some env, None | None, Some env -> Some env, Constraint_set.empty
         | Some env1, Some env2 ->
-            let env, constrs = Ty_env.intersect env1 env2 in
+            let env, constrs = Ty_env.intersect env1 env2 pos in
             Some env, constrs
 
-let combine ienv env1 nenv =
+let combine ienv env1 nenv pos =
     match nenv with
-        | Some env2 -> Ty_env.combine ienv env1 env2
-        | _ -> env1, Constraint_set.empty
+        | Some env2 -> Ty_env.combine ienv env1 env2 pos
+        | _ -> env1, Constraint_set.empty 
 
 let of_env env = Some env
 let null = None

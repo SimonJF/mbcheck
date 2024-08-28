@@ -1,13 +1,14 @@
 (* Various operations on types that only arise during typechecking. *)
 open Common
 open Common_types
+open Common.Source_code
 
 
 (* Tries to ensure that a type is treated as unrestricted. All base types are
    unrestricted. Output mailbox types cannot be made unrestricted. Input mailbox
    types are unrestricted if they are equivalent to 1.
  *)
-let make_unrestricted t =
+let make_unrestricted t pos =
     let open Type in
     match t with
         (* Trivially unrestricted *)
@@ -16,7 +17,7 @@ let make_unrestricted t =
         (* Must be unrestricted *)
         | Fun { linear = true; _ }
         | Mailbox { capability = Capability.In; _ } ->
-            Gripers.cannot_make_unrestricted t
+            Gripers.cannot_make_unrestricted t [pos]
         (* Generate a pattern constraint in order to ensure linearity *)
         | Mailbox { capability = Capability.Out; pattern = Some pat; _ } ->
                 Constraint_set.of_list
@@ -31,8 +32,8 @@ let make_unrestricted t =
  *)
 let rec subtype_type :
     (interface_name * interface_name) list ->
-        Interface_env.t -> Type.t -> Type.t -> Constraint_set.t =
-    fun visited ienv t1 t2 ->
+        Interface_env.t -> Type.t -> Type.t -> Position.t -> Constraint_set.t =
+    fun visited ienv t1 t2 pos ->
         match t1, t2 with
             | Base b1, Base b2 when b1 = b2->
                         Constraint_set.empty
@@ -41,8 +42,8 @@ let rec subtype_type :
             | Pair (tya1, tya2), Pair (tyb1, tyb2)
             | Sum (tya1, tya2), Sum (tyb1, tyb2) ->
                 Constraint_set.union
-                    (subtype_type visited ienv tya1 tyb1)
-                    (subtype_type visited ienv tya2 tyb2)
+                    (subtype_type visited ienv tya1 tyb1 pos)
+                    (subtype_type visited ienv tya2 tyb2 pos)
             | Mailbox { pattern = None; _ }, _
             | _, Mailbox { pattern = None; _ } ->
                     (* Should have been sorted by annotation pass *)
@@ -53,13 +54,13 @@ let rec subtype_type :
                     result = body2 } ->
                     let () =
                         if lin1 <> lin2 then
-                            Gripers.subtype_linearity_mismatch t1 t2
+                            Gripers.subtype_linearity_mismatch t1 t2 [pos]
                     in
                     (* Args contravariant; body covariant *)
                     let args_constrs =
-                        List.map2 (subtype_type visited ienv) args2 args1
+                        List.map2 (fun a2 a1 -> subtype_type visited ienv a2 a1 pos) args2 args1
                         |> Constraint_set.union_many in
-                    let body_constrs = subtype_type visited ienv body1 body2 in
+                    let body_constrs = subtype_type visited ienv body1 body2 pos in
                     Constraint_set.union args_constrs body_constrs
             | Mailbox {
                 capability = capability1;
@@ -74,8 +75,8 @@ let rec subtype_type :
                 quasilinearity = _ql2
               } ->
                   (* First, ensure interface subtyping *)
-                  let interface1 = Interface_env.lookup iname1 ienv in
-                  let interface2 = Interface_env.lookup iname2 ienv in
+                  let interface1 = WithPos.node (Interface_env.lookup iname1 ienv []) in
+                  let interface2 =  WithPos.node (Interface_env.lookup iname2 ienv []) in
                   (*
                   let () =
                       if not (Type.Quasilinearity.is_sub ql1 ql2) then
@@ -83,7 +84,7 @@ let rec subtype_type :
                   in
                   *)
                   let iface_constraints =
-                      subtype_interface visited ienv interface1 interface2 in
+                      subtype_interface visited ienv interface1 interface2 pos in
                   let pat_constraints =
                       if capability1 = capability2 then
                           match capability1 with
@@ -94,16 +95,16 @@ let rec subtype_type :
                                 (* Output types are contravariant *)
                                 Constraint_set.single_constraint pat2 pat1
                       else
-                          Gripers.subtype_cap_mismatch t1 t2
+                          Gripers.subtype_cap_mismatch t1 t2 [pos]
                   in
                   Constraint_set.union iface_constraints pat_constraints
             | _, _ ->
-                Gripers.subtype_mismatch t1 t2
+                Gripers.subtype_mismatch t1 t2 [pos]
 
 and subtype_interface :
     (interface_name * interface_name) list ->
-        Interface_env.t -> Interface.t -> Interface.t -> Constraint_set.t =
-        fun visited ienv i1 i2 ->
+        Interface_env.t -> Interface.t -> Interface.t -> Position.t -> Constraint_set.t =
+        fun visited ienv i1 i2 pos ->
             if List.mem (Interface.name i1, Interface.name i2) visited then
                 Constraint_set.empty
             else
@@ -114,7 +115,7 @@ and subtype_interface :
                 List.fold_left (fun acc (tag, payloads1) ->
                     let payloads2 = Interface.lookup tag i2 in
                     List.combine payloads1 payloads2
-                    |> List.map (fun (p1, p2) -> subtype_type visited ienv p1 p2)
+                    |> List.map (fun (p1, p2) -> subtype_type visited ienv p1 p2 pos)
                     |> Constraint_set.union_many
                     |> Constraint_set.union acc
                 ) Constraint_set.empty (Interface.bindings i1)

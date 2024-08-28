@@ -2,9 +2,13 @@ open Common_types
 open Util.Utility
 open Format
 
+
+module WithPos = Source_code.WithPos
+
 (* Basic sugared AST *)
 (* Expressions *)
-type expr =
+type expr = expr_node WithPos.t [@name "withP"]
+and expr_node =
     | Var of sugar_var
     | Atom of atom_name
     | Primitive of (primitive_name[@name "primitive_name"])
@@ -72,7 +76,8 @@ and atom_name = string
 and sugar_binder = string
 and primitive_name = string
 (* Guards are either a receive expression, free, or fail *)
-and guard =
+and guard = guard_node WithPos.t [@name "withP"]
+and guard_node =
     | Receive of {
         tag: string;
         payload_binders: sugar_binder list;
@@ -90,14 +95,15 @@ and decl = {
     decl_return_type: (Type.t[@name "ty"]);
     decl_body: expr
 }
+and prog_interfaces_node = (Interface.t[@name "interface"])
 and program = {
-    prog_interfaces: (Interface.t[@name "interface"]) list;
-    prog_decls: decl list;
+    prog_interfaces: (prog_interfaces_node WithPos.t [@name "withP"]) list;
+    prog_decls: (decl WithPos.t [@name "withP"]) list;
     prog_body: expr option
 }
     [@@deriving visitors {
         variety = "map";
-        ancestors = ["Type.map"; "Interface.map"];
+        ancestors = ["Type.map"; "Interface.map"; "WithPos.map"];
         data = false } ]
 
 let is_receive_guard = function
@@ -129,17 +135,20 @@ and pp_interface ppf iface =
         fprintf ppf "%s(%a)" tag
         (pp_print_comma_list Type.pp) tys
     in
-    let xs = Interface.bindings iface in
+    let xs = Interface.bindings (WithPos.node iface) in
     fprintf ppf "interface %s { %a }"
-        (Interface.name iface)
+    (Interface.name (WithPos.node iface) )
         (pp_print_comma_list pp_msg_ty) xs
 (* Declarations *)
-and pp_decl ppf { decl_name; decl_parameters; decl_return_type; decl_body } =
+and pp_decl ppf decl =
+    let  { decl_name; decl_parameters; decl_return_type; decl_body } =
+        WithPos.node decl
+    in
     fprintf ppf "def %s(%a): %a {@,@[<v 2>  %a@]@,}"
-        decl_name
-        (pp_print_comma_list pp_param) decl_parameters
-        Type.pp decl_return_type
-        pp_expr decl_body
+      decl_name
+      (pp_print_comma_list pp_param) decl_parameters
+      Type.pp decl_return_type
+      pp_expr decl_body
 (* Messages *)
 and pp_message ppf (tag, es) =
     fprintf ppf "%s(%a)"
@@ -154,8 +163,10 @@ and pp_bnd_ann ppf (bnd, ann) =
         bnd
         pp_let_annot ann
 (* Expressions *)
-and pp_expr ppf = function
+and pp_expr ppf expr_with_pos =
     (* Might want, at some stage, to print out pretype info *)
+    let expr_node = WithPos.node expr_with_pos in
+    match expr_node with
     | Var x -> pp_print_string ppf x
     | Atom x -> pp_print_string ppf (":" ^ x)
     | Primitive x -> pp_print_string ppf x
@@ -192,7 +203,7 @@ and pp_expr ppf = function
         (* Special-case the common case of sending to a variable.
            Bracket the rest for readability. *)
         begin
-            match target with
+            match WithPos.node target with
                 | Var _ ->
                     fprintf ppf "%a ! %a"
                         pp_expr target
@@ -235,7 +246,9 @@ and pp_expr ppf = function
             (pp_print_newline_list pp_guard) guards
     | Free e -> fprintf ppf "free(%a)" pp_expr e
     | SugarFail (e, ty) -> fprintf ppf "fail(%a)[%a]" pp_expr e Type.pp ty
-and pp_guard ppf = function
+and pp_guard ppf guard_with_node = 
+    let guard_node = WithPos.node guard_with_node in
+    match guard_node with
     | Receive { tag; payload_binders; mailbox_binder; cont } ->
             fprintf ppf "receive %s(%a) from %s ->@,@[<v 2>  %a@]"
             tag
