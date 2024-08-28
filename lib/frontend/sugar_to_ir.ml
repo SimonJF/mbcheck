@@ -14,11 +14,16 @@ type env = { var_env: Ir.Var.t stringmap }
 let empty_env = { var_env = StringMap.empty }
 
 let bind_var bnd env = { var_env = StringMap.add (Ir.Binder.name bnd) (Ir.Var.of_binder bnd) (env.var_env) }
+
+let bind_vars bnds env = List.fold_left (fun acc bnd -> bind_var bnd acc) env bnds
+
+
 let lookup_var key env pos =
     match StringMap.find_opt key (env.var_env) with
         | Some ty -> ty
         | None ->
             raise (Errors.transform_error ("Unbound variable " ^ key) [pos] )
+
 
 let id = fun _ x -> x
 
@@ -71,6 +76,19 @@ and transform_decl :
         decl_return_type;
         decl_body = transform_expr env' decl_body id
     } |> k env
+
+and transform_exprs env xs k = transform_exprs' env xs [] k
+and transform_exprs' :
+    env ->
+    Sugar_ast.expr list ->
+    Ir.value list ->
+    (env -> Ir.value list -> Ir.comp) -> Ir.comp
+    = fun env es vs k ->
+        match es with
+            | [] -> k env (List.rev vs)
+            | x :: xs ->
+                transform_subterm env x (fun _ v ->
+                    transform_exprs' env xs (v :: vs) k)
 and transform_expr :
     env ->
     Sugar_ast.expr ->
@@ -119,29 +137,24 @@ and transform_expr :
                         binder = bnd;
                         term = c;
                         cont = transform_expr env' body k }))
-        | Pair (e1, e2) ->
-            transform_subterm env e1 (fun _ v1 ->
-            transform_subterm env e2 (fun _ v2 ->
-                with_same_pos (Ir.Return (with_same_pos (Ir.Pair (v1, v2))) )|> k env))
-        | LetPair {binders = (b1, b2); term; cont; _ } ->
+        | Tuple es ->
+            transform_exprs env es (fun _ vs ->
+                with_same_pos (Ir.Return (with_same_pos (Ir.Tuple vs))) |> k env)
+        | LetTuple {binders = bs; term; cont; _ } ->
             (* let x = M in N*)
-            (* Create an IR variable based on x *)
-            let bnd1 = Ir.Binder.make ~name:b1 () in
-            let bnd2 = Ir.Binder.make ~name:b2 () in
+            (* Create IR variables based on the binders *)
+            let bnds = List.map (fun name -> Ir.Binder.make ~name ()) bs in
             (* Transform M under *old* environment *)
             (* The continuation *)
             transform_subterm env term
                 (fun env v ->
                     (* Bind it in the environment *)
-                    let env' =
-                        env
-                        |> bind_var bnd1
-                        |> bind_var bnd2
-                    in
+                    let env' = bind_vars bnds env in
+                    let binders = List.map (fun bnd -> (bnd, None)) bnds in
                     with_same_pos (
-                    Ir.LetPair {
-                        binders = ((bnd1, None), (bnd2, None));
-                        pair = v;
+                    Ir.LetTuple {
+                        binders;
+                        tuple = v;
                         cont = transform_expr env' cont k }))
         | Case {
             term;

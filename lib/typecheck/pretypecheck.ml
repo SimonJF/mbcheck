@@ -128,10 +128,10 @@ let rec synthesise_val ienv env value : (value * Pretype.t) =
                 |> Pretype.of_type
             in
             wrap (Primitive prim), ty
-        | Pair (v1, v2) ->
-            let (v1, ty1) = synthesise_val ienv env v1 in
-            let (v2, ty2) = synthesise_val ienv env v2 in
-            wrap (Pair (v1, v2)), Pretype.PPair (ty1, ty2)
+        | Tuple vs ->
+            let vs_and_tys = List.map (synthesise_val ienv env) vs in
+            let (vs, tys) = List.split vs_and_tys in
+            wrap (Tuple vs), Pretype.PTuple tys
         | Lam { linear; parameters; result_type; body } ->
             (* Defer linearity checking to constraint generation. *)
             let param_types  = List.map snd parameters in
@@ -211,24 +211,28 @@ and synthesise_comp ienv env comp =
             let e2 = check_comp ienv e2_env e2 e1_ty in
             WithPos.make ~pos
                 (Case { term; branch1 = ((bnd1, ty1), e1); branch2 = ((bnd2, ty2), e2) }), e1_ty
-        | LetPair { binders = ((b1, _), (b2, _)); pair; cont } ->
-            let pair, pair_ty = synthv pair in
-            let (t1, t2) =
-                match pair_ty with
-                    | Pretype.PPair (t1, t2) -> (t1, t2)
+        | LetTuple { binders; tuple; cont } ->
+            let bnds = List.map fst binders in
+            let tuple, tuple_ty = synthv tuple in
+            let tys =
+                match tuple_ty with
+                    | Pretype.PTuple tys -> tys
                     | _ ->
                         raise
                             (Gripers.type_mismatch_with_expected pos
-                             "a pair type" pair_ty)
+                             "a tuple type" tuple_ty)
             in
+            let vars_and_tys = List.combine (List.map Var.of_binder bnds) tys in
             let env' =
-                env
-                |> PretypeEnv.bind (Var.of_binder b1) t1
-                |> PretypeEnv.bind (Var.of_binder b2) t2
+                PretypeEnv.bind_many vars_and_tys env
+            in
+            let binders =
+                List.combine bnds tys
+                |> List.map (fun (b, t) -> (b, Some t))
             in
             let cont, cont_ty = synthesise_comp ienv env' cont in
             WithPos.make ~pos
-                (LetPair { binders = ((b1, Some t1), (b2, Some t2)); pair; cont }), cont_ty
+                (LetTuple { binders; tuple; cont }), cont_ty
         | Seq (e1, e2) ->
             let e1 = check_comp ienv env e1 (Pretype.PBase Unit) in
             let e2, e2_ty = synth e2 in

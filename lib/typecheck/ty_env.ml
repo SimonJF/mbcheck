@@ -162,6 +162,10 @@ let combine : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t =
         in
         fn ienv env1 env2 pos
 
+
+let combine_many ienv envs pos =
+    List.fold_right (fun x acc -> combine ienv x acc pos) empty envs
+
 (* Merges environments resulting from branching control flow. *)
 (* Core idea is that linear types must be used in precisely the same way in
     each branch. Unrestricted types must be used at the same type, but need

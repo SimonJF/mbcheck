@@ -31,11 +31,11 @@ and expr_node =
         args: expr list
     }
     | If of { test: expr; then_expr: expr; else_expr: expr }
-    (* Pairs *)
-    | Pair of (expr * expr)
-    | LetPair of {
-        binders: sugar_binder * sugar_binder;
-        annot: ((Type.t[@name "ty"]) * (Type.t[@name "ty"])) option;
+    (* Tuples *)
+    | Tuple of expr list
+    | LetTuple of {
+        binders: sugar_binder list;
+        annot: ((Type.t[@name "ty"]) list) option;
         term: expr;
         cont: expr
     }
@@ -224,18 +224,18 @@ and pp_expr ppf expr_with_pos =
             pp_expr e1
             pp_bnd_ann bnd2
             pp_expr e2
-    | Pair (e1, e2) ->
-        fprintf ppf "(%a, %a)" pp_expr e1 pp_expr e2
-    | LetPair { binders = (b1, b2); annot = None; term; cont } ->
-        fprintf ppf "let (%s, %s) = %a in %a"
-            b1 b2
+    | Tuple es ->
+        fprintf ppf "(%a)" (pp_print_comma_list pp_expr) es
+    | LetTuple { binders = bs; annot = None; term; cont } ->
+        fprintf ppf "let (%a) = %a in %a"
+            (pp_print_comma_list pp_print_string) bs
             pp_expr term
             pp_expr cont
-    | LetPair { binders = (b1, b2); annot = Some (t1, t2); term; cont } ->
-        fprintf ppf "let (%s, %s) : (%a * %a) = %a in %a"
-            b1 b2
-            Type.pp t1
-            Type.pp t2
+    | LetTuple { binders = bs; annot = Some ts; term; cont } ->
+        assert (List.length bs = List.length ts);
+        fprintf ppf "let (%a) : (%a) = %a in %a"
+            (pp_print_comma_list pp_print_string) bs
+            (pp_print_comma_list Type.pp) ts
             pp_expr term
             pp_expr cont
     | Guard { target; pattern; guards; _ } ->

@@ -17,13 +17,13 @@ let visitor =
                     let body = self#visit_expr env body in
                     let term = { expr_with_pos with node = Annotate (inner_term, Type.make_returnable annot') } in
                         { expr_with_pos with node = Let { binder; annot = None; term; body } }
-                | LetPair { binders; annot = Some (ty1, ty2); term; cont } ->
+                | LetTuple { binders; annot = Some tys; term; cont } ->
                     let cont = self#visit_expr env cont in
                     let term =
                         { expr_with_pos with node = 
-                            Annotate (term, Type.make_returnable (Type.make_pair_type ty1 ty2)) }
+                            Annotate (term, Type.make_returnable (Type.make_tuple_type tys)) }
                     in
-                        { expr_with_pos with node = LetPair { binders; annot = None; term; cont } }
+                        { expr_with_pos with node = LetTuple { binders; annot = None; term; cont } }
                 | _ -> super#visit_expr env expr_with_pos
     end
 

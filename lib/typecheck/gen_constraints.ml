@@ -39,13 +39,14 @@ let rec synthesise_val :
             let ty = List.assoc prim Lib_types.signatures in
             ty, Ty_env.empty, Constraint_set.empty
         (* No harm having this as a synth case as well *)
-        | Pair (v1, v2) ->
-            let (t1, env1, constrs1) = synthesise_val ienv decl_env v1 in
-            let (t2, env2, constrs2) = synthesise_val ienv decl_env v2 in
-            let env, constrs3 = Ty_env.combine ienv env1 env2 pos in
-            Type.Pair (t1, t2),
+        | Tuple vs ->
+            let tys_envs_constrss = List.map (synthesise_val ienv decl_env) vs in
+            let tys, envs, constrss = split3 tys_envs_constrs in
+            let constrs = Constraint_set.union_many constrss in
+            let env, constrs2 = Ty_env.combine_many ienv env1 env2 pos in
+            Type.Tuple tys,
                 env,
-                Constraint_set.union_many [constrs1; constrs2; constrs3]
+                Constraint_set.union constrs constrs2
         | Variable (_v, None) -> assert false
         | Variable (v, Some ty) ->
             (* Start by checking in the declaration environment *)
@@ -156,9 +157,9 @@ and check_val :
             | Base b1, PBase b2 when b1 = b2 -> ()
             | Fun { result = rty; _ }, PFun { result = rpty; _ } ->
                 check_pretype_consistency rty rpty
-            | Pair (t1, t2), PPair (pt1, pt2) ->
-                check_pretype_consistency t1 pt1;
-                check_pretype_consistency t2 pt2
+            | Tuple ts, PTuple pts ->
+                List.combine ts pts
+                |> List.iter (uncurry check_pretype_consistency)
             | Sum (t1, t2), PSum (pt1, pt2) ->
                 check_pretype_consistency t1 pt1;
                 check_pretype_consistency t2 pt2
@@ -186,19 +187,23 @@ and check_val :
                         check_val ienv decl_env v (Type.make_returnable t2)
                     | _ -> Gripers.expected_sum_type ty [pos]
             end
-        | Pair (v1, v2) ->
-            let (t1, t2) =
+        | Tuple vs ->
+            let ts =
                 begin
                     match ty with
-                        | Type.Pair (t1, t2) -> (t1, t2)
+                        | Type.Tuple ts -> ts
                         | _ -> Gripers.expected_pair_type ty [pos]
                 end
             in
-            (* We can only construct a pair if its components are returnable. *)
-            let (env1, constrs1) = check_val ienv decl_env v1 (Type.make_returnable t1) in
-            let (env2, constrs2) = check_val ienv decl_env v2 (Type.make_returnable t2) in
-            let env, constrs3 = Ty_env.combine ienv env1 env2 pos in
-            env, Constraint_set.union_many [constrs1; constrs2; constrs3]
+            let vs_and_ts = List.combine vs ts in
+            (* Tuple component types must be returnable *)
+            let (check_envs, check_constrss) =
+                List.map (fun (v, ty) ->
+                    check_val ienv decl_env v (Type.make_returnable ty)) vs_and_ts
+            in
+            let check_constrs = Constraint_set.combine_many check_constrss in
+            let (env, combine_constrs) = Ty_env.combine_many ienv check_envs pos in
+            env, Constraint_set.union check_constrs combine_constrs
         | _ ->
             let synth_ty, synth_env, synth_constrs =
                 synthesise_val ienv decl_env v
@@ -512,19 +517,18 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                         (env, constrs)
             in
             (Ty_env.delete binder_var env, constrs)
-        (* LetPair is similar to Let. Annoyingly we must revert to synthesis of the pair if
-           *either* binder is unused in the continuation. This could maybe be ameliorated somewhat
-           if we had wildcard patterns. *)
-        | LetPair { binders = ((b1, Some pty1), (b2, Some pty2)); pair; cont = body } ->
+        (* LetTuple is similar to Let. Annoyingly we must revert to synthesis of the tuple if
+           *any* binder is unused in the continuation. Wildcard patterns / addition of type
+           constraints could help. *)
+        | LetPair { binders; pair; cont = body } ->
             (* Check body type and extract types for binders *)
             let body_env, body_constrs = chk body ty in
             (* Either binder might be unused.
                Revert to synthesis if we don't have type info for both. *)
-            let b1var = Var.of_binder b1 in
-            let b2var = Var.of_binder b2 in
-            (* Pretypes give us a little more type information, in case we can't check directly. *)
-            let inferred_ty_1 = Ty_env.lookup_opt b1var body_env in
-            let inferred_ty_2 = Ty_env.lookup_opt b2var body_env in
+            let inferred_tys =
+                List.map (Var.of_binder << fst) binders in
+                |> List.map (fun var -> Ty_env.lookup_opt var body_env) bvars
+            in
             (* Default type: special case interface types -- only way something can be an MB but
                not used is if it's a returnable !1 mailbox type*)
             let default_ty = function
@@ -536,8 +540,11 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                 | Some ty -> Some ty
                 | None -> default_ty pty
             in
-            let check_ty_1 = get_check_ty pty1 inferred_ty_1 in
-            let check_ty_2 = get_check_ty pty2 inferred_ty_2 in
+            let ptys = List.map (Option.get << snd) binders in
+            let check_tys =
+                List.map (uncurry get_check_ty) (List.combine ptys inferred_tys)
+            in
+            (* TODO: Go from here *)
             let env, constrs =
                 match (check_ty_1, check_ty_2) with
                     | Some b1ty, Some b2ty ->
@@ -598,7 +605,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                 |> Ty_env.delete b2var
             in
             (env, constrs)
-        | LetPair _ -> assert false (* Pretypes should have been filled in *)
+        | LetTuple _ -> assert false (* Pretypes should have been filled in *)
         | Guard { iname = None; _ } -> (* Should have been filled in by pre-typing *)
             assert false
         | Guard { target; pattern; guards; iname = Some iname } ->

@@ -85,12 +85,11 @@ and comp_node =
         args: value list
       }
     | If of { test: value; then_expr: comp; else_expr: comp }
-    | LetPair of {
+    | LetTuple of {
         (* By annotating with inferred pretypes, we can always use a checking rule
            during inference, irrespective of whether both of the binders are used. *)
-        binders: ( ((Binder.t[@name "binder"]) * (Pretype.t[@name "pretype"]) option) *
-                   ((Binder.t[@name "binder"]) * (Pretype.t[@name "pretype"]) option));
-        pair: value;
+        binders: ((Binder.t[@name "binder"]) * (Pretype.t[@name "pretype"]) option) list;
+        tuple: value;
         cont: comp
     }
     | Case of {
@@ -119,7 +118,7 @@ and value_node =
     | Constant of constant
     | Primitive of primitive_name
     | Variable of (Var.t[@name "var"]) * (Pretype.t[@name "pretype"]) option
-    | Pair of value * value
+    | Tuple of value list
     | Inl of value
     | Inr of value
     | Lam of {
@@ -231,11 +230,11 @@ and pp_comp ppf comp_with_pos =
                         pp_value target
                         pp_message message
         end
-    | LetPair { binders = ((b1, _), (b2, _)); pair; cont } ->
-        fprintf ppf "let (%a, %a) = @[<v>%a@] in@,%a"
-            Binder.pp b1
-            Binder.pp b2
-            pp_value pair
+    | LetTuple { binders = bs; tuple; cont } ->
+        let bs = List.map fst bs in
+        fprintf ppf "let %a = @[<v>%a@] in@,%a"
+            (pp_print_comma_list Binder.pp) bs
+            pp_value tuple
             pp_comp cont
     | Case { term; branch1; branch2 } ->
         fprintf ppf
@@ -259,8 +258,8 @@ and pp_value ppf v =
     | Primitive prim -> Format.pp_print_string ppf prim
     | Variable (var, _) -> Var.pp ppf var
     | Constant c -> Constant.pp ppf c
-    | Pair (v1, v2) ->
-        fprintf ppf "(%a, %a)" pp_value v1 pp_value v2
+    | Tuple vs ->
+        fprintf ppf "%a" (pp_print_comma_list pp_value) vs
     | Inl v -> fprintf ppf "inl(%a)" pp_value v
     | Inr v -> fprintf ppf "inr(%a)" pp_value v
     | Lam { linear; parameters; result_type; body } ->
