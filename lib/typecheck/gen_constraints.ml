@@ -13,6 +13,7 @@ open Common
 open Common_types
 open Ir
 open Type_utils
+open Source_code
 
 (* Modules *)
 
@@ -24,7 +25,8 @@ module IEnv = Interface_env
 let rec synthesise_val :
     IEnv.t -> Ty_env.t -> Ir.value -> Type.t * Ty_env.t * Constraint_set.t =
         fun ienv decl_env v ->
-    match v with
+    let pos = WithPos.pos v in
+    match WithPos.node v with
         | VAnnotate (v, ty) ->
             let (env, constrs) = check_val ienv decl_env v ty in
             ty, env, constrs
@@ -40,7 +42,7 @@ let rec synthesise_val :
         | Pair (v1, v2) ->
             let (t1, env1, constrs1) = synthesise_val ienv decl_env v1 in
             let (t2, env2, constrs2) = synthesise_val ienv decl_env v2 in
-            let env, constrs3 = Ty_env.combine ienv env1 env2 in
+            let env, constrs3 = Ty_env.combine ienv env1 env2 pos in
             Type.Pair (t1, t2),
                 env,
                 Constraint_set.union_many [constrs1; constrs2; constrs3]
@@ -61,14 +63,14 @@ let rec synthesise_val :
                         let ty = Type.function_type linear args (Type.Base b) in
                         ty, Ty_env.singleton v ty, Constraint_set.empty
                     | _, PFun _ ->
-                        Gripers.synth_mailbox_function v
+                        Gripers.synth_mailbox_function v [pos]
                     (* Although we have an interface pretype annotation, it's not possible
                        to reliably infer a mailbox type (even with a fresh constraint) since
                        we don't, a priori, know the capability. Even if we record the initial
                        capability, it may be used at different 'modes' throughout the function,
                        so any inference would in effect be a guess. *)
                     | _, _ ->
-                        Gripers.synth_variable v
+                        Gripers.synth_variable v [pos]
             end
         (* In the formalism, this is a checking case
            rather than a synthesis case. However, we can treat it as a synthesis
@@ -110,14 +112,14 @@ let rec synthesise_val :
                     (* Finally, ensure that the declared type is a subtype of
                        the inferred type *)
                     List.fold_left (fun acc (inferred, declared) ->
-                        Constraint_set.union acc (subtype ienv declared inferred))
+                        Constraint_set.union acc (subtype ienv declared inferred pos)) 
                         Constraint_set.empty
                         zipped
                 in
                 (* All unused parameters should be unrestricted. *)
                 let unused_constrs =
                     List.fold_left (fun acc (_, ty) ->
-                        Constraint_set.union acc (make_unrestricted ty)
+                        Constraint_set.union acc (make_unrestricted ty pos)
                     ) Constraint_set.empty unused_parameters in
                 Constraint_set.union used_constrs unused_constrs
             in
@@ -130,7 +132,7 @@ let rec synthesise_val :
                to type the body must also be unrestricted. *)
             let unr_constrs =
                 if (not linear) then
-                    Ty_env.make_unrestricted env
+                    Ty_env.make_unrestricted env pos
                 else Constraint_set.empty
             in
             (* We can only close over variables that are returnable (to avoid issues with aliasing) *)
@@ -140,10 +142,11 @@ let rec synthesise_val :
             in
             let ty = Type.function_type linear parameter_tys result_type in
             (ty, returnable_env, constrs)
-        | other -> Gripers.cannot_synthesise_value other
+        | _ -> Gripers.cannot_synthesise_value v [pos]
 and check_val :
     IEnv.t -> Ty_env.t -> Ir.value -> Type.t -> Ty_env.t * Constraint_set.t =
         fun ienv decl_env v ty ->
+    let pos = WithPos.pos v in
     (* Checks consistency between a pretype pair annotation and the check type *)
     let rec check_pretype_consistency ty pty =
         let open Type in
@@ -159,9 +162,9 @@ and check_val :
             | Sum (t1, t2), PSum (pt1, pt2) ->
                 check_pretype_consistency t1 pt1;
                 check_pretype_consistency t2 pt2
-            | _, _ -> Gripers.pretype_consistency ty pty
+            | _, _ -> Gripers.pretype_consistency ty pty [pos]
     in
-    match v with
+    match WithPos.node v with
         (* Crucial case: note that we are *checking* this variable's type, not
            synthesising! This is how we propagate the type information upwards.
            We check the interfaces, and then assign the type. *)
@@ -174,39 +177,40 @@ and check_val :
                 match ty with
                     | Type.Sum (t1, _) ->
                         check_val ienv decl_env v (Type.make_returnable t1)
-                    | _ -> Gripers.expected_sum_type ty
+                    | _ -> Gripers.expected_sum_type ty [pos]
             end
         | Inr v ->
             begin
                 match ty with
                     | Type.Sum (_, t2) ->
                         check_val ienv decl_env v (Type.make_returnable t2)
-                    | _ -> Gripers.expected_sum_type ty
+                    | _ -> Gripers.expected_sum_type ty [pos]
             end
         | Pair (v1, v2) ->
             let (t1, t2) =
                 begin
                     match ty with
                         | Type.Pair (t1, t2) -> (t1, t2)
-                        | _ -> Gripers.expected_pair_type ty
+                        | _ -> Gripers.expected_pair_type ty [pos]
                 end
             in
             (* We can only construct a pair if its components are returnable. *)
             let (env1, constrs1) = check_val ienv decl_env v1 (Type.make_returnable t1) in
             let (env2, constrs2) = check_val ienv decl_env v2 (Type.make_returnable t2) in
-            let env, constrs3 = Ty_env.combine ienv env1 env2 in
+            let env, constrs3 = Ty_env.combine ienv env1 env2 pos in
             env, Constraint_set.union_many [constrs1; constrs2; constrs3]
         | _ ->
             let synth_ty, synth_env, synth_constrs =
                 synthesise_val ienv decl_env v
             in
-            let subty_constrs = subtype ienv synth_ty ty in
+            let subty_constrs = subtype ienv synth_ty ty pos in
             synth_env, Constraint_set.union synth_constrs subty_constrs
 and synthesise_comp :
     IEnv.t -> Ty_env.t -> Ir.comp -> Type.t * Ty_env.t * Constraint_set.t =
         fun ienv decl_env e ->
     let synth = synthesise_comp ienv decl_env in
-    match e with
+    let pos = WithPos.pos e in
+    match (WithPos.node e) with
         | Annotate (e, ty) ->
             (* Mode switch: synthesis --> checking *)
             let env, constrs = check_comp ienv decl_env e ty in
@@ -244,7 +248,7 @@ and synthesise_comp :
                 match fun_ty with
                     | Type.Fun { args; result; _ } ->
                         (args, result)
-                    | ty -> Gripers.expected_function func ty
+                    | ty -> Gripers.expected_function func ty [pos]
             in
             (* Check that all argument types are compatible with the annotation *)
             let zipped = List.combine args arg_tys in
@@ -252,7 +256,7 @@ and synthesise_comp :
                 List.fold_right (fun (x, ty) (acc_env, acc_constrs) ->
                     let (arg_env, arg_constrs) = check_val ienv decl_env x ty in
                     (* Note: arguments must have disjoint type environments *)
-                    let (env, env_constrs) = Ty_env.combine ienv arg_env acc_env in
+                    let (env, env_constrs) = Ty_env.combine ienv arg_env acc_env pos in
                     let constrs =
                         Constraint_set.union_many
                             [arg_constrs; env_constrs; acc_constrs]
@@ -263,7 +267,7 @@ and synthesise_comp :
             (* No nested evaluation contexts, so we combine function and
                argument environments, expecting disjointness. *)
             let (env, env_constrs) =
-                Ty_env.combine ienv fun_env arg_env
+                Ty_env.combine ienv fun_env arg_env pos
             in
             (* Union constraint sets *)
             let constrs =
@@ -276,9 +280,10 @@ and synthesise_comp :
             (* Option.get safe since interface name will have been filled in
                by pre-type checking *)
             let iname = Option.get iname in
+            let interface_withPos = IEnv.lookup iname ienv [pos] in
             let payload_types =
-                IEnv.lookup iname ienv
-                |> Interface.lookup tag in
+                Interface.lookup ~pos_list:[WithPos.pos interface_withPos; pos] tag (WithPos.node interface_withPos)
+            in
             (* Check target has correct output type *)
             let target_ty =
                 Mailbox {
@@ -300,12 +305,12 @@ and synthesise_comp :
                 List.combine payloads payload_types
                 |> List.fold_left (fun (env, constrs) (payload, iface_ty)  ->
                     let (chk_env, chk_constrs) = check_val ienv decl_env payload iface_ty in
-                    let (env, env_constrs) = Ty_env.combine ienv env chk_env in
+                    let (env, env_constrs) = Ty_env.combine ienv env chk_env pos in
                     (env, Constraint_set.union_many
                         [constrs; chk_constrs; env_constrs])
                 ) (Ty_env.empty, Constraint_set.empty)
             in
-            let (env, env_constrs) = Ty_env.combine ienv mb_env arg_env in
+            let (env, env_constrs) = Ty_env.combine ienv mb_env arg_env pos in
             let constrs =
                 Constraint_set.union_many
                 [ mb_constrs; arg_constrs; env_constrs ] in
@@ -327,7 +332,7 @@ and synthesise_comp :
                         in
                         (* Join environments, union constraints *)
                         let (env, env_constrs) =
-                            Ty_env.join ienv term_env body_env
+                            Ty_env.join ienv term_env body_env pos
                         in
                         let constrs =
                             Constraint_set.union_many
@@ -341,15 +346,15 @@ and synthesise_comp :
                         (* The synthesised type must be returnable *)
                         let () =
                             if not (Type.is_returnable binder_ty) then
-                                Gripers.let_not_returnable binder_ty
+                                Gripers.let_not_returnable binder_ty [pos]
                         in
                         let () =
                             if Type.is_lin binder_ty then
-                                Gripers.unused_synthesised_linear_var
-                                binder_var binder_ty
+                                Gripers.unused_synthesised_linear_var 
+                                binder_var binder_ty [pos]
                         in
                         let (env, env_constrs) =
-                            Ty_env.join ienv binder_env body_env
+                            Ty_env.join ienv binder_env body_env pos
                         in
                         let constrs =
                             Constraint_set.union_many
@@ -362,7 +367,7 @@ and synthesise_comp :
             (* Check e1 has type unit, synthesise body type *)
             let (e1_env, e1_constrs) = check_comp ienv decl_env e1 Type.unit_type in
             let (e2_type, e2_env, e2_constrs) = synth e2 in
-            let (env, env_constrs) = Ty_env.join ienv e1_env e2_env in
+            let (env, env_constrs) = Ty_env.join ienv e1_env e2_env pos in
             let constrs =
                 Constraint_set.union_many
                     [ e1_constrs; e2_constrs; env_constrs ] in
@@ -376,7 +381,7 @@ and synthesise_comp :
                For the purposes of the spawning thread, we treat all inferred
                usages as Usable. *)
             Type.unit_type, Ty_env.make_usable env, constrs
-        | c -> Gripers.cannot_synthesise c
+        | _ -> Gripers.cannot_synthesise e [pos]
 
 (* Check --> Synth switch. Ensures synthesised type is subtype of checked type. *)
 (* Note: This results in the loss of contextual checking information. Really,
@@ -387,14 +392,15 @@ and check_to_synth : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Const
         let synth_ty, synth_env, synth_constrs =
             synthesise_comp ienv decl_env e
         in
-        let subty_constrs = subtype ienv synth_ty check_ty in
+        let subty_constrs = subtype ienv synth_ty check_ty (WithPos.pos e) in
         synth_env, Constraint_set.union synth_constrs subty_constrs
 (* Checking mode *)
 and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constraint_set.t =
         fun ienv decl_env e ty ->
     let chk = check_comp ienv decl_env in
     let chkv = check_val ienv decl_env in
-    match e with
+    let pos = WithPos.pos e in
+    match (WithPos.node e) with
         | Return v -> check_val ienv decl_env v ty
         | Case { term; branch1 = ((bnd1, ty1), comp1); branch2 = ((bnd2, ty2), comp2) } ->
             let (term_env, term_constrs) =
@@ -405,17 +411,18 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
             (* Check both branches, and check that inferred types match annotations *)
             let (comp1_env, comp1_constrs) = chk comp1 ty in
             let (comp2_env, comp2_constrs) = chk comp2 ty in
-            let env1_constrs = Ty_env.check_type ienv var1 ty1 comp1_env in
-            let env2_constrs = Ty_env.check_type ienv var2 ty2 comp2_env in
+            let env1_constrs = Ty_env.check_type ienv var1 ty1 comp1_env pos in
+            let env2_constrs = Ty_env.check_type ienv var2 ty2 comp2_env pos in
             (* Calculate merge of the branches (sans binders) *)
             let isect_env, isect_constrs =
                 Ty_env.intersect
                     (Ty_env.delete var1 comp1_env)
                     (Ty_env.delete var2 comp2_env)
+                    pos
             in
             (* Finally combine the term env with the intersected env *)
             let env, env_constrs =
-                Ty_env.combine ienv term_env isect_env
+                Ty_env.combine ienv term_env isect_env pos
             in
             let constrs =
                 Constraint_set.union_many
@@ -427,7 +434,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
             (* Check e1 has type unit, check body type *)
             let (e1_env, e1_constrs) = chk e1 Type.unit_type in
             let (e2_env, e2_constrs) = chk e2 ty in
-            let (env, env_constrs) = Ty_env.join ienv e1_env e2_env in
+            let (env, env_constrs) = Ty_env.join ienv e1_env e2_env pos in
             let constrs =
                 Constraint_set.union_many
                     [ e1_constrs; e2_constrs; env_constrs ] in
@@ -437,12 +444,12 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
             let (test_env, test_constrs) = chkv test Type.bool_type in
             let (then_env, then_constrs) = chk then_expr ty in
             let (else_env, else_constrs) = chk else_expr ty in
-            let (branches_env, env1_constrs) = Ty_env.intersect then_env else_env in
+            let (branches_env, env1_constrs) = Ty_env.intersect then_env else_env pos in
             (* Doesn't actually matter whether this is 'join' or 'combine',
                since there's no typable value with type 'bool' which will
                involve sending along a mailbox type. Using 'combine' for
                uniformity. *)
-            let (env, env2_constrs) = Ty_env.combine ienv test_env branches_env in
+            let (env, env2_constrs) = Ty_env.combine ienv test_env branches_env pos in
             let constrs =
                 Constraint_set.union_many
                     [ test_constrs; then_constrs;
@@ -474,7 +481,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                         in
                         (* Join environments, union constraints *)
                         let (env, env_constrs) =
-                            Ty_env.join ienv term_env body_env
+                            Ty_env.join ienv term_env body_env pos
                         in
                         let constrs =
                             Constraint_set.union_many
@@ -488,15 +495,15 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                         (* The synthesised type must be returnable *)
                         let () =
                             if not (Type.is_returnable binder_ty) then
-                                Gripers.let_not_returnable binder_ty
+                                Gripers.let_not_returnable binder_ty [pos]
                         in
                         let () =
                             if Type.is_lin binder_ty then
                                 Gripers.unused_synthesised_linear_var
-                                binder_var binder_ty
+                                binder_var binder_ty [pos]
                         in
                         let (env, env_constrs) =
-                            Ty_env.join ienv binder_env body_env
+                            Ty_env.join ienv binder_env body_env pos
                         in
                         let constrs =
                             Constraint_set.union_many
@@ -543,7 +550,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                         in
                         (* Combine environments, union constraints *)
                         let (env, env_constrs) =
-                            Ty_env.combine ienv term_env body_env
+                            Ty_env.combine ienv term_env body_env pos
                         in
                         let constrs =
                             Constraint_set.union_many
@@ -560,7 +567,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                         let (pty1, pty2) =
                             match pair_ty with
                                 | Type.Pair (pty1, pty2) -> (pty1, pty2)
-                                | _ -> Gripers.expected_pair_type pair_ty
+                                | _ -> Gripers.expected_pair_type pair_ty [pos]
                         in
                         (* If either of the types is actually found in the continuation, then check subtype.
                            If not, then we need to generate unrestrictedness constraints *)
@@ -570,14 +577,14 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                                 | None -> Type_utils.make_unrestricted declared
                         in
                         let ty_consistency_constrs = 
-                            Constraint_set.union (ty_constrs pty1 maybe_ty1) (ty_constrs pty2 maybe_ty2)
+                            Constraint_set.union (ty_constrs pty1 maybe_ty1 pos) (ty_constrs pty2 maybe_ty2 pos)
                         in
                         let () =
                             if not (Type.is_returnable pair_ty) then
-                                Gripers.let_not_returnable pair_ty
+                                Gripers.let_not_returnable pair_ty [pos]
                         in
                         let (env, env_constrs) =
-                            Ty_env.combine ienv pair_env body_env
+                            Ty_env.combine ienv pair_env body_env pos
                         in
                         let constrs =
                             Constraint_set.union_many
@@ -615,7 +622,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                 chkv target (Type.make_returnable target_ty)
             in
             let (env, env_constrs) =
-                Nullable_env.combine ienv target_env guards_env
+                Nullable_env.combine ienv target_env guards_env pos
             in
             (* The pattern annotation must be *included* in the inferred pattern.
                The reason this is inclusion rather than equivalence is that we
@@ -635,7 +642,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                      pat_constrs]
             in
             (env, constrs)
-        | e ->
+        | _ ->
             (* If we don't have a checking rule, it might be possible to
                synthesise and then check the result. *)
             (* This is certainly the case for base variables and constants. *)
@@ -654,20 +661,21 @@ and check_guards :
           (* Do a duplication check on guards *)
           let _ =
             List.fold_left (fun (empty, fail, tags) x ->
-              match x with
+              let pos = WithPos.pos x in
+              match WithPos.node x with
                 | Empty _ ->
                     if empty then
-                      Gripers.multiple_empty ()
+                      Gripers.multiple_empty () [pos]
                     else
                       (true, fail, tags)
                 | Fail ->
                     if fail then
-                      Gripers.multiple_fail ()
+                      Gripers.multiple_fail () [pos]
                     else
                       (empty, true, tags)
                 | Receive { tag; _ } ->
                     if List.mem tag tags then
-                      Gripers.multiple_receive tag
+                      Gripers.multiple_receive tag [pos]
                     else
                       (empty, fail, tag :: tags)
             ) (false, false, []) gs in
@@ -681,7 +689,7 @@ and check_guards :
               check_guard ienv decl_env iname guard_pat g ty
             in
             (* Calculate environment intersection *)
-            let (env, env_constrs) = Nullable_env.intersect g_env env in
+            let (env, env_constrs) = Nullable_env.intersect g_env env (WithPos.pos g) in
             let constrs =
               Constraint_set.union_many
                 [g_constrs; env_constrs; acc_constrs] in
@@ -696,12 +704,13 @@ and check_guard :
         fun ienv decl_env iname pat g ty ->
           let open Ir in
           let open Type in
-          match g with
+          let pos = WithPos.pos g in
+          match (WithPos.node g) with
             | Receive { tag; payload_binders; mailbox_binder; cont } ->
                 let (env, cont_constrs) = check_comp ienv decl_env cont ty in
                 let payload_iface_tys =
-                        IEnv.lookup iname ienv
-                        |> Interface.lookup tag
+                        let interface_withPos = IEnv.lookup iname ienv [pos] in
+                        Interface.lookup ~pos_list:[(WithPos.pos interface_withPos); pos] tag interface_withPos.node
                 in
                 (* Check that the received values have types consistent with the
                    interface annotations. *)
@@ -721,7 +730,7 @@ and check_guard :
                 let payload_ty_constrs =
                     List.combine payload_binders payload_iface_tys
                     |> List.fold_left (fun constrs (bnd, iface_ty) ->
-                        check_payload_ty bnd iface_ty
+                        check_payload_ty bnd iface_ty pos
                         |> Constraint_set.union constrs
                     ) Constraint_set.empty
                 in
@@ -736,9 +745,11 @@ and check_guard :
                         Gripers.expected_receive_mailbox
                             (Var.of_binder mailbox_binder)
                             ty
+                            [pos]
                     | None ->
                         Gripers.unused_mailbox_variable
                             (Var.of_binder mailbox_binder)
+                            [pos]
                 in
 
                 (* Delete payload and MB binders from calculated env *)
@@ -774,14 +785,15 @@ and check_guard :
                         | Strict ->
                             Ty_env.iter (fun v ty ->
                                 if Type.is_lin ty then
-                                    Gripers.unrestricted_recv_env v ty
+                                    Gripers.unrestricted_recv_env v ty [pos]
                             ) env
                         | Interface ->
                             Ty_env.iter (fun v ty ->
                                 match ty with
                                     | Mailbox { interface; _ } when (List.mem interface mb_iface_tys) ->
                                         Gripers.duplicate_interface_receive_env
-                                        v interface
+                                        v interface 
+                                        [pos]
                                     | _ -> ()
                             ) env
                         | Nothing -> ()
@@ -815,10 +827,11 @@ and check_guard :
                 in
                 let mb_empty_constr =
                     match mb_ty with
-                        | Some mb_ty -> Type_utils.subtype ienv goal mb_ty
+                        | Some mb_ty -> Type_utils.subtype ienv goal mb_ty pos
                         | None ->
                             Gripers.unused_mailbox_variable
                                 (Var.of_binder mailbox_binder)
+                                [pos]
                 in
                 let env =
                     env
@@ -840,10 +853,11 @@ and check_guard :
    type for each declaration.
 *)
 let check_decls ienv decls =
+    let (decl_poses, decl_nodes) = WithPos.split_with_pos_list decls in
     (* List of allowed free names: all declaration names. Primitive names won't
      get added into the environment at all. *)
     let allowed_free_names =
-        List.map (fun d -> Var.of_binder d.decl_name) decls
+        List.map (fun d -> Var.of_binder d.decl_name) decl_nodes
     in
     let decl_env =
         let decl_entry d =
@@ -851,7 +865,7 @@ let check_decls ienv decls =
             Var.of_binder d.decl_name,
             Type.make_function_type false args d.decl_return_type
         in
-        List.map decl_entry decls
+        List.map decl_entry decl_nodes
         |> Ty_env.from_list
     in
 
@@ -864,14 +878,14 @@ let check_decls ienv decls =
         fun decl_name env ->
             Ty_env.iter (fun x _ ->
                 if not (List.mem x allowed_free_names) then
-                    Gripers.unexpected_free_var x decl_name) env
+                    Gripers.unexpected_free_var x decl_name []) env
     in
 
     (* Function which typechecks the body of a declaration, ensuring usages of
        arguments are consistent with their annotations.
        Returns the inferred typing environment for the declaration (with
        arguments removed), along with generated constraints. *)
-    let check_decl d =
+    let check_decl d pos =
         let (env, body_constrs) =
             check_comp ienv decl_env d.decl_body d.decl_return_type in
         (* Check arguments; remove from environment *)
@@ -886,9 +900,9 @@ let check_decls ienv decls =
                      *)
                     match Ty_env.lookup_opt (Var.of_binder param) acc_env with
                         | Some inferred_param_ty ->
-                            subtype ienv param_ty inferred_param_ty
+                            subtype ienv param_ty inferred_param_ty pos
                         | None ->
-                            make_unrestricted param_ty
+                            make_unrestricted param_ty pos
                 in
                 (Ty_env.delete_binder param acc_env,
                  Constraint_set.union param_constrs acc_constrs)
@@ -902,7 +916,7 @@ let check_decls ienv decls =
     in
 
     let decl_constrs =
-        List.map check_decl decls
+        List.map2 check_decl decl_nodes decl_poses
         |> Constraint_set.union_many
     in
     (* Finally, return reference environment and gathered constraints *)
@@ -919,7 +933,7 @@ let synthesise_program { prog_interfaces; prog_decls; prog_body } =
     match prog_body with
         | Some body ->
             let ty, body_env, body_constrs = synthesise_comp ienv decl_env body in
-            let env, env_constrs = Ty_env.combine ienv decl_env body_env in
+            let env, env_constrs = Ty_env.combine ienv decl_env body_env (WithPos.pos body) in
             let constrs =
                 Constraint_set.union_many
                     [decl_constrs; body_constrs; env_constrs]
@@ -938,7 +952,7 @@ let check_program { prog_interfaces; prog_decls; prog_body } ty =
     match prog_body with
         | Some body ->
             let body_env, body_constrs = check_comp ienv decl_env body ty in
-            let env, env_constrs = Ty_env.combine ienv decl_env body_env in
+            let env, env_constrs = Ty_env.combine ienv decl_env body_env (WithPos.pos body) in
             let constrs =
                 Constraint_set.union_many
                     [decl_constrs; body_constrs; env_constrs]

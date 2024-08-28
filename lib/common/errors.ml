@@ -1,4 +1,5 @@
 open Util
+open Source_code
 
 (* Auxiliary definitions / types *)
 type subsystem =
@@ -22,41 +23,45 @@ let show_subsystem = function
     | GenCheckDecls -> "Check declarations"
 
 (* Exceptions *)
-exception Parse_error of string
-exception Pretype_error of string
-exception Type_error of string (* Used for errors common to both pretyping and constraint generation *)
-exception Constraint_gen_error of { subsystem: subsystem option; message: string }
+exception Parse_error of string * Position.t list
+exception Pretype_error of string * Position.t list
+exception Type_error of string * Position.t list (* Used for errors common to both pretyping and constraint generation *)
+exception Constraint_gen_error of { subsystem: subsystem option; message: string; pos_list: Position.t list  }
 (* It would be a bit nicer to have the constraints on the LHS and RHS here,
    but it would introduce a cyclic library dependency. *)
-exception Constraint_solver_error of { lhs: string; rhs: string }
+exception Constraint_solver_error of { lhs: string; rhs: string  }
 exception Constraint_solver_zero_error of string
 exception Internal_error of { filename: string; message: string }
 exception Bad_receive_typing_argument of string
-exception Transform_error of string
+exception Transform_error of string * Position.t list
 
 
 let internal_error filename message = Internal_error { filename; message }
-let parse_error msg = Parse_error msg
-let type_error message = Type_error message
+let parse_error msg pos_list = Parse_error (msg, pos_list)
+let type_error message pos_list = Type_error (message, pos_list)
 let constraint_solver_error lhs rhs = Constraint_solver_error { lhs; rhs }
 let constraint_solver_zero_error var = Constraint_solver_zero_error var
 let bad_receive_typing_argument bad = Bad_receive_typing_argument bad
-let transform_error err = Transform_error err
+let transform_error err pos_list = Transform_error (err, pos_list)
 
 (* Will likely be more interesting when we have positional information *)
 let format_error = function
     | Internal_error { filename; message } ->
         let note = Printf.sprintf "INTERNAL (%s)" filename in
         Utility.print_error ~note message
-    | Parse_error s ->
-        Utility.print_error ~note:"PARSE" s
-    | Pretype_error s ->
-        Utility.print_error ~note:"PRETYPE" s
-    | Transform_error s ->
-        Utility.print_error ~note:"TRANSFORM" s
-    | Type_error s ->
-        Utility.print_error ~note:"TYPE" s
-    | Constraint_gen_error { subsystem; message } ->
+    | Parse_error (s, pos_list) ->
+        let pos_info = Position.format_pos pos_list in
+        Utility.print_error ~note:"PARSE" (s ^ " \n " ^ pos_info)
+    | Pretype_error (s, pos_list) ->
+        let pos_info = Position.format_pos pos_list in
+        Utility.print_error ~note:"PRETYPE" (s ^ " \n " ^ pos_info)
+    | Transform_error (s, pos_list) ->
+        let pos_info = Position.format_pos pos_list in
+        Utility.print_error ~note:"TRANSFORM" (s ^ " \n " ^ pos_info)
+    | Type_error (s, pos_list) ->
+        let pos_info = Position.format_pos pos_list in
+        Utility.print_error ~note:"TYPE" (s ^ " \n " ^ pos_info)
+    | Constraint_gen_error { subsystem; message; pos_list } ->
         let note =
             match subsystem with
                 | Some subsystem ->
@@ -65,14 +70,15 @@ let format_error = function
                         (show_subsystem subsystem)
                 | None -> "CONSTRAINT GENERATION"
         in
-        Utility.print_error ~note message
+        let pos_info = Position.format_pos pos_list in
+        Utility.print_error ~note (message ^ " \n " ^ pos_info)
     | Constraint_solver_error { lhs; rhs } ->
         let msg =
             Printf.sprintf
                 "%s is not included in %s"
                 lhs rhs
         in
-        Utility.print_error ~note:"CONSTRAINT SOLVING" msg
+        Utility.print_error ~note:"CONSTRAINT SOLVING" (msg ^ " \n ")
     | Constraint_solver_zero_error var ->
         let msg =
             Printf.sprintf

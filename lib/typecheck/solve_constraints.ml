@@ -322,7 +322,7 @@ let semilinear_to_presburger tags sls =
 
 
 let resolve_constraint resolved_lowers constr =
-    let (lhs, rhs) = Constraint.((lhs constr, rhs constr)) in
+    let lhs, rhs = Constraint.(lhs constr, rhs constr) in
     (* Pattern should be an upper bound, and therefore have no variables on its
      RHS. *)
     let () = assert (Pattern.defined rhs) in
@@ -337,7 +337,7 @@ let resolve_constraint resolved_lowers constr =
 (* Translates a constraint into a Presburger goal *)
 (* PRECONDITION: Requires the constraint to be fully resolved *)
 let constraint_to_goal constr =
-    let (lhs, rhs) = Constraint.((lhs constr, rhs constr)) in
+    let lhs, rhs = Constraint.(lhs constr, rhs constr) in
     Settings.if_debug (fun () ->
         Format.printf "Checking constraint %a\n" Constraint.pp (Constraint.make lhs rhs)
     );
