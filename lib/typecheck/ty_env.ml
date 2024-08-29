@@ -18,7 +18,7 @@ let lookup_opt = VarMap.find_opt
 let delete = VarMap.remove
 
 let delete_many vars env =
-    List.fold_right (delete) env vars
+    List.fold_right (delete) vars env 
 
 let delete_binder x = VarMap.remove (Ir.Var.of_binder x)
 let singleton = VarMap.singleton
@@ -168,7 +168,9 @@ let combine : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t =
 
 
 let combine_many ienv envs pos =
-    List.fold_right (fun x acc -> combine ienv x acc pos) empty envs
+    List.fold_right (fun x (env_acc, constrs_acc) ->
+        let (env, constrs) = combine ienv x env_acc pos in
+        env, Constraint_set.union constrs constrs_acc) envs (empty, Constraint_set.empty)
 
 (* Merges environments resulting from branching control flow. *)
 (* Core idea is that linear types must be used in precisely the same way in

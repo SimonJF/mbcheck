@@ -41,9 +41,9 @@ let rec synthesise_val :
         (* No harm having this as a synth case as well *)
         | Tuple vs ->
             let tys_envs_constrss = List.map (synthesise_val ienv decl_env) vs in
-            let tys, envs, constrss = split3 tys_envs_constrs in
+            let tys, envs, constrss = split3 tys_envs_constrss in
             let constrs = Constraint_set.union_many constrss in
-            let env, constrs2 = Ty_env.combine_many ienv env1 env2 pos in
+            let env, constrs2 = Ty_env.combine_many ienv envs pos in
             Type.Tuple tys,
                 env,
                 Constraint_set.union constrs constrs2
@@ -148,7 +148,7 @@ and check_val :
     IEnv.t -> Ty_env.t -> Ir.value -> Type.t -> Ty_env.t * Constraint_set.t =
         fun ienv decl_env v ty ->
     let pos = WithPos.pos v in
-    (* Checks consistency between a pretype pair annotation and the check type *)
+    (* Checks consistency between a pretype annotation and the check type *)
     let rec check_pretype_consistency ty pty =
         let open Type in
         let open Pretype in
@@ -192,7 +192,7 @@ and check_val :
                 begin
                     match ty with
                         | Type.Tuple ts -> ts
-                        | _ -> Gripers.expected_pair_type ty [pos]
+                        | _ -> Gripers.expected_tuple_type ty [pos]
                 end
             in
             let vs_and_ts = List.combine vs ts in
@@ -200,8 +200,9 @@ and check_val :
             let (check_envs, check_constrss) =
                 List.map (fun (v, ty) ->
                     check_val ienv decl_env v (Type.make_returnable ty)) vs_and_ts
+                |> List.split
             in
-            let check_constrs = Constraint_set.combine_many check_constrss in
+            let check_constrs = Constraint_set.union_many check_constrss in
             let (env, combine_constrs) = Ty_env.combine_many ienv check_envs pos in
             env, Constraint_set.union check_constrs combine_constrs
         | _ ->
@@ -520,15 +521,17 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
         (* LetTuple is similar to Let. Annoyingly we must revert to synthesis of the tuple if
            *any* binder is unused in the continuation. Wildcard patterns / addition of type
            constraints could help. *)
-        | LetPair { binders; pair; cont = body } ->
+        | LetTuple { binders; tuple; cont = body } ->
             (* Check body type and extract types for binders *)
             let body_env, body_constrs = chk body ty in
             (* Either binder might be unused.
                Revert to synthesis if we don't have type info for both. *)
-            let bnds = List.map fst binders in
+            let bnd_vars =
+                List.map fst binders
+                |> List.map (Var.of_binder)
+            in
             let inferred_tys =
-                List.map (Var.of_binder) bnds
-                |> List.map (fun var -> Ty_env.lookup_opt var body_env) bvars
+                List.map (fun var -> Ty_env.lookup_opt var body_env) bnd_vars
             in
             (* Default type: special case interface types -- only way something can be an MB but
                not used is if it's a returnable !1 mailbox type*)
@@ -541,6 +544,8 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                 | Some ty -> Some ty
                 | None -> default_ty pty
             in
+            (* Precondition: pretypes have already been filled in during pre-typing,
+               so Option.get is safe *)
             let ptys = List.map (Option.get << snd) binders in
             let check_tys =
                 List.map (uncurry get_check_ty) (List.combine ptys inferred_tys)
@@ -550,7 +555,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                     let check_tys = List.map Option.get check_tys in
                     let target_ty = Type.make_tuple_type check_tys in
                     let (term_env, term_constrs) =
-                            check_val ienv decl_env pair target_ty
+                            check_val ienv decl_env tuple target_ty
                     in
                     (* Combine environments, union constraints *)
                     let (env, env_constrs) =
@@ -565,13 +570,13 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                        check it's not linear.
                        This should only happen for the case where we have a
                        function returning an MB type.*)
-                    let (tuple_ty, pair_env, pair_constrs) =
-                        synthesise_val ienv decl_env pair
+                    let (tuple_ty, tuple_env, tuple_constrs) =
+                        synthesise_val ienv decl_env tuple
                     in
                     let component_tys =
-                        match type_ty with
+                        match tuple_ty with
                             | Type.Tuple tys -> tys
-                            | _ -> Gripers.expected_pair_type pair_ty [pos]
+                            | _ -> Gripers.expected_tuple_type tuple_ty [pos]
                     in
                     (* If any of the types are actually found in the continuation, then check subtype.
                        If not, then we need to generate unrestrictedness constraints *)
@@ -591,17 +596,16 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                             Gripers.let_not_returnable tuple_ty [pos]
                     in
                     let (env, env_constrs) =
-                        Ty_env.combine ienv pair_env body_env pos
+                        Ty_env.combine ienv tuple_env body_env pos
                     in
                     let constrs =
                         Constraint_set.union_many
-                            [body_constrs; pair_constrs; env_constrs; ty_consistency_constrs]
+                            [body_constrs; tuple_constrs; env_constrs; ty_consistency_constrs]
                     in
                     (env, constrs)
             in
-            let env = Ty_env.delete_many bnds env in
+            let env = Ty_env.delete_many bnd_vars env in
             (env, constrs)
-        | LetTuple _ -> assert false (* Pretypes should have been filled in *)
         | Guard { iname = None; _ } -> (* Should have been filled in by pre-typing *)
             assert false
         | Guard { target; pattern; guards; iname = Some iname } ->

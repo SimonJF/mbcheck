@@ -84,8 +84,8 @@ let print_debug err =
 
 
 (* f: a, b -> c ==> f: (a, b) -> c *)
-let curry f (a, b) = f a b
-let uncurry f a b = f (a, b)
+let curry f a b = f (a, b)
+let uncurry f (a, b) = f a b
 
 let rec split3 = function
     | [] -> ([], [], [])
