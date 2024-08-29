@@ -21,6 +21,14 @@ module Gripers = struct
         in
         raise (pretype_error msg [pos])
 
+    let tuple_arity_error pos expected_len actual_len =
+        let msg =
+            asprintf "Arity error. Tuple deconstructor has %d binders, but tuple has %d components."
+                expected_len 
+                actual_len
+        in
+        raise (pretype_error msg [pos])
+
     let message_arity_error pos tag expected_len actual_len =
         let msg =
             asprintf "Arity error. Message '%s' expects %d arguments, but %d were provided."
@@ -221,6 +229,13 @@ and synthesise_comp ienv env comp =
                         raise
                             (Gripers.type_mismatch_with_expected pos
                              "a tuple type" tuple_ty)
+            in
+            (* Check arity before we start combining *)
+            let () =
+                let bnds_len = List.length bnds in
+                let tys_len = List.length tys in
+                if bnds_len <> tys_len then
+                    Gripers.tuple_arity_error pos bnds_len tys_len
             in
             let vars_and_tys = List.combine (List.map Var.of_binder bnds) tys in
             let env' =

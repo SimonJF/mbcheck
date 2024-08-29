@@ -134,11 +134,14 @@ expr:
     | LET LEFT_PAREN separated_list(COMMA, VARIABLE) RIGHT_PAREN EQ basic_expr IN expr
         { with_pos_from_positions $startpos $endpos (LetTuple { binders = $3; term = $6; annot = None; cont = $8 }) }
     | basic_expr SEMICOLON expr { with_pos_from_positions $startpos $endpos (Seq ($1, $3)) }
-    | LEFT_PAREN basic_expr COLON ty RIGHT_PAREN { with_pos_from_positions $startpos $endpos (Annotate ($2, $4)) }
+    | basic_expr COLON ty { with_pos_from_positions $startpos $endpos (Annotate ($1, $3)) }
     | basic_expr { $1 }
 
 expr_list:
     | separated_list(COMMA, expr) { $1 }
+
+tuple_exprs:
+    | LEFT_PAREN expr COMMA separated_nonempty_list(COMMA, expr) RIGHT_PAREN { $2 :: $4 }
 
 linearity:
     | FUN    { false }
@@ -157,7 +160,7 @@ basic_expr:
     | FREE LEFT_PAREN expr RIGHT_PAREN { with_pos_from_positions $startpos $endpos ( Free $3 )}
     (* Sugared Fail forms *)
     | FAIL LEFT_PAREN expr RIGHT_PAREN LEFT_BRACK ty RIGHT_BRACK { with_pos_from_positions $startpos $endpos ( SugarFail ($3, $6))}
-    | LEFT_PAREN expr_list RIGHT_PAREN { with_pos_from_positions $startpos $endpos ( Tuple $2 ) }
+    | tuple_exprs { with_pos_from_positions $startpos $endpos ( Tuple $1 ) }
     (* App *)
     | fact LEFT_PAREN expr_list RIGHT_PAREN
         { with_pos_from_positions $startpos $endpos (
@@ -239,8 +242,9 @@ guard:
 ty_list:
     | separated_nonempty_list(COMMA, ty) { $1 }
 
+(* Note: don't parse a 1-tuple, which doesn't make sense *)
 tuple_annotation:
-    | LEFT_PAREN separated_list(STAR, simple_ty) RIGHT_PAREN { $2 }
+    | LEFT_PAREN ty STAR separated_nonempty_list(STAR, ty) RIGHT_PAREN { $2 :: $4 }
 
 parenthesised_datatypes:
     | LEFT_PAREN RIGHT_PAREN { [] }
@@ -252,22 +256,6 @@ ty:
     | LEFT_PAREN simple_ty PLUS simple_ty RIGHT_PAREN { Type.make_sum_type $2 $4 }
     | tuple_annotation { Type.make_tuple_type $1 }
     | simple_ty { $1 }
-
-simple_ty:
-    | mailbox_ty { $1 }
-    | base_ty { Type.Base $1 }
-
-base_ty:
-    | CONSTRUCTOR {
-        match $1 with
-            | "Atom" -> Base.Atom
-            | "Unit" -> Base.Unit
-            | "Int" -> Base.Int
-            | "Bool" -> Base.Bool
-            | "String" -> Base.String
-            | _ -> raise (parse_error "Expected Atom, Unit, Int, Bool, or String"
-                            [Position.make ~start:$startpos ~finish:$endpos ~code:!source_code_instance])
-    }
 
 interface_name:
     | CONSTRUCTOR { $1 }
@@ -323,6 +311,22 @@ mailbox_ty:
             pattern = $3;
             quasilinearity
         })
+    }
+
+simple_ty:
+    | mailbox_ty { $1 }
+    | base_ty { Type.Base $1 }
+
+base_ty:
+    | CONSTRUCTOR {
+        match $1 with
+            | "Atom" -> Base.Atom
+            | "Unit" -> Base.Unit
+            | "Int" -> Base.Int
+            | "Bool" -> Base.Bool
+            | "String" -> Base.String
+            | _ -> raise (parse_error "Expected Atom, Unit, Int, Bool, or String"
+                            [Position.make ~start:$startpos ~finish:$endpos ~code:!source_code_instance])
     }
 
 message_ty:
