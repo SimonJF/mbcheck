@@ -11,6 +11,7 @@ val bind : Ir.Var.t -> Type.t -> t -> t
 val lookup : Ir.Var.t -> t -> Type.t
 val lookup_opt : Ir.Var.t -> t -> Type.t option
 val delete : Ir.Var.t -> t -> t
+val delete_many : Ir.Var.t list -> t -> t
 val delete_binder : Ir.Binder.t -> t -> t
 val singleton : Ir.Var.t -> Type.t -> t
 val bindings : t -> (Ir.Var.t * Type.t) list
@@ -19,6 +20,9 @@ val iter : (Ir.Var.t -> Type.t -> unit) -> t -> unit
 
 (** Disjoint connection of environments (i.e., the + operator on environments) *)
 val combine : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t
+
+(** Disjoint connection of many environments *)
+val combine_many : Interface_env.t -> t list -> Position.t -> t * Constraint_set.t
 
 (** Joins two sequential / concurrent environments *)
 val join : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t

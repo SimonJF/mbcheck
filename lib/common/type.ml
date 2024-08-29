@@ -251,7 +251,7 @@ end
 type t =
     | Base of base
     | Fun of { linear: bool; args: t list; result: t }
-    | Pair of (t * t)
+    | Tuple of t list
     | Sum of (t * t)
     | Mailbox of {
         capability: (Capability.t [@name "capability"]);
@@ -286,14 +286,15 @@ let is_mailbox_type = function
 
 let rec contains_mailbox_type = function
     | Mailbox _ -> true
-    | Sum (t1, t2) | Pair (t1, t2) -> contains_mailbox_type t1 || contains_mailbox_type t2
+    | Sum (t1, t2) -> contains_mailbox_type t1 || contains_mailbox_type t2
+    | Tuple ts -> List.exists contains_mailbox_type ts
     | _ -> false
 
 (* Easy constructors *)
 let int_type = Base Base.Int
 let string_type = Base Base.String
 let bool_type = Base Base.Bool
-let unit_type = Base Base.Unit
+let unit_type = Tuple []
 let atom = Base Base.Atom
 let function_type linear args result =
     Fun { linear; args; result }
@@ -316,10 +317,10 @@ let rec pp ppf =
             (pp_print_comma_list pp) args
             arrow
             pp result
-    | Pair (t1, t2) ->
-        fprintf ppf "(%a * %a)"
-            pp t1
-            pp t2
+    | Tuple ts ->
+        let pp_star ppf () = pp_print_string ppf " * " in
+        fprintf ppf "(%a)"
+            (pp_print_list ~pp_sep:(pp_star) pp) ts
     | Sum (t1, t2) ->
         fprintf ppf "(%a + %a)"
             pp t1
@@ -355,7 +356,7 @@ let rec is_lin = function
     | Fun { linear; _ } -> linear
     (* !1 is unrestricted... *)
     | Mailbox { capability = Out; pattern = Some One; _ } -> false
-    | Pair (t1, t2) -> is_lin t1 || is_lin t2
+    | Tuple ts -> List.exists is_lin ts
     | Sum (t1, t2) -> is_lin t1 || is_lin t2
     (* ...but otherwise a mailbox type must be used linearly. *)
     | Mailbox _ -> true
@@ -368,8 +369,8 @@ let is_output_mailbox = function
     | Mailbox { capability = Out; pattern = Some _; _ } -> true
     | _ -> false
 
-let is_pair = function
-    | Pair _ -> true
+let is_tuple = function
+    | Tuple _ -> true
     | _ -> false
 
 let is_sum = function
@@ -391,13 +392,13 @@ let get_quasilinearity = function
 
 let rec make_usable = function
     | Mailbox m -> Mailbox { m with quasilinearity = Quasilinearity.Usable }
-    | Pair (t1, t2) -> Pair (make_usable t1, make_usable t2)
+    | Tuple ts -> Tuple (List.map make_usable ts)
     | Sum (t1, t2) -> Sum (make_usable t1, make_usable t2)
     | t -> t
 
 let rec make_returnable = function
     | Mailbox m -> Mailbox { m with quasilinearity = Quasilinearity.Returnable }
-    | Pair (t1, t2) -> Pair (make_returnable t1, make_returnable t2)
+    | Tuple ts -> Tuple (List.map make_returnable ts) 
     | Sum (t1, t2) -> Sum (make_returnable t1, make_returnable t2)
     | t -> t
 
@@ -406,15 +407,15 @@ let is_unr = is_lin >> not
 let rec is_returnable = function
     | Mailbox { quasilinearity = ql; _ } ->
         ql = Quasilinearity.Returnable
-    | Pair (t1, t2)
+    | Tuple ts -> List.for_all is_returnable ts
     | Sum  (t1, t2) -> is_returnable t1 && is_returnable t2
     | _ -> true
 
 let make_function_type linear args result =
     Fun { linear; args; result }
 
-let make_pair_type ty1 ty2 =
-    Pair (make_returnable ty1, make_returnable ty2)
+let make_tuple_type tys =
+    Tuple (List.map make_returnable tys)
 
 let make_sum_type ty1 ty2 =
     Sum (make_returnable ty1, make_returnable ty2)

@@ -78,6 +78,26 @@
                     "name": "Atoms",
                     "filename": "pat-tests/atoms.pat",
                     "exit_code": 0
+                },
+                {
+                    "name": "n-tuples (1)",
+                    "filename": "pat-tests/n-tuples.pat",
+                    "exit_code": 0
+                },
+                {
+                    "name": "n-tuples (2)",
+                    "filename": "pat-tests/n-tuples-2.pat",
+                    "exit_code": 0
+                },
+                {
+                    "name": "n-tuples, bad (1)",
+                    "filename": "pat-tests/n-tuples-bad-1.pat",
+                    "exit_code": 1
+                },
+                {
+                    "name": "n-tuples, bad (2)",
+                    "filename": "pat-tests/n-tuples-bad-2.pat",
+                    "exit_code": 1
                 }
             ]
         },
