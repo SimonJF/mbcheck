@@ -82,3 +82,13 @@ let print_error ?(note="ERROR") err =
 let print_debug err =
     Format.fprintf std_formatter "[\027[34mDEBUG\027[0m] %s\n" err
 
+
+(* f: a, b -> c ==> f: (a, b) -> c *)
+let curry f a b = f (a, b)
+let uncurry f (a, b) = f a b
+
+let rec split3 = function
+    | [] -> ([], [], [])
+    | (x, y, z) :: rest ->
+        let (xs, ys, zs) = split3 rest in
+        (x :: xs, y :: ys, z :: zs)

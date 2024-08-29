@@ -13,6 +13,7 @@ let make_unrestricted t pos =
     match t with
         (* Trivially unrestricted *)
         | Base _
+        | Tuple []
         | Fun { linear = false; _ } -> Constraint_set.empty
         (* Must be unrestricted *)
         | Fun { linear = true; _ }
@@ -38,8 +39,11 @@ let rec subtype_type :
             | Base b1, Base b2 when b1 = b2->
                         Constraint_set.empty
 
-            (* Subtyping covariant for pairs and sums *)
-            | Pair (tya1, tya2), Pair (tyb1, tyb2)
+            (* Subtyping covariant for tuples and sums *)
+            | Tuple tyas, Tuple tybs ->
+                Constraint_set.union_many
+                    (List.map (fun (tya, tyb) -> subtype_type visited ienv tya tyb pos) 
+                        (List.combine tyas tybs))
             | Sum (tya1, tya2), Sum (tyb1, tyb2) ->
                 Constraint_set.union
                     (subtype_type visited ienv tya1 tyb1 pos)

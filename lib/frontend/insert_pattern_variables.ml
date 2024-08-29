@@ -18,8 +18,8 @@ let rec annotate_type =
                 args = List.map annotate_type args;
                 result = annotate_type result
             }
-        | Pair (t1, t2) ->
-            Pair (annotate_type t1, annotate_type t2)
+        | Tuple ts ->
+            Tuple (List.map annotate_type ts)
         | Sum (t1, t2) ->
             Sum (annotate_type t1, annotate_type t2)
         | Mailbox { pattern = Some _; _ } as mb -> mb

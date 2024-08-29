@@ -258,10 +258,10 @@ let expected_function func instead pos_list =
     in
     raise (constraint_gen_error ~subsystem:Errors.GenSynth msg pos_list )
 
-let expected_pair_type instead pos_list =
+let expected_tuple_type instead pos_list =
     let msg =
         Format.asprintf
-            "Expected a pair type, but got %a."
+            "Expected a tuple type, but got %a."
             Type.pp instead
     in
     raise (constraint_gen_error ~subsystem:Errors.GenCheck msg pos_list)
