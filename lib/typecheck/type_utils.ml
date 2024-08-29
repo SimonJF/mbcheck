@@ -13,6 +13,7 @@ let make_unrestricted t pos =
     match t with
         (* Trivially unrestricted *)
         | Base _
+        | Tuple []
         | Fun { linear = false; _ } -> Constraint_set.empty
         (* Must be unrestricted *)
         | Fun { linear = true; _ }

@@ -63,6 +63,10 @@ let rec synthesise_val :
                     | _, PFun { linear; args; result = PBase b } ->
                         let ty = Type.function_type linear args (Type.Base b) in
                         ty, Ty_env.singleton v ty, Constraint_set.empty
+                    (* Units *)
+                    | _, PFun { linear; args; result = PTuple [] } ->
+                            let ty = Type.function_type linear args (Type.Tuple []) in
+                        ty, Ty_env.singleton v ty, Constraint_set.empty
                     | _, PFun _ ->
                         Gripers.synth_mailbox_function v [pos]
                     (* Although we have an interface pretype annotation, it's not possible

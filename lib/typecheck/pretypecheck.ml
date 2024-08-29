@@ -192,9 +192,9 @@ and synthesise_comp ienv env comp =
             WithPos.make ~pos (New iname), Pretype.PInterface iname
         | Spawn e ->
             let e =
-                check_comp ienv env e (Pretype.PBase Unit)
+                check_comp ienv env e (Pretype.unit)
             in
-            WithPos.make ~pos (Spawn e), Pretype.PBase Unit
+            WithPos.make ~pos (Spawn e), Pretype.unit
         | If { test; then_expr; else_expr } ->
             let test =
                 check_val ienv env test (Pretype.PBase Bool)
@@ -249,7 +249,7 @@ and synthesise_comp ienv env comp =
             WithPos.make ~pos
                 (LetTuple { binders; tuple; cont }), cont_ty
         | Seq (e1, e2) ->
-            let e1 = check_comp ienv env e1 (Pretype.PBase Unit) in
+            let e1 = check_comp ienv env e1 (Pretype.unit) in
             let e2, e2_ty = synth e2 in
             WithPos.make ~pos(Seq (e1, e2)), e2_ty
         | App { func; args } ->
@@ -314,7 +314,7 @@ and synthesise_comp ienv env comp =
                             target;
                             message = (tag, vals);
                             iname = Some iname
-                         }), Pretype.PBase Unit
+                         }), Pretype.unit
                     | ty -> Gripers.type_mismatch_with_expected pos "an interface type" ty
             end
         | Free (v, _) ->
@@ -324,7 +324,7 @@ and synthesise_comp ienv env comp =
                     | PInterface iface -> iface
                     | t -> Gripers.type_mismatch_with_expected pos "an interface type" t
             in
-            WithPos.make ~pos(Free (v, Some iface)), Pretype.PBase Unit
+            WithPos.make ~pos(Free (v, Some iface)), Pretype.unit
         | Guard { target; pattern; guards; _ } ->
             let (target, target_ty) = synthv target in
             let iname =

@@ -210,7 +210,7 @@ op:
 
 fact:
     (* Unit *)
-    | LEFT_PAREN RIGHT_PAREN { Constant Constant.unit }
+    | LEFT_PAREN RIGHT_PAREN { Tuple [] }
     | ATOM { Atom (String.(sub $1 1 (length $1 - 1))) }
     | BOOL   { Constant (Constant.wrap_bool $1) }
     (* Var *)
@@ -315,17 +315,17 @@ mailbox_ty:
 
 simple_ty:
     | mailbox_ty { $1 }
-    | base_ty { Type.Base $1 }
+    | base_ty { $1 }
 
 base_ty:
     | CONSTRUCTOR {
         match $1 with
-            | "Atom" -> Base.Atom
-            | "Unit" -> Base.Unit
-            | "Int" -> Base.Int
-            | "Bool" -> Base.Bool
-            | "String" -> Base.String
-            | _ -> raise (parse_error "Expected Atom, Unit, Int, Bool, or String"
+            | "Atom" -> Type.Base Base.Atom
+            | "Unit" -> Type.Tuple []
+            | "Int" -> Type.Base Base.Int
+            | "Bool" -> Type.Base Base.Bool
+            | "String" -> Type.Base Base.String
+            | _ -> raise (parse_error "Expected Atom, Int, Bool, or String"
                             [Position.make ~start:$startpos ~finish:$endpos ~code:!source_code_instance])
     }
 

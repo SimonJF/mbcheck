@@ -1,5 +1,4 @@
 open Common
-open Common_types
 open Util.Utility
 open Source_code
 
@@ -173,7 +172,7 @@ and transform_expr :
             transform_expr env e1 (fun env c1 ->
             let pos' = WithPos.pos c1 in
             match WithPos.node c1 with
-                | Ir.Return ({ node = Ir.Constant (Constant.Unit); _ }) ->
+                | Ir.Return ({ node = Ir.Tuple []; _ }) ->
                     transform_expr env e2 k
                 | _ -> WithPos.make ~pos:pos' (Ir.Seq (c1, transform_expr env e2 k)))
         | App {func; args} ->

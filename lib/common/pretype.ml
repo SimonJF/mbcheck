@@ -19,6 +19,8 @@ type t =
     [@@deriving visitors { variety = "map" }]
 and base = [%import: Common_types.Base.t]
 
+let unit = PTuple []
+
 let rec pp ppf =
   let open Format in
   let ps = pp_print_string ppf in

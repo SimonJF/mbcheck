@@ -294,7 +294,7 @@ let rec contains_mailbox_type = function
 let int_type = Base Base.Int
 let string_type = Base Base.String
 let bool_type = Base Base.Bool
-let unit_type = Base Base.Unit
+let unit_type = Tuple []
 let atom = Base Base.Atom
 let function_type linear args result =
     Fun { linear; args; result }

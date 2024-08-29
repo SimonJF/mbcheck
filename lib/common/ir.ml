@@ -283,6 +283,7 @@ and pp_guard ppf guard_with_pos =
     | Fail ->
         fprintf ppf "fail"
 
+let unit = Tuple []
 
 let is_receive_guard = function
     | Receive _ -> true
