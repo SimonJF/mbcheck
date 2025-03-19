@@ -18,7 +18,7 @@ let lookup_opt = VarMap.find_opt
 let delete = VarMap.remove
 
 let delete_many vars env =
-    List.fold_right (delete) vars env 
+    List.fold_right (delete) vars env
 
 let delete_binder x = VarMap.remove (Ir.Var.of_binder x)
 let singleton = VarMap.singleton
@@ -105,14 +105,14 @@ let join : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t =
                          name. If these match, we can join the types. *)
                       if iface1 <> iface2 then
                           Gripers.env_interface_mismatch true
-                            t1 t2 var iface1 iface2
+                            t1 t2 var iface1 iface2 [pos]
                       else
                           (* Check sequencing of QL *)
                           let ql =
                               match Quasilinearity.sequence ql1 ql2 with
                                 | Some ql -> ql
                                 | None ->
-                                    Gripers.invalid_ql_sequencing var
+                                    Gripers.invalid_ql_sequencing var [pos]
                           in
                           let ((cap, pat), constrs) =
                               join_mailbox_types var
@@ -259,7 +259,7 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
                       (* As before -- interface names must be the same*)
                       if iface1 <> iface2 then
                           Gripers.env_interface_mismatch
-                            false t1 t2 var iface1 iface2
+                            false t1 t2 var iface1 iface2 [pos]
                       else
                           let ((cap, pat), constrs) =
                               intersect_mailbox_types var

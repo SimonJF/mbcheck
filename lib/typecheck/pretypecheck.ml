@@ -187,10 +187,10 @@ and check_val ienv env value ty =
                 (Gripers.type_mismatch_with_expected pos
                     "a sum type" ty)
         | Nil, (Pretype.PList _) ->
-          Nil
+          wrap Nil
         | Nil, ty ->
           raise
-            (Gripers.type_mismatch_with_expected
+            (Gripers.type_mismatch_with_expected pos
               "a list type" ty)
         | _ ->
             let value, inferred_ty = synthesise_val ienv env value in
@@ -276,7 +276,7 @@ and synthesise_comp ienv env comp =
             in
             let ty3 = match prety1 with
               | Pretype.PList ty3 -> ty3
-              | _ -> raise (Gripers.type_mismatch_with_expected "a list type" prety1)
+              | _ -> raise (Gripers.type_mismatch_with_expected pos "a list type" prety1)
             in
             let b1_env = PretypeEnv.bind (Var.of_binder bnd1) ty3 env in
             let b2_env = PretypeEnv.bind (Var.of_binder bnd2) prety1 b1_env in
@@ -284,11 +284,6 @@ and synthesise_comp ienv env comp =
             let e1 = check_comp ienv b2_env e1 b2_ty in
             WithPos.make ~pos
               (CaseL { term; nil = (ty1, e1); cons = (((bnd1, bnd2), ty2), e2) }), b2_ty
-        | LetPair { binders = ((b1, _), (b2, _)); pair; cont } ->
-            let pair, pair_ty = synthv pair in
-            let (t1, t2) =
-                match pair_ty with
-                    | Pretype.PPair (t1, t2) -> (t1, t2)
         | Seq (e1, e2) ->
             let e1 = check_comp ienv env e1 (Pretype.unit) in
             let e2, e2_ty = synth e2 in
