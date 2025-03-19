@@ -33,7 +33,7 @@ let rec annotate_type =
                 quasilinearity
             }
 
-let annotate_interface_type = 
+let annotate_interface_type =
     let open Type in
     function
         (* Outermost MB types (i.e., payloads) are treated as usable. *)
