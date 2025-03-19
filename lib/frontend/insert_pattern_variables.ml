@@ -22,6 +22,8 @@ let rec annotate_type =
             Tuple (List.map annotate_type ts)
         | Sum (t1, t2) ->
             Sum (annotate_type t1, annotate_type t2)
+        | List t ->
+            List (annotate_type t)
         | Mailbox { pattern = Some _; _ } as mb -> mb
         | Mailbox { capability; interface; pattern = None; quasilinearity } ->
             Mailbox {
@@ -103,4 +105,3 @@ let annotate prog =
         Format.(fprintf std_formatter "=== Annotated Program ===\n%a\n\n"
         Sugar_ast.pp_program prog));
     prog
-

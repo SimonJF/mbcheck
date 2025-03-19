@@ -1,9 +1,8 @@
 ### Adapted from Savina/fjthrput.
 ###
-### Models the creation of n actors that are given a number of messages, for 
+### Models the creation of n actors that are given a number of messages, for
 ### each of which, a computation is performed. The benchmark is parameterized by
-### the number of actor processes. Since the array type is not available in 
-### Pat, we fix the number of actor processes to 3.
+### the number of actor processes.
 
 interface ActorMb {
   Packet()
@@ -26,7 +25,7 @@ def fact(n: Int): Int {
     1
   }
   else {
-    n * (fact(n - 1)) 
+    n * (fact(n - 1))
   }
 }
 
@@ -41,21 +40,31 @@ def flood(numMessages: Int, actorMb: ActorMb!): Unit {
   }
 }
 
-## Launcher.
-def main(): Unit {
-  
-  let actorMb1 = new [ActorMb] in
-  spawn { actor(actorMb1) };
-
-  let actorMb2 = new [ActorMb] in
-  spawn { actor(actorMb2) };
-
-  let actorMb3 = new [ActorMb] in
-  spawn { actor(actorMb3) };
-
-  flood(100, actorMb1);
-  flood(1000, actorMb1);
-  flood(10000, actorMb1)
+def spawnActors(numActors: Int, acc: [ActorMb!]): [ActorMb!] {
+    if (numActors <= 0) {
+        acc
+    }
+    else {
+        let newActor = new [ActorMb] in
+            spawn { actor(newActor) };
+            spawnActors(numActors - 1, (newActor cons acc))
+        }
 }
 
-main()
+def floodActors(numMessages: Int, actorMbs: [ActorMb!]): Unit {
+    caseL actorMbs of {
+        nil : [ActorMb!] -> ()
+      | (a cons as) : [ActorMb!] ->
+            flood(numMessages, a);
+            floodActors(numMessages, as)
+        }
+}
+
+## Launcher.
+def main(numActors: Int): Unit {
+
+  let actorMbs = spawnActors(numActors, (nil : [ActorMb!])) in
+    floodActors(1000, actorMbs)
+}
+
+main(3)

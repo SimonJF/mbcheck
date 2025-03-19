@@ -14,6 +14,7 @@ let make_unrestricted t pos =
         (* Trivially unrestricted *)
         | Base _
         | Tuple []
+        | List _
         | Fun { linear = false; _ } -> Constraint_set.empty
         (* Must be unrestricted *)
         | Fun { linear = true; _ }
@@ -42,12 +43,13 @@ let rec subtype_type :
             (* Subtyping covariant for tuples and sums *)
             | Tuple tyas, Tuple tybs ->
                 Constraint_set.union_many
-                    (List.map (fun (tya, tyb) -> subtype_type visited ienv tya tyb pos) 
+                    (List.map (fun (tya, tyb) -> subtype_type visited ienv tya tyb pos)
                         (List.combine tyas tybs))
             | Sum (tya1, tya2), Sum (tyb1, tyb2) ->
                 Constraint_set.union
                     (subtype_type visited ienv tya1 tyb1 pos)
                     (subtype_type visited ienv tya2 tyb2 pos)
+            | List ty1, List ty2 -> subtype_type visited ienv ty1 ty2 pos
             | Mailbox { pattern = None; _ }, _
             | _, Mailbox { pattern = None; _ } ->
                     (* Should have been sorted by annotation pass *)

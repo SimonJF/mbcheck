@@ -117,7 +117,7 @@ let rec synthesise_val :
                     (* Finally, ensure that the declared type is a subtype of
                        the inferred type *)
                     List.fold_left (fun acc (inferred, declared) ->
-                        Constraint_set.union acc (subtype ienv declared inferred pos)) 
+                        Constraint_set.union acc (subtype ienv declared inferred pos))
                         Constraint_set.empty
                         zipped
                 in
@@ -167,6 +167,8 @@ and check_val :
             | Sum (t1, t2), PSum (pt1, pt2) ->
                 check_pretype_consistency t1 pt1;
                 check_pretype_consistency t2 pt2
+            | List t, PList pt ->
+                check_pretype_consistency t pt
             | _, _ -> Gripers.pretype_consistency ty pty [pos]
     in
     match WithPos.node v with
@@ -190,6 +192,22 @@ and check_val :
                     | Type.Sum (_, t2) ->
                         check_val ienv decl_env v (Type.make_returnable t2)
                     | _ -> Gripers.expected_sum_type ty [pos]
+            end
+        | Nil ->
+            begin
+                match ty with
+                    | Type.List _ -> Ty_env.empty, Constraint_set.empty
+                    | _ -> Gripers.expected_list_type ty
+            end
+        | Cons (v1, v2) ->
+            begin
+                match ty with
+                    | Type.List t ->
+                        let (env1, constrs1) = check_val ienv decl_env v1 t in
+                        let (env2, constrs2) = check_val ienv decl_env v2 ty in
+                        let env, constrs3 = Ty_env.combine ienv env1 env2 in
+                        env, Constraint_set.union_many [constrs1; constrs2; constrs3]
+                    | _ -> Gripers.expected_sum_type ty
             end
         | Tuple vs ->
             let ts =
@@ -360,7 +378,7 @@ and synthesise_comp :
                         in
                         let () =
                             if Type.is_lin binder_ty then
-                                Gripers.unused_synthesised_linear_var 
+                                Gripers.unused_synthesised_linear_var
                                 binder_var binder_ty [pos]
                         in
                         let (env, env_constrs) =
@@ -433,6 +451,33 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
             (* Finally combine the term env with the intersected env *)
             let env, env_constrs =
                 Ty_env.combine ienv term_env isect_env pos
+            in
+            let constrs =
+                Constraint_set.union_many
+                    [ comp1_constrs; comp2_constrs; env1_constrs;
+                      env2_constrs; isect_constrs; env_constrs; term_constrs ]
+            in
+            (env, constrs)
+        | CaseL { term; nil = (ty1, comp1); cons = (((bnd1, bnd2), ty2), comp2) } ->
+            let (term_env, term_constrs) =
+                check_val ienv decl_env term ty1
+            in
+            let var1 = Var.of_binder bnd1 in
+            let var2 = Var.of_binder bnd2 in
+            (* Check both branches, and check that inferred types match annotations *)
+            let (comp1_env, comp1_constrs) = chk comp1 ty in
+            let (comp2_env, comp2_constrs) = chk comp2 ty in
+            let env1_constrs = Ty_env.check_type ienv var1 ty1 comp1_env in
+            let env2_constrs = Ty_env.check_type ienv var2 ty2 comp2_env in
+            (* Calculate merge of the branches (sans binders) *)
+            let isect_env, isect_constrs =
+                Ty_env.intersect
+                    (Ty_env.delete var1 comp1_env)
+                    (Ty_env.delete var2 comp2_env)
+            in
+            (* Finally join the term env with the intersected env *)
+            let env, env_constrs =
+                Ty_env.join ienv term_env isect_env
             in
             let constrs =
                 Constraint_set.union_many
@@ -803,7 +848,7 @@ and check_guard :
                                 match ty with
                                     | Mailbox { interface; _ } when (List.mem interface mb_iface_tys) ->
                                         Gripers.duplicate_interface_receive_env
-                                        v interface 
+                                        v interface
                                         [pos]
                                     | _ -> ()
                             ) env

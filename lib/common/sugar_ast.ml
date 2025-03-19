@@ -39,6 +39,14 @@ and expr_node =
         term: expr;
         cont: expr
     }
+    (* Lists *)
+    | Nil
+    | Cons of (expr * expr)
+    | CaseL of {
+        term: expr;
+        nil: (Type.t[@name "ty"]) * expr;
+        cons: ((sugar_binder * sugar_binder) * (Type.t[@name "ty"])) * expr
+    }
     (* Sums *)
     | Inl of expr
     | Inr of expr
@@ -238,6 +246,23 @@ and pp_expr ppf expr_with_pos =
             (pp_print_comma_list Type.pp) ts
             pp_expr term
             pp_expr cont
+    | Nil -> pp_print_string ppf "Nil"
+    | Cons (e1, e2) ->
+        fprintf ppf "Cons %a %a" pp_expr e1 pp_expr e2
+    | CaseL { term; nil = (t1, e1); cons = (((b1, b2), t2), e2) } -> begin
+      match t1 with
+        | List t ->
+	          fprintf
+            ppf
+            "caseL %a of {@[@[nil: %a -> [@%a@]@]][cons %a %a -> [@%a@]@]@]]}"
+            pp_expr term
+            Type.pp t1
+            pp_expr e1
+            pp_bnd_ann (b1, t)
+            pp_bnd_ann (b2, t2)
+            pp_expr e2
+        | _ -> fprintf ppf "bad list"
+      end
     | Guard { target; pattern; guards; _ } ->
         fprintf ppf
             "guard %a : %a {@,@[<v 2>  %a@]@,}"
@@ -284,4 +309,3 @@ let substitute_solution sol =
         end
     in
     visitor#visit_program ()
-

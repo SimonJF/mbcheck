@@ -8,7 +8,7 @@ open Ir
 open Util.Utility
 open Source_code
 
-let pretype_error msg pos_list = Errors.Pretype_error (msg,pos_list) 
+let pretype_error msg pos_list = Errors.Pretype_error (msg,pos_list)
 
 module Gripers = struct
     open Format
@@ -16,7 +16,7 @@ module Gripers = struct
     let arity_error pos expected_len actual_len =
         let msg =
             asprintf "Arity error. Expects %d arguments, but %d were provided."
-                expected_len 
+                expected_len
                 actual_len
         in
         raise (pretype_error msg [pos])
@@ -24,7 +24,7 @@ module Gripers = struct
     let tuple_arity_error pos expected_len actual_len =
         let msg =
             asprintf "Arity error. Tuple deconstructor has %d binders, but tuple has %d components."
-                expected_len 
+                expected_len
                 actual_len
         in
         raise (pretype_error msg [pos])
@@ -44,7 +44,7 @@ module Gripers = struct
 
     let type_mismatch pos_list expected actual =
         let msg =
-            asprintf "Type mismatch. Expected %a but got %a."                
+            asprintf "Type mismatch. Expected %a but got %a."
                 Pretype.pp expected
                 Pretype.pp actual
         in
@@ -52,7 +52,7 @@ module Gripers = struct
 
     let type_mismatch_with_expected pos expected_msg actual =
         let msg =
-            asprintf "Type mismatch. Expected %s but got %a."                
+            asprintf "Type mismatch. Expected %s but got %a."
                 expected_msg
                 Pretype.pp actual
         in
@@ -60,7 +60,7 @@ module Gripers = struct
 
     let cannot_synth_empty_guards pos () =
         let msg =
-            asprintf "Need at least one non-fail guard to synthesise the type for a 'guard' expression." 
+            asprintf "Need at least one non-fail guard to synthesise the type for a 'guard' expression."
         in
         raise (pretype_error msg [pos])
 
@@ -74,6 +74,15 @@ module Gripers = struct
         let pos = WithPos.pos term in
         let msg =
             asprintf "Cannot synthesise a type for a sum constructor %a."
+                Ir.pp_value term
+        in
+        raise (pretype_error msg [pos])
+
+    let cannot_synth_nil (term: value) =
+        let pos = WithPos.pos term in
+        let msg =
+            asprintf
+                "Cannot synthesise a type for an empty list %a"
                 Ir.pp_value term
         in
         raise (pretype_error msg [pos])
@@ -140,6 +149,10 @@ let rec synthesise_val ienv env value : (value * Pretype.t) =
             let vs_and_tys = List.map (synthesise_val ienv env) vs in
             let (vs, tys) = List.split vs_and_tys in
             wrap (Tuple vs), Pretype.PTuple tys
+        | Cons (v1, v2) ->
+            let (v1, ty1) = synthesise_val ienv env v1 in
+            let (v2, _) = synthesise_val ienv env v2 in
+            wrap (Cons (v1, v2)), Pretype.PList ty1
         | Lam { linear; parameters; result_type; body } ->
             (* Defer linearity checking to constraint generation. *)
             let param_types  = List.map snd parameters in
@@ -158,6 +171,7 @@ let rec synthesise_val ienv env value : (value * Pretype.t) =
                 result = result_prety
             }
         | Inl _ | Inr _ -> Gripers.cannot_synth_sum value
+        | Nil -> Gripers.cannot_synth_nil value
 and check_val ienv env value ty =
     let (value_node, pos) = WithPos.(node value, pos value) in
     let wrap = WithPos.make ~pos in
@@ -172,6 +186,12 @@ and check_val ienv env value ty =
             raise
                 (Gripers.type_mismatch_with_expected pos
                     "a sum type" ty)
+        | Nil, (Pretype.PList _) ->
+          Nil
+        | Nil, ty ->
+          raise
+            (Gripers.type_mismatch_with_expected
+              "a list type" ty)
         | _ ->
             let value, inferred_ty = synthesise_val ienv env value in
             check_tys [pos] ty inferred_ty;
@@ -248,6 +268,27 @@ and synthesise_comp ienv env comp =
             let cont, cont_ty = synthesise_comp ienv env' cont in
             WithPos.make ~pos
                 (LetTuple { binders; tuple; cont }), cont_ty
+        | CaseL { term; nil = (ty1, e1); cons = (((bnd1, bnd2), ty2), e2) } ->
+            let prety1 = Pretype.of_type ty1 in
+            let prety2 = Pretype.of_type ty2 in
+            let term =
+              check_val ienv env term prety2
+            in
+            let ty3 = match prety1 with
+              | Pretype.PList ty3 -> ty3
+              | _ -> raise (Gripers.type_mismatch_with_expected "a list type" prety1)
+            in
+            let b1_env = PretypeEnv.bind (Var.of_binder bnd1) ty3 env in
+            let b2_env = PretypeEnv.bind (Var.of_binder bnd2) prety1 b1_env in
+            let e2, b2_ty = synthesise_comp ienv b2_env e2 in
+            let e1 = check_comp ienv b2_env e1 b2_ty in
+            WithPos.make ~pos
+              (CaseL { term; nil = (ty1, e1); cons = (((bnd1, bnd2), ty2), e2) }), b2_ty
+        | LetPair { binders = ((b1, _), (b2, _)); pair; cont } ->
+            let pair, pair_ty = synthv pair in
+            let (t1, t2) =
+                match pair_ty with
+                    | Pretype.PPair (t1, t2) -> (t1, t2)
         | Seq (e1, e2) ->
             let e1 = check_comp ienv env e1 (Pretype.unit) in
             let e2, e2_ty = synth e2 in

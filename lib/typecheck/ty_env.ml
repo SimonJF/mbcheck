@@ -97,6 +97,32 @@ let join : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t =
                               pattern = Some pat;
                               quasilinearity = ql
                           }, constrs
+                | List (Mailbox { capability = cap1; interface = iface1; pattern =
+                    Some pat1; quasilinearity = ql1 }),
+                  List (Mailbox { capability = cap2; interface = iface2; pattern =
+                      Some pat2; quasilinearity = ql2 }) ->
+                      (* We can only join variables with the same interface
+                         name. If these match, we can join the types. *)
+                      if iface1 <> iface2 then
+                          Gripers.env_interface_mismatch true
+                            t1 t2 var iface1 iface2
+                      else
+                          (* Check sequencing of QL *)
+                          let ql =
+                              match Quasilinearity.sequence ql1 ql2 with
+                                | Some ql -> ql
+                                | None ->
+                                    Gripers.invalid_ql_sequencing var
+                          in
+                          let ((cap, pat), constrs) =
+                              join_mailbox_types var
+                                (cap1, pat1) (cap2, pat2) in
+                          Mailbox {
+                              capability = cap;
+                              interface = iface1;
+                              pattern = Some pat;
+                              quasilinearity = ql
+                          }, constrs
                 | _, _ ->
                     Gripers.type_mismatch true t1 t2 var [pos]
         in
@@ -226,6 +252,25 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
                               (* Must take strongest QL across all branches. *)
                               quasilinearity = Quasilinearity.max ql1 ql2
                           }, constrs
+                | List (Mailbox { capability = cap1; interface = iface1; pattern =
+                    Some pat1; quasilinearity = ql1 }),
+                  List (Mailbox { capability = cap2; interface = iface2; pattern =
+                      Some pat2; quasilinearity = ql2 }) ->
+                      (* As before -- interface names must be the same*)
+                      if iface1 <> iface2 then
+                          Gripers.env_interface_mismatch
+                            false t1 t2 var iface1 iface2
+                      else
+                          let ((cap, pat), constrs) =
+                              intersect_mailbox_types var
+                                (cap1, pat1) (cap2, pat2) in
+                          Mailbox {
+                              capability = cap;
+                              interface = iface1;
+                              pattern = Some pat;
+                              (* Must take strongest QL across all branches. *)
+                              quasilinearity = Quasilinearity.max ql1 ql2
+                          }, constrs
                 | _, _ ->
                     Gripers.type_mismatch false t1 t2 var [pos]
         in
@@ -313,4 +358,3 @@ let make_unrestricted env pos =
     List.fold_left (fun acc (_, ty) ->
         Constraint_set.union acc (make_unrestricted ty pos)
     ) Constraint_set.empty (bindings env)
-
