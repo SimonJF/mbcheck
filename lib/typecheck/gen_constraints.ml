@@ -472,8 +472,8 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
             (* Calculate merge of the branches (sans binders) *)
             let isect_env, isect_constrs =
                 Ty_env.intersect
-                    (Ty_env.delete var1 comp1_env)
-                    (Ty_env.delete var2 comp2_env)
+                  comp1_env
+                  (Ty_env.delete var1 (Ty_env.delete var2 comp2_env))
             in
             (* Finally join the term env with the intersected env *)
             let env, env_constrs =
@@ -913,7 +913,11 @@ let check_decls ienv decls =
     (* List of allowed free names: all declaration names. Primitive names won't
      get added into the environment at all. *)
     let allowed_free_names =
+<<<<<<< HEAD
         List.map (fun d -> Var.of_binder d.decl_name) decl_nodes
+=======
+        List.map (fun d -> Var.of_binder d.decl_name) decls
+>>>>>>> e081ef2 (fix free variable not being deleted)
     in
     let decl_env =
         let decl_entry d =
