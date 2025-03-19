@@ -139,11 +139,11 @@ and transform_expr :
         | Tuple es ->
             transform_exprs env es (fun _ vs ->
                 with_same_pos (Ir.Return (with_same_pos (Ir.Tuple vs))) |> k env)
-        | Nil -> Ir.Return (Ir.Nil) |> k env
+        | Nil -> with_same_pos (Ir.Return (with_same_pos (Ir.Nil))) |> k env
         | Cons (e1, e2) ->
             transform_subterm env e1 (fun _ v1 ->
             transform_subterm env e2 (fun _ v2 ->
-                Ir.Return (Ir.Cons (v1, v2)) |> k env))
+                with_same_pos (Ir.Return (with_same_pos (Ir.Cons (v1, v2)))) |> k env))
         | LetTuple {binders = bs; term; cont; _ } ->
             (* let x = M in N*)
             (* Create IR variables based on the binders *)

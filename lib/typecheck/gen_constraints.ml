@@ -197,7 +197,7 @@ and check_val :
             begin
                 match ty with
                     | Type.List _ -> Ty_env.empty, Constraint_set.empty
-                    | _ -> Gripers.expected_list_type ty
+                    | _ -> Gripers.expected_list_type ty [pos]
             end
         | Cons (v1, v2) ->
             begin
@@ -205,9 +205,9 @@ and check_val :
                     | Type.List t ->
                         let (env1, constrs1) = check_val ienv decl_env v1 t in
                         let (env2, constrs2) = check_val ienv decl_env v2 ty in
-                        let env, constrs3 = Ty_env.combine ienv env1 env2 in
+                        let env, constrs3 = Ty_env.combine ienv env1 env2 pos in
                         env, Constraint_set.union_many [constrs1; constrs2; constrs3]
-                    | _ -> Gripers.expected_sum_type ty
+                    | _ -> Gripers.expected_list_type ty [pos]
             end
         | Tuple vs ->
             let ts =
@@ -467,17 +467,17 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
             (* Check both branches, and check that inferred types match annotations *)
             let (comp1_env, comp1_constrs) = chk comp1 ty in
             let (comp2_env, comp2_constrs) = chk comp2 ty in
-            let env1_constrs = Ty_env.check_type ienv var1 ty1 comp1_env in
-            let env2_constrs = Ty_env.check_type ienv var2 ty2 comp2_env in
+            let env1_constrs = Ty_env.check_type ienv var1 ty1 comp1_env pos in
+            let env2_constrs = Ty_env.check_type ienv var2 ty2 comp2_env pos in
             (* Calculate merge of the branches (sans binders) *)
             let isect_env, isect_constrs =
                 Ty_env.intersect
                   comp1_env
-                  (Ty_env.delete var1 (Ty_env.delete var2 comp2_env))
+                  (Ty_env.delete var1 (Ty_env.delete var2 comp2_env)) pos
             in
             (* Finally join the term env with the intersected env *)
             let env, env_constrs =
-                Ty_env.join ienv term_env isect_env
+                Ty_env.join ienv term_env isect_env pos
             in
             let constrs =
                 Constraint_set.union_many
@@ -913,11 +913,7 @@ let check_decls ienv decls =
     (* List of allowed free names: all declaration names. Primitive names won't
      get added into the environment at all. *)
     let allowed_free_names =
-<<<<<<< HEAD
         List.map (fun d -> Var.of_binder d.decl_name) decl_nodes
-=======
-        List.map (fun d -> Var.of_binder d.decl_name) decls
->>>>>>> e081ef2 (fix free variable not being deleted)
     in
     let decl_env =
         let decl_entry d =

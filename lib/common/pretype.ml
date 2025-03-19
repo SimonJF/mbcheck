@@ -14,12 +14,8 @@ type t =
     | PFun of { linear: bool; args: (Type.t[@name "ty"]) list; result: t[@name "pretype"] }
     | PInterface of string
     | PSum of (t * t)
-<<<<<<< HEAD
     | PTuple of t list
-=======
-    | PPair of (t * t)
     | PList of t
->>>>>>> f735eea (wip: add lists)
     [@@name "pretype"]
     [@@deriving visitors { variety = "map" }]
 and base = [%import: Common_types.Base.t]
