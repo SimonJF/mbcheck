@@ -269,6 +269,7 @@ ty:
     | parenthesised_datatypes LOLLI simple_ty       { Type.Fun { linear = true;  args = $1; result = $3} }
     | LEFT_PAREN simple_ty PLUS simple_ty RIGHT_PAREN { Type.make_sum_type $2 $4 }
     | tuple_annotation { Type.make_tuple_type $1 }
+    | LEFT_BRACK simple_ty RIGHT_BRACK { Type.make_list_type $2 }
     | simple_ty { $1 }
 
 interface_name:
@@ -330,7 +331,6 @@ mailbox_ty:
 simple_ty:
     | mailbox_ty { $1 }
     | base_ty { $1 }
-    | LEFT_BRACK simple_ty RIGHT_BRACK { Type.make_list_type $2 }
 
 base_ty:
     | CONSTRUCTOR {
