@@ -14,7 +14,12 @@ type t =
     | PFun of { linear: bool; args: (Type.t[@name "ty"]) list; result: t[@name "pretype"] }
     | PInterface of string
     | PSum of (t * t)
+<<<<<<< HEAD
     | PTuple of t list
+=======
+    | PPair of (t * t)
+    | PList of t
+>>>>>>> f735eea (wip: add lists)
     [@@name "pretype"]
     [@@deriving visitors { variety = "map" }]
 and base = [%import: Common_types.Base.t]
@@ -40,6 +45,9 @@ let rec pp ppf =
         fprintf ppf "(%a + %a)"
             pp t1
             pp t2
+    | PList t ->
+        Format.fprintf ppf "[%a]"
+            pp t
     | PInterface name -> ps name
 
 let show t =
@@ -53,6 +61,7 @@ let rec of_type = function
         PFun { linear; args; result = of_type result }
     | Type.Tuple ts -> PTuple (List.map of_type ts)
     | Type.Sum (t1, t2) -> PSum (of_type t1, of_type t2)
+    | Type.List t -> PList (of_type t)
     | Type.Mailbox { interface; _ } -> PInterface interface
 
 (* As long as a pretype isn't a mailbox type, and isn't a function
@@ -79,5 +88,11 @@ let rec to_type = function
             match to_type t1, to_type t2 with
                 | Some ty1, Some ty2 -> Some (Type.Sum (ty1, ty2))
                 | _, _ -> None
+        end
+    | PList t ->
+        begin
+        match to_type t with
+            | Some t -> Some (Type.List t)
+            | _ -> None
         end
     | PInterface _ -> None

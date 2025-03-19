@@ -253,6 +253,7 @@ type t =
     | Fun of { linear: bool; args: t list; result: t }
     | Tuple of t list
     | Sum of (t * t)
+    | List of t
     | Mailbox of {
         capability: (Capability.t [@name "capability"]);
         interface: string;
@@ -288,6 +289,7 @@ let rec contains_mailbox_type = function
     | Mailbox _ -> true
     | Sum (t1, t2) -> contains_mailbox_type t1 || contains_mailbox_type t2
     | Tuple ts -> List.exists contains_mailbox_type ts
+    | List t -> contains_mailbox_type t
     | _ -> false
 
 (* Easy constructors *)
@@ -325,6 +327,9 @@ let rec pp ppf =
         fprintf ppf "(%a + %a)"
             pp t1
             pp t2
+    | List t ->
+        fprintf ppf "[%a]"
+            pp t
     | Mailbox { capability; interface; pattern; quasilinearity } ->
         let ql =
             match quasilinearity with
@@ -358,6 +363,7 @@ let rec is_lin = function
     | Mailbox { capability = Out; pattern = Some One; _ } -> false
     | Tuple ts -> List.exists is_lin ts
     | Sum (t1, t2) -> is_lin t1 || is_lin t2
+    | List t -> is_lin t
     (* ...but otherwise a mailbox type must be used linearly. *)
     | Mailbox _ -> true
 
@@ -377,6 +383,10 @@ let is_sum = function
     | Sum _ -> true
     | _ -> false
 
+let is_list = function
+  | List _ -> true
+  | _ -> false
+
 let get_pattern = function
     | Mailbox { pattern = Some pat; _ } -> pat
     | _ -> raise (Errors.internal_error "type.ml" "attempted to get pattern of non-mailbox type")
@@ -394,12 +404,14 @@ let rec make_usable = function
     | Mailbox m -> Mailbox { m with quasilinearity = Quasilinearity.Usable }
     | Tuple ts -> Tuple (List.map make_usable ts)
     | Sum (t1, t2) -> Sum (make_usable t1, make_usable t2)
+    | List t -> List (make_usable t)
     | t -> t
 
 let rec make_returnable = function
     | Mailbox m -> Mailbox { m with quasilinearity = Quasilinearity.Returnable }
-    | Tuple ts -> Tuple (List.map make_returnable ts) 
+    | Tuple ts -> Tuple (List.map make_returnable ts)
     | Sum (t1, t2) -> Sum (make_returnable t1, make_returnable t2)
+    | List t -> List (make_returnable t)
     | t -> t
 
 let is_unr = is_lin >> not
@@ -409,6 +421,7 @@ let rec is_returnable = function
         ql = Quasilinearity.Returnable
     | Tuple ts -> List.for_all is_returnable ts
     | Sum  (t1, t2) -> is_returnable t1 && is_returnable t2
+    | List t -> is_returnable t
     | _ -> true
 
 let make_function_type linear args result =
@@ -420,3 +433,5 @@ let make_tuple_type tys =
 let make_sum_type ty1 ty2 =
     Sum (make_returnable ty1, make_returnable ty2)
 
+let make_list_type ty1 =
+    List (make_returnable ty1)

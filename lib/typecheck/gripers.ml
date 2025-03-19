@@ -142,7 +142,7 @@ let unused_parameter v fn_name ty pos_list =
             v fn_name Type.pp ty
     in
     raise (constraint_gen_error ~subsystem:(Errors.GenCheckDecls) msg pos_list )
-   
+
 
 let subtype_linearity_mismatch t1 t2 pos_list =
     let msg =
@@ -274,6 +274,14 @@ let expected_sum_type instead pos_list =
     in
     raise (constraint_gen_error ~subsystem:Errors.GenCheck msg pos_list)
 
+let expected_list_type instead pos_list =
+    let msg =
+        Format.asprintf
+            "Expected a list type, but got %a."
+            Type.pp instead
+    in
+    raise (constraint_gen_error ~subsystem:Errors.GenCheck msg pos_list)
+
 
 let invalid_ql_sequencing var pos_list =
     let msg =
@@ -303,7 +311,7 @@ let let_not_returnable ty pos_list =
             "The subject of a let-binding must be returnable. However, type %a is only usable."
             Type.pp ty
     in
-    raise (constraint_gen_error ~subsystem:Errors.GenCheck msg pos_list) 
+    raise (constraint_gen_error ~subsystem:Errors.GenCheck msg pos_list)
 
 let duplicate_interface_receive_env var iface pos_list =
     let msg =
@@ -322,5 +330,3 @@ let pretype_consistency ty pty pos_list =
             Pretype.pp pty
     in
     raise (constraint_gen_error ~subsystem:Errors.GenCheck msg pos_list)
-
-

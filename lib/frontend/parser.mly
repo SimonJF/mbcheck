@@ -16,7 +16,7 @@ module ParserPosition
     (* parser position produced by Menhir *)
     type t = Lexpos.t * Lexpos.t
     (* Convert position produced by a parser to SourceCode position *)
-    let pos (start, finish) = 
+    let pos (start, finish) =
         let code = get_instance () in
         Position.make ~start ~finish ~code:code
     (* Wrapper around SourceCode.WithPos.make.  Accepts parser positions. *)
@@ -93,6 +93,9 @@ These will be added in later
 %token AND
 %token OR
 %token CASE
+%token CASEL
+%token NIL
+%token CONS
 %token OF
 %token INL
 %token INR
@@ -125,6 +128,12 @@ inl_branch:
 inr_branch:
     | INR LEFT_PAREN VARIABLE RIGHT_PAREN type_annot RIGHTARROW expr { (($3, $5), $7) }
 
+nil_branch:
+    | NIL type_annot RIGHTARROW expr { ($2, $4) }
+
+cons_branch:
+    | LEFT_PAREN VARIABLE CONS VARIABLE RIGHT_PAREN type_annot RIGHTARROW expr { ((($2, $4), $6), $8) }
+
 expr:
     (* Let *)
     | LET VARIABLE type_annot? EQ expr IN expr
@@ -152,6 +161,8 @@ basic_expr:
     | INR LEFT_PAREN expr RIGHT_PAREN { with_pos_from_positions $startpos $endpos ( Inr $3 )}
     | CASE expr OF LEFT_BRACE inl_branch PIPE inr_branch RIGHT_BRACE
         { with_pos_from_positions $startpos $endpos ( Case { term = $2; branch1 = $5; branch2 = $7} )}
+    | CASEL expr OF LEFT_BRACE nil_branch PIPE cons_branch RIGHT_BRACE
+        { with_pos_from_positions $startpos $endpos ( CaseL { term = $2; nil = $5; cons = $7} )}
     (* New *)
     | NEW LEFT_BRACK interface_name RIGHT_BRACK { with_pos_from_positions $startpos $endpos ( New $3 )}
     (* Spawn *)
@@ -161,21 +172,24 @@ basic_expr:
     (* Sugared Fail forms *)
     | FAIL LEFT_PAREN expr RIGHT_PAREN LEFT_BRACK ty RIGHT_BRACK { with_pos_from_positions $startpos $endpos ( SugarFail ($3, $6))}
     | tuple_exprs { with_pos_from_positions $startpos $endpos ( Tuple $1 ) }
+    | NIL { with_pos_from_positions $startpos $endpos ( Nil ) }
+    | LEFT_PAREN expr CONS expr RIGHT_PAREN { with_pos_from_positions $startpos $endpos ( Cons ($2, $4) ) }
+    (* | LEFT_BRACK expr RIGHT_BRACK { Cons ($2, Nil) } *)
     (* App *)
     | fact LEFT_PAREN expr_list RIGHT_PAREN
         { with_pos_from_positions $startpos $endpos (
             App {   func = with_pos_from_positions $startpos $endpos ($1);
-                    args = $3 } 
+                    args = $3 }
         )}
     (* Lam *)
     | linearity LEFT_PAREN annotated_var_list RIGHT_PAREN COLON ty LEFT_BRACE expr RIGHT_BRACE
         { with_pos_from_positions $startpos $endpos ( Lam { linear = $1; parameters = $3; result_type = $6; body = $8 } )}
     (* Send *)
-    | fact BANG message 
-        { with_pos_from_positions $startpos $endpos( 
-            Send {  target = with_pos_from_positions $startpos $endpos ($1); 
-                    message = $3; 
-                    iname = None 
+    | fact BANG message
+        { with_pos_from_positions $startpos $endpos(
+            Send {  target = with_pos_from_positions $startpos $endpos ($1);
+                    message = $3;
+                    iname = None
             }
         )}
     (* If-Then-Else *)
@@ -275,7 +289,7 @@ simple_pat:
             match $1 with
                 | 0 -> Type.Pattern.Zero
                 | 1 -> Type.Pattern.One
-                | _ -> raise (parse_error "Invalid pattern: expected 0 or 1." 
+                | _ -> raise (parse_error "Invalid pattern: expected 0 or 1."
                                 [Position.make ~start:$startpos ~finish:$endpos ~code:!source_code_instance])
         }
     | LEFT_PAREN pat RIGHT_PAREN { $2 }
@@ -285,7 +299,7 @@ ql:
         match $2 with
             | "R" -> Type.Quasilinearity.Returnable
             | "U" -> Type.Quasilinearity.Usable
-            | _ -> raise (parse_error "Invalid usage: expected U or R." 
+            | _ -> raise (parse_error "Invalid usage: expected U or R."
                             [Position.make ~start:$startpos ~finish:$endpos ~code:!source_code_instance])
     }
 
@@ -316,6 +330,7 @@ mailbox_ty:
 simple_ty:
     | mailbox_ty { $1 }
     | base_ty { $1 }
+    | LEFT_BRACK simple_ty RIGHT_BRACK { Type.make_list_type $2 }
 
 base_ty:
     | CONSTRUCTOR {
@@ -342,13 +357,13 @@ annotated_var_list:
     | separated_list(COMMA, annotated_var)  { $1 }
 
 interface:
-    | INTERFACE interface_name LEFT_BRACE message_list RIGHT_BRACE 
+    | INTERFACE interface_name LEFT_BRACE message_list RIGHT_BRACE
         { with_pos_from_positions $startpos $endpos ( Interface.make $2 $4)  }
 
 decl:
     | DEF VARIABLE LEFT_PAREN annotated_var_list RIGHT_PAREN COLON ty LEFT_BRACE expr
     RIGHT_BRACE {
-        with_pos_from_positions $startpos $endpos ( 
+        with_pos_from_positions $startpos $endpos (
         {
           decl_name = $2;
           decl_parameters = $4;
