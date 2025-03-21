@@ -1,12 +1,11 @@
 ### Adapted from Savina/cigsmok.
 ###
 ### A benchmark modelling n smokers and one arbiter that decides which smoker to
-### allow to smoke. The benchmark is parameterized by the number of smoker 
-### processes. Since the array type is not available in Pat, we fix the number 
-### of account processes to 3.
+### allow to smoke. The benchmark is parameterized by the number of smoker
+### processes.
 
 interface ArbiterMb {
-  Start(),
+  Start(Int),
   StartedSmoking()
 }
 
@@ -15,78 +14,96 @@ interface SmokerMb {
   Exit()
 }
 
+def create_smokers(self: ArbiterMb?, moreSmokers: Int, acc: [SmokerMb!]): (ArbiterMb? * [SmokerMb!]) {
+    if (moreSmokers == 0) {
+        (self, acc)
+    }
+    else {
+        let newSmoker = new [SmokerMb] in
+            spawn { smoker(newSmoker, self) };
+            create_smokers(self, moreSmokers - 1, (newSmoker cons acc))
+        }
+}
+
 ## Arbiter process handling the creation of smokers and launching of main loop.
 def arbiter(self: ArbiterMb?, numRounds: Int): Unit {
 
-  let smokerMb1 = new [SmokerMb] in
-  spawn { smoker(smokerMb1, self) };
-
-  let smokerMb2 = new [SmokerMb] in
-  spawn { smoker(smokerMb2, self) };
-
-  let smokerMb3 = new [SmokerMb] in
-  spawn { smoker(smokerMb3, self) };
-
   guard self: Start . (*StartedSmoking) {
-    receive Start() from self ->
-      
-      notify_smoker(smokerMb1, smokerMb2, smokerMb3);
-      arbiter_loop(self, numRounds, smokerMb1, smokerMb2, smokerMb3)
+    receive Start(numSmokers) from self ->
+
+       let (self, smokerMbs) = create_smokers(self, numSmokers, (nil : [SmokerMb!])) in
+
+        let smokerMbs = notify_smoker(numSmokers, smokerMbs) in
+        arbiter_loop(self, numSmokers, numRounds, smokerMbs)
   }
 }
 
 ## Randomly chooses the smoker and requests it to smoke.
-def notify_smoker(smokerMb1: SmokerMb!, smokerMb2: SmokerMb!, smokerMb3: SmokerMb!): Unit {
+def notify_smoker(numSmokers: Int, smokerMbs: [SmokerMb!]): [SmokerMb!] {
 
-  let smokerId = rand(2) in
+  let smokerId = rand(numSmokers - 1) in
   let sleepTimeMs = 1000 in
 
-  if (smokerId == 0) {
-    smokerMb1 ! StartSmoking(rand(sleepTimeMs))
-  }
-  else {
-    if (smokerId == 1) {
-      smokerMb2 ! StartSmoking(rand(sleepTimeMs))
+  notify_aux(smokerId, sleepTimeMs, smokerMbs)
+}
+
+def notify_aux(choice: Int, time: Int, smokerMbs: [SmokerMb!]): [SmokerMb!] {
+if (choice == 0) {
+    caseL smokerMbs of {
+        nil : [SmokerMb!] -> smokerMbs
+        | (mb cons mbs) : [SmokerMb!] ->
+            mb ! StartSmoking(rand(time));
+            smokerMbs
     }
-    else {
-      smokerMb3 ! StartSmoking(rand(sleepTimeMs))
+}
+else {
+    caseL smokerMbs of {
+        nil : [SmokerMb!] -> smokerMbs
+        | (mb cons mbs) : [SmokerMb!] ->
+            let smokerMbs = notify_aux(choice - 1, time, mbs) in
+            smokerMbs
     }
-  }
+}
 }
 
 ## Notifies all smokers to terminate.
-def notify_smoker_exit(smokerMb1: SmokerMb!, smokerMb2: SmokerMb!, smokerMb3: SmokerMb!): Unit {
-  smokerMb1 ! Exit();
-  smokerMb2 ! Exit();
-  smokerMb3 ! Exit()
+def notify_smoker_exit(smokerMbs: [SmokerMb!]): [SmokerMb!] {
+    caseL smokerMbs of {
+        nil : [SmokerMb!] -> smokerMbs
+        | (mb cons mbs) : [SmokerMb!] ->
+            mb ! Exit();
+            notify_smoker_exit(mbs)
+        }
 }
 
-## Arbiter process main loop issuing start smoking requests and handling started 
+## Arbiter process main loop issuing start smoking requests and handling started
 ## smoking replies.
-def arbiter_loop(self: ArbiterMb?, numRounds:Int, smokerMb1: SmokerMb!, smokerMb2: SmokerMb!, smokerMb3: SmokerMb!): Unit {
+def arbiter_loop(self: ArbiterMb?, numSmokers: Int, numRounds: Int, smokerMbs: [SmokerMb!]): Unit {
   guard self: *StartedSmoking {
-    free -> 
+    free ->
       ()
     receive StartedSmoking() from self ->
-      
-      # The if here introduces the internal choice, which means that on the 
+
+      # The if here introduces the internal choice, which means that on the
       # receiver side I might or might not receive the message. In this case,
       # the smoker might or might nor receive the Exit message, and must either
       # use (Exit + 1) or (*Exit) in its pattern.
-      
+
       if (numRounds <= 0) {
-        notify_smoker_exit(smokerMb1, smokerMb2, smokerMb3)
+        let smokerMbs = notify_smoker_exit(smokerMbs) in
+            arbiter_loop(self, numSmokers, numRounds - 1, smokerMbs)
       }
       else {
-        notify_smoker(smokerMb1, smokerMb2, smokerMb3)
-      };
+        let smokerMbs = notify_smoker(numSmokers, smokerMbs) in
+            arbiter_loop(self, numSmokers, numRounds - 1, smokerMbs)
+      }
 
-      # Arbiter needs to service all requests before, even if it has sent the 
+      # Arbiter needs to service all requests before, even if it has sent the
       # Exit messages to smokers. Remember that smokers may still be processing
       # StartSmoking messages, but the arbiter has already issued Exit messages
-      # and it still needs to await all the StartedSmoking replies before 
-      # terminating. This is why we do not have an exit_arbiter flush function. 
-      arbiter_loop(self, numRounds - 1, smokerMb1, smokerMb2, smokerMb3)
+      # and it still needs to await all the StartedSmoking replies before
+      # terminating. This is why we do not have an exit_arbiter flush function.
+
   }
 }
 
@@ -95,7 +112,7 @@ def arbiter_loop(self: ArbiterMb?, numRounds:Int, smokerMb1: SmokerMb!, smokerMb
 def smoker(self: SmokerMb?, arbiterMb: ArbiterMb!): Unit {
   # Smoker may be asked to smoke more than once, or none. This is why the *.
   guard self: (*StartSmoking) . (*Exit) {
-    free -> 
+    free ->
       () # Since the smoker might not even receive an Exit/StartSmoking message due to the if condition above.
     receive StartSmoking(ms) from self ->
       arbiterMb ! StartedSmoking();
@@ -118,12 +135,12 @@ def smoker_exit(self: SmokerMb?): Unit {
 }
 
 ## Launcher.
-def main(): Unit {
-  
+def main(numSmokers : Int): Unit {
+
   let arbiterMb = new [ArbiterMb] in
   spawn { arbiter(arbiterMb, 10) };
 
-  arbiterMb ! Start()
+  arbiterMb ! Start(numSmokers)
 }
 
-main()
+main(5)
