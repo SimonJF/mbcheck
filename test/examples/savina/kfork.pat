@@ -43,12 +43,11 @@ def flood(numMessages: Int, actorMb: ActorMb!): Unit {
 def spawnActors(numActors: Int, acc: [ActorMb!]): [ActorMb!] {
     if (numActors <= 0) {
         acc
+    } else {
+        let newActor = new[ActorMb] in
+        spawn { actor(newActor) };
+        spawnActors(numActors - 1, (newActor cons acc))
     }
-    else {
-        let newActor = new [ActorMb] in
-            spawn { actor(newActor) };
-            spawnActors(numActors - 1, (newActor cons acc))
-        }
 }
 
 def floodActors(numMessages: Int, actorMbs: [ActorMb!]): Unit {

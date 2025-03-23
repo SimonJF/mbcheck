@@ -223,7 +223,7 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
                 | _, _ ->
                     Gripers.inconsistent_branch_capabilities var [pos]
         in
-        let intersect_types var (t1: Type.t) (t2: Type.t) : (Type.t * Constraint_set.t) =
+        let rec intersect_types var (t1: Type.t) (t2: Type.t) : (Type.t * Constraint_set.t) =
             match t1, t2 with
                 | Base b1, Base b2 when b1 = b2 ->
                     (Base b1, Constraint_set.empty)
@@ -252,25 +252,9 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
                               (* Must take strongest QL across all branches. *)
                               quasilinearity = Quasilinearity.max ql1 ql2
                           }, constrs
-                | List (Mailbox { capability = cap1; interface = iface1; pattern =
-                    Some pat1; quasilinearity = ql1 }),
-                  List (Mailbox { capability = cap2; interface = iface2; pattern =
-                      Some pat2; quasilinearity = ql2 }) ->
-                      (* As before -- interface names must be the same*)
-                      if iface1 <> iface2 then
-                          Gripers.env_interface_mismatch
-                            false t1 t2 var iface1 iface2 [pos]
-                      else
-                          let ((cap, pat), constrs) =
-                              intersect_mailbox_types var
-                                (cap1, pat1) (cap2, pat2) in
-                          Mailbox {
-                              capability = cap;
-                              interface = iface1;
-                              pattern = Some pat;
-                              (* Must take strongest QL across all branches. *)
-                              quasilinearity = Quasilinearity.max ql1 ql2
-                          }, constrs
+                | List t1, List t2 ->
+                    let ty, constrs = intersect_types var t1 t2 in
+                    List ty, constrs
                 | _, _ ->
                     Gripers.type_mismatch false t1 t2 var [pos]
         in

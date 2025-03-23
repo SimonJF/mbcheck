@@ -8,13 +8,11 @@ open Common.Source_code
    unrestricted. Output mailbox types cannot be made unrestricted. Input mailbox
    types are unrestricted if they are equivalent to 1.
  *)
-let make_unrestricted t pos =
+let rec make_unrestricted t pos =
     let open Type in
     match t with
         (* Trivially unrestricted *)
         | Base _
-        | Tuple []
-        | List _
         | Fun { linear = false; _ } -> Constraint_set.empty
         (* Must be unrestricted *)
         | Fun { linear = true; _ }
@@ -24,6 +22,11 @@ let make_unrestricted t pos =
         | Mailbox { capability = Capability.Out; pattern = Some pat; _ } ->
                 Constraint_set.of_list
                     [Constraint.make (Pattern.One) pat]
+        | Tuple tys ->
+            Constraint_set.union_many
+                (List.map (fun t -> make_unrestricted t pos) tys)
+        | List ty ->
+            make_unrestricted ty pos
         | _ -> assert false
 
 (* Auxiliary definitions*)

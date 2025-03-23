@@ -151,7 +151,7 @@ let rec synthesise_val ienv env value : (value * Pretype.t) =
             wrap (Tuple vs), Pretype.PTuple tys
         | Cons (v1, v2) ->
             let (v1, ty1) = synthesise_val ienv env v1 in
-            let (v2, _) = synthesise_val ienv env v2 in
+            let v2 = check_val ienv env v2 (Pretype.PList ty1) in
             wrap (Cons (v1, v2)), Pretype.PList ty1
         | Lam { linear; parameters; result_type; body } ->
             (* Defer linearity checking to constraint generation. *)

@@ -459,30 +459,41 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
             in
             (env, constrs)
         | CaseL { term; nil = (ty1, comp1); cons = (((bnd1, bnd2), ty2), comp2) } ->
+            (* Check that scrutinee has annotated list type *)
             let (term_env, term_constrs) =
                 check_val ienv decl_env term ty1
             in
+            (* Next, check that comp1 (nil case) has expected return type *)
+            let (comp1_env, comp1_constrs) = chk comp1 ty in
+            (* Next, check that comp2 (cons case) has expected return type *)
+            let (comp2_env, comp2_constrs) = chk comp2 ty in
+            (* Next, check that the inferred types in comp2_env match annotations *)
             let var1 = Var.of_binder bnd1 in
             let var2 = Var.of_binder bnd2 in
-            (* Check both branches, and check that inferred types match annotations *)
-            let (comp1_env, comp1_constrs) = chk comp1 ty in
-            let (comp2_env, comp2_constrs) = chk comp2 ty in
-            let env1_constrs = Ty_env.check_type ienv var1 ty1 comp1_env pos in
-            let env2_constrs = Ty_env.check_type ienv var2 ty2 comp2_env pos in
+            let elem_ty =
+                match ty1 with
+                    | Type.List elem_ty -> elem_ty
+                    | _ -> Gripers.expected_list_type ty1 [pos]
+            in
+            let env_constrs = 
+                Constraint_set.union
+                    (Ty_env.check_type ienv var1 elem_ty comp2_env pos)
+                    (Ty_env.check_type ienv var2 ty2 comp2_env pos)
+            in
             (* Calculate merge of the branches (sans binders) *)
             let isect_env, isect_constrs =
                 Ty_env.intersect
                   comp1_env
-                  (Ty_env.delete var1 (Ty_env.delete var2 comp2_env)) pos
+                  (Ty_env.delete_many [var1; var2] comp2_env) pos
             in
-            (* Finally join the term env with the intersected env *)
-            let env, env_constrs =
-                Ty_env.join ienv term_env isect_env pos
+            (* Finally combine the term env with the intersected env *)
+            let env, combine_constrs =
+                Ty_env.combine ienv term_env isect_env pos
             in
             let constrs =
                 Constraint_set.union_many
-                    [ comp1_constrs; comp2_constrs; env1_constrs;
-                      env2_constrs; isect_constrs; env_constrs; term_constrs ]
+                    [ comp1_constrs; comp2_constrs; env_constrs;
+                      combine_constrs; isect_constrs; term_constrs ]
             in
             (env, constrs)
         | Seq (e1, e2) ->
@@ -943,7 +954,8 @@ let check_decls ienv decls =
        arguments removed), along with generated constraints. *)
     let check_decl d pos =
         let (env, body_constrs) =
-            check_comp ienv decl_env d.decl_body d.decl_return_type in
+            check_comp ienv decl_env d.decl_body d.decl_return_type
+        in
         (* Check arguments; remove from environment *)
         let (env, arg_constrs) =
             (* Each inferred argument type should be a subtype of the
