@@ -268,22 +268,24 @@ and synthesise_comp ienv env comp =
             let cont, cont_ty = synthesise_comp ienv env' cont in
             WithPos.make ~pos
                 (LetTuple { binders; tuple; cont }), cont_ty
-        | CaseL { term; nil = (ty1, e1); cons = (((bnd1, bnd2), ty2), e2) } ->
+        | CaseL { term = scrutinee; nil = (ty1, e1); cons = (((bnd1, bnd2), ty2), e2) } ->
             let prety1 = Pretype.of_type ty1 in
             let prety2 = Pretype.of_type ty2 in
-            let term =
-              check_val ienv env term prety2
+            let scrutinee =
+              check_val ienv env scrutinee prety2
             in
             let ty3 = match prety1 with
               | Pretype.PList ty3 -> ty3
               | _ -> raise (Gripers.type_mismatch_with_expected pos "a list type" prety1)
             in
             let b1_env = PretypeEnv.bind (Var.of_binder bnd1) ty3 env in
-            let b2_env = PretypeEnv.bind (Var.of_binder bnd2) prety1 b1_env in
+            let b2_env = PretypeEnv.bind (Var.of_binder bnd2) prety2 b1_env in
             let e2, b2_ty = synthesise_comp ienv b2_env e2 in
             let e1 = check_comp ienv b2_env e1 b2_ty in
             WithPos.make ~pos
-              (CaseL { term; nil = (ty1, e1); cons = (((bnd1, bnd2), ty2), e2) }), b2_ty
+              (CaseL { scrutinee;
+                       nil = (ty1, e1);
+                       cons = (((bnd1, bnd2), ty2), e2) }), b2_ty
         | Seq (e1, e2) ->
             let e1 = check_comp ienv env e1 (Pretype.unit) in
             let e2, e2_ty = synth e2 in
