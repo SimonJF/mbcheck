@@ -3,8 +3,7 @@
 ### A benchmark that implements a many-to-many message passing scenario. Several
 ### processes are spawned, each of which sends a ping message to the others, and
 ### responds with a pong message to any ping message it receives. The benchmark
-### is parameterized by the number of processes. Since the array type is not
-### available in Pat, we fix the number of processes to 3.
+### is parameterized by the number of processes.
 
 interface ActorMb {
   Ping(Int),
@@ -18,7 +17,7 @@ interface ExitMb {
 
 interface SinkMb {
   Done(),
-  Actors(ExitMb!, ExitMb!, ExitMb!)
+  Actors([ExitMb!])
 }
 
 ## Actor process handling the launching of main loop.
@@ -29,7 +28,7 @@ def actor(self: ActorMb?, exitMb : ExitMb?, id: Int, sinkMb: SinkMb!): Unit {
   }
 }
 
-## Blocks actor process and awaits termination message.
+## Blocks actor process and awaits termination message.
 def await_exit(exitMb: ExitMb?): Unit {
     guard exitMb : Exit {
         receive Exit() from exitMb ->
@@ -37,8 +36,8 @@ def await_exit(exitMb: ExitMb?): Unit {
     }
 }
 
-## Actor process main loop issuing ping requests and handling pong replies.
-def actor_loop(self: ActorMb?, exitMb: ExitMb?, id:Int, sinkMb: SinkMb!, numPings: Int, actorMb1: ActorMb!, actorMb2: ActorMb!): Unit {
+## Actor process main loop issuing ping requests and handling pong replies.
+def actor_loop(self: ActorMb?, exitMb: ExitMb?, id: Int, sinkMb: SinkMb!, numPings: Int, actorMb1: ActorMb!, actorMb2: ActorMb!): Unit {
   guard self: *(Ping + Pong) {
     free ->
       await_exit(exitMb)
@@ -59,14 +58,14 @@ def actor_loop(self: ActorMb?, exitMb: ExitMb?, id:Int, sinkMb: SinkMb!, numPing
       }
       else {
 
-        # Issue ping to random participant.
+        # Issue ping to random participant.
         send_ping(id, actorMb1, actorMb2);
         actor_loop(self, exitMb, id, sinkMb, numPings - 1, actorMb1, actorMb2)
       }
   }
 }
 
-## Actor process exit procedure that flushes potential residual messages.
+## Actor process exit procedure that flushes potential residual messages.
 def actor_exit(self: ActorMb?): Unit {
   guard self: (*Ping) . (*Pong) {
     free -> ()
@@ -77,7 +76,7 @@ def actor_exit(self: ActorMb?): Unit {
   }
 }
 
-## Replies to ping messages via a pong issued to the specified actor ID.
+## Replies to ping messages via a pong issued to the specified actor ID.
 def send_pong(id: Int, pingerId: Int, actorMb1: ActorMb!, actorMb2: ActorMb!): Unit {
 
   # We are not synchronising here, but using IDs, which loses information. This
@@ -107,27 +106,34 @@ def send_ping(id: Int, actorMb1: ActorMb!, actorMb2: ActorMb!): Unit {
 ## Sink process that coordinates actor termination.
 def sink(self: SinkMb?): Unit {
   guard self: Actors . (*Done) {
-    receive Actors(exitMb1, exitMb2, exitMb3) from self ->
-      sink_loop(self, exitMb1, exitMb2, exitMb3)
+    receive Actors(exitMbs) from self ->
+      sink_loop(self, exitMbs)
   }
 }
 
 ## Sink process main loop issuing termination messages.
-def sink_loop(self: SinkMb?, exitMb1: ExitMb!, exitMb2: ExitMb!, exitMb3: ExitMb!): Unit {
+def sink_loop(self: SinkMb?, exitMbs : [ExitMb!]): Unit {
   guard self: *Done {
     free ->
-      # Notify all actors. Placing the sends in this clause ensures that
+      # Notify all actors. Placing the sends in this clause ensures that
       # each actor is notified once.
-        exitMb1 ! Exit();
-        exitMb2 ! Exit();
-        exitMb3 ! Exit()
+      notifyExits(exitMbs)
     receive Done() from self ->
-        sink_loop(self, exitMb1, exitMb2, exitMb3)
+        sink_loop(self, exitMbs)
   }
 }
 
+def notifyExits(exitMbs : [ExitMb!]): Unit {
+    caseL exitMbs : [ExitMb!] of {
+    nil -> ()
+  | (y cons ys) ->
+        y ! Exit();
+        notifyExits(ys)
+    }
+}
 
-## Launcher.
+
+## Launcher.
 def main(): Unit {
 
   let sinkMb = new [SinkMb] in
@@ -144,7 +150,7 @@ def main(): Unit {
   spawn { actor(actorMb2, exitMb2, 2, sinkMb) };
   spawn { actor(actorMb3, exitMb3, 3, sinkMb) };
 
-  sinkMb ! Actors(exitMb1, exitMb2, exitMb3);
+  let xs = (exitMb1 cons (exitMb2 cons (exitMb3 cons (nil : [ExitMb!])))) in sinkMb ! Actors(xs);
 
   actorMb1 ! Neighbors(actorMb2, actorMb3); # actorMb1: ?Neighbors
   actorMb2 ! Neighbors(actorMb1, actorMb3); # actorMb2: ?Neighbors

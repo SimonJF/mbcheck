@@ -2,13 +2,14 @@
 ###
 ### Models the creation of n actors that are given a number of messages, for
 ### each of which, a computation is performed. The benchmark is parameterized by
-### the number of actor processes.
+### the number of actor processes. Since the array type is not available in
+### Pat, we fix the number of actor processes to 3.
 
 interface ActorMb {
   Packet()
 }
 
-## Actor processes handling the packet requests.
+## Actor processes handling the packet requests.
 def actor(self: ActorMb?): Unit {
   guard self: *Packet {
     free ->
@@ -19,7 +20,7 @@ def actor(self: ActorMb?): Unit {
   }
 }
 
-## Computes the factorial of n.
+## Computes the factorial of n.
 def fact(n: Int): Int {
   if (n <= 0) {
     1
@@ -29,7 +30,7 @@ def fact(n: Int): Int {
   }
 }
 
-## Sends the given number of messages to the specified actor mailbox.
+## Sends the given number of messages to the specified actor mailbox.
 def flood(numMessages: Int, actorMb: ActorMb!): Unit {
   if (numMessages <= 0) {
     ()
@@ -40,30 +41,21 @@ def flood(numMessages: Int, actorMb: ActorMb!): Unit {
   }
 }
 
-def spawnActors(numActors: Int, acc: [ActorMb!]): [ActorMb!] {
-    if (numActors <= 0) {
-        acc
-    } else {
-        let newActor = new[ActorMb] in
-        spawn { actor(newActor) };
-        spawnActors(numActors - 1, (newActor cons acc))
-    }
+## Launcher.
+def main(): Unit {
+
+  let actorMb1 = new [ActorMb] in
+  spawn { actor(actorMb1) };
+
+  let actorMb2 = new [ActorMb] in
+  spawn { actor(actorMb2) };
+
+  let actorMb3 = new [ActorMb] in
+  spawn { actor(actorMb3) };
+
+  flood(100, actorMb1);
+  flood(1000, actorMb1);
+  flood(10000, actorMb1)
 }
 
-def floodActors(numMessages: Int, actorMbs: [ActorMb!]): Unit {
-    caseL actorMbs of {
-        nil : [ActorMb!] -> ()
-      | (a cons as) : [ActorMb!] ->
-            flood(numMessages, a);
-            floodActors(numMessages, as)
-        }
-}
-
-## Launcher.
-def main(numActors: Int): Unit {
-
-  let actorMbs = spawnActors(numActors, (nil : [ActorMb!])) in
-    floodActors(1000, actorMbs)
-}
-
-main(3)
+main()
