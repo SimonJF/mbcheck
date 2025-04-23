@@ -175,16 +175,18 @@ and transform_expr :
                 }) |> k env)
         | CaseL {
             term;
-            nil = (ty1, comp1);
-            cons = (((bnd1, bnd2), ty2), comp2) } ->
+            ty = ty1;
+            nil = comp1;
+            cons = ((bnd1, bnd2), comp2) } ->
             transform_subterm env term (fun env v ->
                 let (ir_bnd1, env1) = add_name env bnd1 in
                 let (ir_bnd2, env2) = add_name env1 bnd2 in
                 with_same_pos (
                 Ir.CaseL {
                     term = v;
-                    nil = ty1, (transform_expr env comp1 id);
-                    cons = ((ir_bnd1, ir_bnd2), ty2), (transform_expr env2 comp2 id);
+                    ty = ty1;
+                    nil = (transform_expr env comp1 id);
+                    cons = (ir_bnd1, ir_bnd2), (transform_expr env2 comp2 id);
                 }) |> k env)
         | Seq (e1, e2) ->
             transform_expr env e1 (fun env c1 ->

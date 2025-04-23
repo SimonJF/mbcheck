@@ -99,8 +99,9 @@ and comp_node =
     }
     | CaseL of {
         term: value;
-        nil: (Type.t[@name "ty"]) * comp;
-        cons: (((Binder.t[@name "binder"]) * (Binder.t[@name "binder"])) * (Type.t[@name "ty"])) * comp
+        ty: (Type.t[@name "ty"]);
+        nil: comp;
+        cons: ((Binder.t[@name "binder"]) * (Binder.t[@name "binder"])) * comp
     }
     | New of string
     | Spawn of comp
@@ -196,17 +197,15 @@ and pp_branch name ppf ((bnd, ty), c) =
         Binder.pp bnd
         Type.pp ty
         pp_comp c
-and pp_nil name ppf (ty, c) =
-  fprintf ppf "%s([]): %a -> @[<v>%a@]"
+and pp_nil name ppf c =
+  fprintf ppf "%s([]) -> @[<v>%a@]"
     name
-    Type.pp ty
     pp_comp c
-and pp_cons name ppf (((bnd1, bnd2), ty), c) =
-    fprintf ppf "%s(%a :: %a): %a -> @[<v>%a@]"
+and pp_cons name ppf ((bnd1, bnd2), c) =
+    fprintf ppf "%s(%a :: %a) -> @[<v>%a@]"
         name
         Binder.pp bnd1
         Binder.pp bnd2
-        Type.pp ty
         pp_comp c
 (* Expressions *)
 and pp_comp ppf comp_with_pos =
@@ -261,10 +260,11 @@ and pp_comp ppf comp_with_pos =
             pp_value term
             (pp_branch "inl") branch1
             (pp_branch "inr") branch2
-    | CaseL { term; nil; cons } ->
+    | CaseL { term; ty; nil; cons } ->
         fprintf ppf
-            "caseL %a of {@[<v>@[<v>%a@]@,@[<v>%a@]@]}"
+            "caseL %a: %a of {@[<v>@[<v>%a@]@,@[<v>%a@]@]}"
             pp_value term
+            Type.pp ty
             (pp_nil "nil") nil
             (pp_cons "cons") cons
     | Guard { target; pattern; guards; _ } ->

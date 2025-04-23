@@ -458,7 +458,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                       env2_constrs; isect_constrs; env_constrs; term_constrs ]
             in
             (env, constrs)
-        | CaseL { term; nil = (ty1, comp1); cons = (((bnd1, bnd2), ty2), comp2) } ->
+        | CaseL { term; ty = ty1; nil = comp1; cons = ((bnd1, bnd2), comp2) } ->
             (* Check that scrutinee has annotated list type *)
             let (term_env, term_constrs) =
                 check_val ienv decl_env term ty1
@@ -475,10 +475,10 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                     | Type.List elem_ty -> elem_ty
                     | _ -> Gripers.expected_list_type ty1 [pos]
             in
-            let env_constrs = 
+            let env_constrs =
                 Constraint_set.union
                     (Ty_env.check_type ienv var1 elem_ty comp2_env pos)
-                    (Ty_env.check_type ienv var2 ty2 comp2_env pos)
+                    (Ty_env.check_type ienv var2 ty1 comp2_env pos)
             in
             (* Calculate merge of the branches (sans binders) *)
             let isect_env, isect_constrs =

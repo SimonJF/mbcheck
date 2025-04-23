@@ -129,10 +129,10 @@ inr_branch:
     | INR LEFT_PAREN VARIABLE RIGHT_PAREN type_annot RIGHTARROW expr { (($3, $5), $7) }
 
 nil_branch:
-    | NIL type_annot RIGHTARROW expr { ($2, $4) }
+    | NIL RIGHTARROW expr { $3 }
 
 cons_branch:
-    | LEFT_PAREN VARIABLE CONS VARIABLE RIGHT_PAREN type_annot RIGHTARROW expr { ((($2, $4), $6), $8) }
+    | LEFT_PAREN VARIABLE CONS VARIABLE RIGHT_PAREN RIGHTARROW expr { (($2, $4), $7) }
 
 expr:
     (* Let *)
@@ -161,8 +161,8 @@ basic_expr:
     | INR LEFT_PAREN expr RIGHT_PAREN { with_pos_from_positions $startpos $endpos ( Inr $3 )}
     | CASE expr OF LEFT_BRACE inl_branch PIPE inr_branch RIGHT_BRACE
         { with_pos_from_positions $startpos $endpos ( Case { term = $2; branch1 = $5; branch2 = $7} )}
-    | CASEL expr OF LEFT_BRACE nil_branch PIPE cons_branch RIGHT_BRACE
-        { with_pos_from_positions $startpos $endpos ( CaseL { term = $2; nil = $5; cons = $7} )}
+    | CASEL basic_expr type_annot OF LEFT_BRACE nil_branch PIPE cons_branch RIGHT_BRACE
+        { with_pos_from_positions $startpos $endpos ( CaseL { term = $2; ty = $3; nil = $6; cons = $8} )}
     (* New *)
     | NEW LEFT_BRACK interface_name RIGHT_BRACK { with_pos_from_positions $startpos $endpos ( New $3 )}
     (* Spawn *)

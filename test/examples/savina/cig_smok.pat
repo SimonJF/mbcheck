@@ -61,7 +61,7 @@ else {
         nil : [SmokerMb!] -> smokerMbs
         | (mb cons mbs) : [SmokerMb!] ->
             let smokerMbs = notify_aux(choice - 1, time, mbs) in
-            smokerMbs
+            (mb cons smokerMbs)
     }
 }
 }

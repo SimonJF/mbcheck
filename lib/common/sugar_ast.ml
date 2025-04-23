@@ -44,8 +44,9 @@ and expr_node =
     | Cons of (expr * expr)
     | CaseL of {
         term: expr;
-        nil: (Type.t[@name "ty"]) * expr;
-        cons: ((sugar_binder * sugar_binder) * (Type.t[@name "ty"])) * expr
+        ty: (Type.t[@name "ty"]);
+        nil: expr;
+        cons: (sugar_binder * sugar_binder) * expr
     }
     (* Sums *)
     | Inl of expr
@@ -249,17 +250,17 @@ and pp_expr ppf expr_with_pos =
     | Nil -> pp_print_string ppf "Nil"
     | Cons (e1, e2) ->
         fprintf ppf "Cons %a %a" pp_expr e1 pp_expr e2
-    | CaseL { term; nil = (t1, e1); cons = (((b1, b2), t2), e2) } -> begin
+    | CaseL { term; ty = t1; nil = e1; cons = ((b1, b2), e2) } -> begin
       match t1 with
         | List t ->
 	          fprintf
             ppf
-            "caseL %a of {@[@[nil: %a -> [@%a@]@]][cons %a %a -> [@%a@]@]@]]}"
+            "caseL %a : %a of {@[@[nil -> [@%a@]@]][cons %a %a -> [@%a@]@]@]]}"
             pp_expr term
             Type.pp t1
             pp_expr e1
             pp_bnd_ann (b1, t)
-            pp_bnd_ann (b2, t2)
+            pp_bnd_ann (b2, t1)
             pp_expr e2
         | _ -> fprintf ppf "bad list"
       end
@@ -271,7 +272,7 @@ and pp_expr ppf expr_with_pos =
             (pp_print_newline_list pp_guard) guards
     | Free e -> fprintf ppf "free(%a)" pp_expr e
     | SugarFail (e, ty) -> fprintf ppf "fail(%a)[%a]" pp_expr e Type.pp ty
-and pp_guard ppf guard_with_node = 
+and pp_guard ppf guard_with_node =
     let guard_node = WithPos.node guard_with_node in
     match guard_node with
     | Receive { tag; payload_binders; mailbox_binder; cont } ->
@@ -280,12 +281,12 @@ and pp_guard ppf guard_with_node =
             (pp_print_comma_list pp_print_string) payload_binders
             mailbox_binder
             pp_expr cont
-    (* 
+    (*
        free -> M
        can be treated as syntactic sugar for
        empty(x) -> free(x); M
     *)
-    | GFree e -> 
+    | GFree e ->
         fprintf ppf "free ->@,  @[<v>%a@]" pp_expr e
     | Empty (x, e) ->
         fprintf ppf "empty(%s) ->@,  @[<v>%a@]" x pp_expr e
