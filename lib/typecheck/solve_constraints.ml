@@ -97,40 +97,45 @@ let group_lower_bounds
    Finally, simplify the system.
  *)
 let substitute_solutions constrs =
+    let cmp (x1, _) (y1, _) = compare x1 y1 in
     (* Top-to-bottom *)
     let top_to_bottom =
-        List.fold_right (fun (var, pat) (map: Pattern.t stringmap) ->
+        List.fold_left (fun (map: Pattern.t stringmap) (var, pat) ->
             let hk_sol =
                 (* Apply current substitution map to pattern *)
                 Pattern.subst_all pat map
                 (* Compute HK solution *)
                 |> Pattern.hopkins_kozen_solution var
+                (* Simplify*)
+                |> Pattern.simplify
             in
             Settings.if_debug (fun () ->
                 Format.printf "HK Solution for %s: %a\n" var Pattern.pp hk_sol
             );
             PVarMap.add var hk_sol map
-        )  (PVarMap.bindings constrs) PVarMap.empty
+        ) PVarMap.empty (PVarMap.bindings constrs |> List.stable_sort (cmp))
     in
     (*
     Printf.printf "Top to bottom:\n";
         PVarMap.iter (fun k p ->
             Format.(fprintf std_formatter "%s: %a\n" k Pattern.pp p)
         ) top_to_bottom;
-        *)
+    *)
     (* Bottom to top *)
     let bottom_to_top =
-        List.fold_right (fun (var, pat) map ->
+        List.fold_left (fun map (var, pat) ->
             let pat = Pattern.subst_all pat map in
             PVarMap.add var pat map
-        ) (PVarMap.bindings top_to_bottom |> List.rev) PVarMap.empty
+        )
+         PVarMap.empty
+        (PVarMap.bindings top_to_bottom |> List.stable_sort (cmp) |> List.rev)
     in
     (*
     Printf.printf "Bottom to top:\n";
         PVarMap.iter (fun k p ->
             Format.(fprintf std_formatter "%s: %a\n" k Pattern.pp p)
         ) bottom_to_top;
-        *)
+    *)
     (* Simplify constraint system *)
     PVarMap.mapi (
         fun key pat ->
