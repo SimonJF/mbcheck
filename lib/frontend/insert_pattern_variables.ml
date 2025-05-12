@@ -22,6 +22,8 @@ let rec annotate_type =
             Tuple (List.map annotate_type ts)
         | Sum (t1, t2) ->
             Sum (annotate_type t1, annotate_type t2)
+        | List t ->
+            List (annotate_type t)
         | Mailbox { pattern = Some _; _ } as mb -> mb
         | Mailbox { capability; interface; pattern = None; quasilinearity } ->
             Mailbox {
@@ -31,7 +33,7 @@ let rec annotate_type =
                 quasilinearity
             }
 
-let annotate_interface_type = 
+let annotate_interface_type =
     let open Type in
     function
         (* Outermost MB types (i.e., payloads) are treated as usable. *)
@@ -80,6 +82,20 @@ let visitor =
                 let new_body = self#visit_expr env body in
                 let new_lam = Lam { linear; parameters; result_type; body = new_body } in
                 { expr_with_pos with node = new_lam }
+            | CaseL { term; ty = ty1; nil = nil_cont; cons = ((x_bnd, xs_bnd), cons_cont)} ->
+                let term = self#visit_expr env term in
+                let ty_ann = annotate_type ty1 in
+                let nil_cont = self#visit_expr env nil_cont in
+                let cons_cont = self#visit_expr env cons_cont in
+                let new_case =
+                    CaseL {
+                        term;
+                        ty = ty_ann;
+                        nil = nil_cont;
+                        cons = ((x_bnd, xs_bnd), cons_cont)
+                    }
+                in
+                { expr_with_pos with node = new_case }
             | _ -> super#visit_expr env expr_with_pos
 
         method! visit_program env p =
@@ -103,4 +119,3 @@ let annotate prog =
         Format.(fprintf std_formatter "=== Annotated Program ===\n%a\n\n"
         Sugar_ast.pp_program prog));
     prog
-
