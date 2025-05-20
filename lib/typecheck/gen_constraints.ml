@@ -148,7 +148,10 @@ and check_val :
         match ty, pty with
             | Mailbox { interface; _ }, PInterface iname when interface = iname -> ()
             | Base b1, PBase b2 when b1 = b2 -> ()
-            | Fun _, PFun _ ->  () (* TODO: might want some more checking here -- equality might not be enough? *)
+            | Fun _, PFun _ -> 
+                (* Function pretypes are now fully typed, so any errors will be
+                   picked up in constraint generation or constraint resolution. *)
+                ()
             | Tuple ts, PTuple pts ->
                 List.combine ts pts
                 |> List.iter (uncurry check_pretype_consistency)
