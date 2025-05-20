@@ -2,7 +2,7 @@ interface Lock { Acquire(User!), Release(Unit) }
 interface User { Reply(Lock!) }
 
 def freeLock(self: Lock?): Unit {
-    guard (self) : *Acquire  {
+    guard (self) : Acquire*  {
         free -> ()
         receive Acquire(owner) from self ->
             busyLock(self, owner)
@@ -13,7 +13,7 @@ def freeLock(self: Lock?): Unit {
 
 def busyLock(self: Lock?, owner: User!): Unit {
     owner ! Reply(self);
-    guard (self) : (*Acquire).Release {
+    guard (self) : Acquire*.Release {
         receive Release(x) from self ->
             freeLock(self)
     }

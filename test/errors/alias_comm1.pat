@@ -14,7 +14,7 @@ interface Payload { PayloadMessage(Payload!) }
 # Receives a PayloadMessage from the mailbox, forward the name to the
 # mailbox. At runtime, x and mb will be the same.
 def recvAndFree(mb: Payload?) : Unit {
-  guard mb : (PayloadMessage . *PayloadMessage) {
+  guard mb : (PayloadMessage . PayloadMessage*) {
       receive PayloadMessage(x) from mb ->
           mb ! PayloadMessage(x);
           recvAndFree(mb)
