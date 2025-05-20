@@ -22,6 +22,11 @@
                     "name": "Linear function (bad #3: unused linear function)",
                     "filename": "pat-tests/linfun-bad-3.pat",
                     "exit_code": 1
+                },
+                {
+                    "name": "Function returning a mailbox type",
+                    "filename": "pat-tests/mb-function-return.pat",
+                    "exit_code": 0
                 }
             ]
         },
