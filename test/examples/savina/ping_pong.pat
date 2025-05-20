@@ -48,7 +48,7 @@ def ping_loop(self: PingMb?, pongMb: PongMb!, pingsLeft: Int): Unit {
 ## Pong process loop issuing pong replies.
 def pong(self: PongMb?): Unit {
   
-  guard self: *(Ping + Stop) {
+  guard self: (Ping + Stop)* {
     free -> ()
     receive Ping(pingMb) from self ->
       pingMb ! Pong();
@@ -60,7 +60,7 @@ def pong(self: PongMb?): Unit {
 
 ## Pong process exit procedure that flushes potential residual messages.
 def pong_exit(self: PongMb?): Unit {
-  guard self: *(Ping + Stop) {
+  guard self: (Ping + Stop)* {
     free -> ()
     receive Ping(pingMb) from self ->
       pong_exit(self)

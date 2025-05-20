@@ -44,7 +44,7 @@ def master(self: MasterMb?, startRate: Int, increment: Int): Unit {
   let startTerm2 = 2 * increment in
   spawn { worker(workerMb2, 2, self, computerMb2, startTerm2) };
 
-  guard self: Start . (*Result) {
+  guard self: Start . Result* {
     receive Start() from self ->
 
       # We should have a loop around this line to send multiple NextTerm
@@ -69,7 +69,7 @@ def master(self: MasterMb?, startRate: Int, increment: Int): Unit {
 
 ## Master process main loop issuing term computation requests.
 def master_loop(self: MasterMb?, termSum: Int, workerMb1: WorkerMb!, computerMb1: ComputerMb!, workerMb2: WorkerMb!, computerMb2: ComputerMb!): Unit {
-  guard self: *Result {
+  guard self: Result* {
     free -> 
       # We need not track whether the number of requests sent and replies 
       # received tallies. This is done implicitly by the type checker.
@@ -92,7 +92,7 @@ def master_loop(self: MasterMb?, termSum: Int, workerMb1: WorkerMb!, computerMb1
 ## Worker process handling term computation requests, delegating them to 
 ## computer processes.
 def worker(self: WorkerMb?, id: Int, masterMb: MasterMb!, computerMb: ComputerMb!, currTerm: Int): Unit {
-  guard self: (*NextTerm) . GetTerm . Stop {
+  guard self: NextTerm* . GetTerm . Stop {
     receive NextTerm() from self ->
             
       # Delegate computation of term to computer process via the local mailbox
@@ -108,7 +108,7 @@ def worker(self: WorkerMb?, id: Int, masterMb: MasterMb!, computerMb: ComputerMb
 
     receive GetTerm() from self ->
       masterMb ! Result(currTerm);
-      guard self: (*NextTerm) . Stop {
+      guard self: NextTerm* . Stop {
         receive Stop() from self ->
           worker_exit(self)
       }
@@ -117,7 +117,7 @@ def worker(self: WorkerMb?, id: Int, masterMb: MasterMb!, computerMb: ComputerMb
 
 ## Worker process exit procedure flushing potential residual messages.
 def worker_exit(self: WorkerMb?): Unit {
-  guard self: *NextTerm {
+  guard self: NextTerm* {
     free -> ()
     receive NextTerm() from self ->
       worker_exit(self)
@@ -127,7 +127,7 @@ def worker_exit(self: WorkerMb?): Unit {
 ## Computer process handling computation requests delegated by an associated
 ## worker process.
 def computer(self: ComputerMb?, rate: Int): Unit {
-  guard self: (*Compute) . StopCompute {
+  guard self: Compute* . StopCompute {
     free -> ()
     receive Compute(termMb, term) from self ->
       
@@ -141,7 +141,7 @@ def computer(self: ComputerMb?, rate: Int): Unit {
 
 ## Computer process exit procedure flushing potential residual messages.
 def computer_exit(self: ComputerMb?): Unit {
-  guard self: *Compute {
+  guard self: Compute* {
     free -> ()
     receive Compute(termMb, term) from self ->
 
