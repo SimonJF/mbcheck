@@ -93,7 +93,7 @@ def choose_dst_acc(tellerMb: TellerMb!, numAccounts: Int, srcAccountMb: AccountM
 
 ## Teller process main loop handling replies from accounts.
 def teller_loop(self: TellerMb?, accountMb1: AccountMb!, accountMb2: AccountMb!, accountMb3: AccountMb!): Unit {
-  guard self: *Reply {
+  guard self: Reply* {
     free -> 
 
       # All credit requests serviced. Stop accounts.
@@ -108,7 +108,7 @@ def teller_loop(self: TellerMb?, accountMb1: AccountMb!, accountMb2: AccountMb!,
 ## Account process handling credit requests issued by the teller, and debit 
 ## requests issued by other accounts.
 def account(self: AccountMb?, id: Int, balance: Int): Unit {
-  guard self: *(Debit + Credit) . Stop {
+  guard self: (Debit + Credit)* . Stop {
     free -> 
       ()
     receive Debit(accountMb, amount) from self ->
@@ -138,7 +138,7 @@ def account(self: AccountMb?, id: Int, balance: Int): Unit {
 
 ## Actor process exit procedure that flushes potential residual messages.
 def account_exit(self: AccountMb?): Unit {
-  guard self: *(Debit + Credit)  {
+  guard self: (Debit + Credit)*  {
     free -> ()
     receive Debit(accountMb, amount) from self ->
       account_exit(self)

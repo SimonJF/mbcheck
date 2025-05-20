@@ -2,13 +2,13 @@ interface Future { Put(Int), Get(User!) }
 interface User   { Reply(Int) }
 
 def future(self: Future?): Unit {
-    guard self : Put.(*Get) {
+    guard self : Put.Get* {
         receive Put(x) from self -> resolvedFuture(self, x)
     }
 }
 
 def resolvedFuture(self: Future?, value: Int): Unit {
-    guard self : *Get {
+    guard self : Get* {
         free -> ()
         receive Get(user) from self ->
             user ! Reply(value);

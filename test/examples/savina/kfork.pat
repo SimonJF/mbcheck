@@ -11,7 +11,7 @@ interface ActorMb {
 
 ## Actor processes handling the packet requests.
 def actor(self: ActorMb?): Unit {
-  guard self: *Packet {
+  guard self: Packet* {
     free ->
       ()
     receive Packet() from self ->

@@ -13,7 +13,7 @@ interface ActorMb {
 ## Actor process handling the launching of main loop.
 ## numActors: Number of actors in ring
 def actor(self: ActorMb?, numActors: Int): Unit {
-  guard self: Data . (*Ping) . (*Exit) {
+  guard self: Data . Ping* . Exit* {
     receive Data(neighborMb) from self ->
       actor_loop(self, numActors, neighborMb)
   }
@@ -22,7 +22,7 @@ def actor(self: ActorMb?, numActors: Int): Unit {
 ## Ping process main loop issuing pings and exits. 
 def actor_loop(self: ActorMb?, numActors: Int, neighborMb: ActorMb!): Unit {
   
-  guard self: (*Ping) . (*Exit) {
+  guard self: Ping* . Exit* {
     # Required because of the if condition in the receive statement for Ping 
     # where the type checker does not have enough info to determine whether
     # the if part is ever taken (i.e., it does not evaluate the condition).
@@ -51,7 +51,7 @@ def actor_loop(self: ActorMb?, numActors: Int, neighborMb: ActorMb!): Unit {
 
 ## Actor process exit procedure that flushes potential residual messages.
 def actor_exit(self: ActorMb?): Unit {
-  guard self: *Ping . (*Exit) {
+  guard self: Ping* . Exit* {
     free -> ()
     receive Ping(pingsLeft) from self ->
       actor_exit(self)

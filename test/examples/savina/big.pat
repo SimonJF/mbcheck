@@ -23,7 +23,7 @@ interface SinkMb {
 
 ## Actor process handling the launching of main loop.
 def actor(self: ActorMb?, exitMb : ExitMb?, id: Int, sinkMb: SinkMb!): Unit {
-  guard self: Neighbors . *(Pong + Ping)  {
+  guard self: Neighbors . (Pong + Ping)*  {
     receive Neighbors(actorMb1, actorMb2) from self ->
       actor_loop(self, exitMb, id, sinkMb, 100, actorMb1, actorMb2)
   }
@@ -38,8 +38,10 @@ def await_exit(exitMb: ExitMb?): Unit {
 }
 
 ## Actor process main loop issuing ping requests and handling pong replies.
-def actor_loop(self: ActorMb?, exitMb: ExitMb?, id:Int, sinkMb: SinkMb!, numPings: Int, actorMb1: ActorMb!, actorMb2: ActorMb!): Unit {
-  guard self: *(Ping + Pong) {
+def actor_loop(self: ActorMb?, exitMb: ExitMb?,
+               id: Int, sinkMb: SinkMb!, numPings: Int,
+               actorMb1: ActorMb!, actorMb2: ActorMb!): Unit {
+  guard self : (Ping + Pong)* {
     free -> 
       await_exit(exitMb)
     receive Ping(pingerId) from self ->
@@ -68,7 +70,7 @@ def actor_loop(self: ActorMb?, exitMb: ExitMb?, id:Int, sinkMb: SinkMb!, numPing
 
 ## Actor process exit procedure that flushes potential residual messages.
 def actor_exit(self: ActorMb?): Unit {
-  guard self: (*Ping) . (*Pong) {
+  guard self: Ping* . Pong* {
     free -> ()
     receive Ping(pingerId) from self ->
       actor_exit(self)
@@ -106,7 +108,7 @@ def send_ping(id: Int, actorMb1: ActorMb!, actorMb2: ActorMb!): Unit {
 
 ## Sink process that coordinates actor termination.
 def sink(self: SinkMb?): Unit {
-  guard self: Actors . (*Done) {
+  guard self: Actors . Done* {
     receive Actors(exitMb1, exitMb2, exitMb3) from self ->
       sink_loop(self, exitMb1, exitMb2, exitMb3)
   }
@@ -114,7 +116,7 @@ def sink(self: SinkMb?): Unit {
 
 ## Sink process main loop issuing termination messages.
 def sink_loop(self: SinkMb?, exitMb1: ExitMb!, exitMb2: ExitMb!, exitMb3: ExitMb!): Unit {
-  guard self: *Done {
+  guard self: Done* {
     free ->
       # Notify all actors. Placing the sends in this clause ensures that
       # each actor is notified once.
