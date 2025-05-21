@@ -15,7 +15,7 @@ let make_unrestricted t pos =
         | Base _
         | Tuple []
         | Fun { linear = false; _ } -> Constraint_set.empty
-        (* Must be unrestricted *)
+        (* Cannot be unrestricted *)
         | Fun { linear = true; _ }
         | Mailbox { capability = Capability.In; _ } ->
             Gripers.cannot_make_unrestricted t [pos]
@@ -70,23 +70,21 @@ let rec subtype_type :
                 capability = capability1;
                 interface = iname1;
                 pattern = Some pat1;
-                quasilinearity = _ql1
+                quasilinearity = ql1
               },
               Mailbox {
                 capability = capability2;
                 interface = iname2;
                 pattern = Some pat2;
-                quasilinearity = _ql2
+                quasilinearity = ql2
               } ->
                   (* First, ensure interface subtyping *)
                   let interface1 = WithPos.node (Interface_env.lookup iname1 ienv []) in
                   let interface2 =  WithPos.node (Interface_env.lookup iname2 ienv []) in
-                  (*
                   let () =
                       if not (Type.Quasilinearity.is_sub ql1 ql2) then
-                          Gripers.quasilinearity_mismatch t1 t2
+                          Gripers.quasilinearity_mismatch t1 t2 [pos]
                   in
-                  *)
                   let iface_constraints =
                       subtype_interface visited ienv interface1 interface2 pos in
                   let pat_constraints =
