@@ -9,8 +9,9 @@ open Util.Utility
 
 type t =
     | PBase of base
+    | PVar of string
     | PFun of { linear: bool; args: (Type.t[@name "ty"]) list; result: (Type.t[@name "ty"]) }
-    | PInterface of string
+    | PInterface of (string * (Type.t[@name "ty"]) list)
     | PSum of (t * t)
     | PTuple of t list
     [@@name "pretype"]
@@ -21,9 +22,9 @@ let unit = PTuple []
 
 let rec pp ppf =
   let open Format in
-  let ps = pp_print_string ppf in
   function
     | PBase b -> Common_types.Base.pp ppf b
+    | PVar s -> fprintf ppf "%s" s
     | PFun { linear; args; result } ->
         let arrow = if linear then "-o" else "->" in
         fprintf ppf "(%a) %s %a"
@@ -38,7 +39,10 @@ let rec pp ppf =
         fprintf ppf "(%a + %a)"
             pp t1
             pp t2
-    | PInterface name -> ps name
+    | PInterface (iname, tyargs) ->
+        fprintf ppf "%s<%a>"
+            iname
+            (pp_print_list Type.pp) tyargs
 
 let show t =
   let open Format in
@@ -47,6 +51,7 @@ let show t =
 
 let rec of_type = function
     | Type.Base b -> PBase b
+    | Type.TVar s -> PVar s
     | Type.Fun { linear; args; result } ->
         PFun { linear; args; result = result }
     | Type.Tuple ts -> PTuple (List.map of_type ts)
@@ -59,6 +64,7 @@ let rec of_type = function
     when trying to type an application in synthesis mode). *)
 let rec to_type = function
     | PBase b -> Some (Type.Base b)
+    | PVar s -> Some (Type.TVar s)
     | PFun { linear; args; result } ->
         Some (Type.Fun { linear; args; result })
     | PTuple ts ->

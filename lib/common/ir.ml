@@ -97,19 +97,19 @@ and comp_node =
         branch1: ((Binder.t[@name "binder"]) * (Type.t[@name "ty"])) * comp;
         branch2: ((Binder.t[@name "binder"]) * (Type.t[@name "ty"])) * comp
     }
-    | New of string
+    | New of (string * (Type.t[@name "ty"]) list)
     | Spawn of comp
     | Send of {
         target: value;
         message: (message[@name "msg"]);
-        iname: string option
+        iface: (string * (Type.t[@name "ty"]) list) option
       }
-    | Free of (value * string option)
+    | Free of (value * (string * (Type.t[@name "ty"]) list) option)
     | Guard of {
         target: value;
         pattern: (Type.Pattern.t[@name "pattern"]);
         guards: guard list;
-        iname: string option
+        iface: (string * (Type.t[@name "ty"]) list) option
       }
 and value = (value_node WithPos.t [@name "withP"])
 and value_node =
@@ -214,7 +214,7 @@ and pp_comp ppf comp_with_pos =
         fprintf ppf "%a(%a)"
             pp_value func
             (pp_print_comma_list pp_value) args
-    | New iname -> fprintf ppf "new[%s]" iname
+    | New (iname, _) -> fprintf ppf "new[%s]" iname
     | Spawn e -> fprintf ppf "spawn {@[<v>@,%a@]@,}" pp_comp e
     | Send { target; message; _ (* iname *) } ->
         (* Special-case the common case of sending to a variable.

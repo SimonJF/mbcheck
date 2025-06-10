@@ -249,13 +249,14 @@ module Pattern = struct
 end
 
 type t =
+    | TVar of string
     | Base of base
     | Fun of { linear: bool; args: t list; result: t }
     | Tuple of t list
     | Sum of (t * t)
     | Mailbox of {
         capability: (Capability.t [@name "capability"]);
-        interface: string;
+        interface: (string * t list);
         (* A mailbox type can either be returnable or usable.
            A returnable mailbox name can be used for all purposes (can be
            returned from subexpressions, can be sent upon, can be received
@@ -311,6 +312,7 @@ let rec pp ppf =
   let open Format in
   function
     | Base b -> Base.pp ppf b
+    | TVar s -> fprintf ppf "%s" s
     | Fun { linear; args; result } ->
         let arrow = if linear then "-o" else "->" in
         fprintf ppf "(%a) %s %a"
@@ -325,7 +327,7 @@ let rec pp ppf =
         fprintf ppf "(%a + %a)"
             pp t1
             pp t2
-    | Mailbox { capability; interface; pattern; quasilinearity } ->
+    | Mailbox { capability; interface=(iname, tyargs); pattern; quasilinearity } ->
         let ql =
             match quasilinearity with
                 | Quasilinearity.Returnable -> "R"
@@ -336,8 +338,9 @@ let rec pp ppf =
                 | Capability.In -> "?"
                 | Capability.Out -> "!"
         in
-        fprintf ppf "%s%s(%a)[%s]"
-            interface
+        fprintf ppf "%s<%a>%s(%a)[%s]"
+            iname
+            (pp_print_list pp) tyargs
             op
             (pp_print_option pp_pattern) pattern
             ql
@@ -353,6 +356,8 @@ let show t =
 
 let rec is_lin = function
     | Base _ -> false
+    (* take care of that later *)
+    | TVar _ -> false
     | Fun { linear; _ } -> linear
     (* !1 is unrestricted... *)
     | Mailbox { capability = Out; pattern = Some One; _ } -> false

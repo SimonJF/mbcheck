@@ -51,20 +51,20 @@ and expr_node =
        not wired to their continuations. I've experimented with the
        bidirectional rules and it seems that this does not pose any problems. *)
     (* That said, we may revisit this later when we look at deadlock detection. *)
-    | New of string (* interface name *)
+    | New of (string * (Type.t[@name "ty"]) list) (* interface name *)
     | Spawn of expr
     (* interface names for Send and Guard will be added after pre-type checking *)
     | Send of {
         target: expr;
         message: (string * (expr list));
-        iname: string option
+        iface: (string * (Type.t[@name "ty"]) list) option
     }
     | Guard of {
         target: expr;
         (* At least at the moment, each guard must be annotated with a pattern *)
         pattern: (Type.Pattern.t [@name "pattern"]);
         guards: guard list;
-        iname: string option
+        iface: (string * (Type.t[@name "ty"]) list) option
     }
     | Free of expr
     (* fail(e)[A], desugars to (guard e : 0 { fail } : A) *)
@@ -197,7 +197,7 @@ and pp_expr ppf expr_with_pos =
         fprintf ppf "%a(%a)"
             pp_expr func
             (pp_print_comma_list pp_expr) args
-    | New iname -> fprintf ppf "new[%s]" iname
+    | New (iname, _) -> fprintf ppf "new[%s]" iname
     | Spawn e -> fprintf ppf "spawn {@[<v>@,%a@]@,}" pp_expr e
     | Send { target; message; _ (* iname *) } ->
         (* Special-case the common case of sending to a variable.

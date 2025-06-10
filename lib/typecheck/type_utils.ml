@@ -14,6 +14,8 @@ let make_unrestricted t pos =
         (* Trivially unrestricted *)
         | Base _
         | Tuple []
+        (* take care of that *)
+        | TVar _
         | Fun { linear = false; _ } -> Constraint_set.empty
         (* Cannot be unrestricted *)
         | Fun { linear = true; _ }
@@ -26,6 +28,28 @@ let make_unrestricted t pos =
         | _ -> assert false
 
 (* Auxiliary definitions*)
+(* must take care of error handling at some point *)
+let substitute_types xs ys =
+  let rec subst_aux varmap t =
+    match t with
+    | Type.TVar _ ->
+      begin match List.assoc_opt t varmap with
+        | None -> t
+        | Some t' -> t'
+      end
+    | Base _ -> t
+    | Fun { linear; args; result } ->
+      Fun { linear;
+            args=(List.map (subst_aux varmap) args);
+            result=(subst_aux varmap result)
+          }
+    | Tuple ts -> Tuple (List.map (subst_aux varmap) ts)
+    | Sum (t1, t2) ->
+        Sum (subst_aux varmap t1, subst_aux varmap t2)
+    | Mailbox { capability; interface=(iname, tyargs); pattern; quasilinearity } ->
+      let tyargs' = List.map (subst_aux varmap) tyargs in
+      Mailbox { capability; interface=(iname, tyargs'); pattern; quasilinearity }
+  in subst_aux (List.combine xs ys)
 
 (* Checks whether t1 is a subtype of t2, and produces the necessary constraints.
    We need to take a coinductive view of subtyping to avoid infinite loops, so
@@ -36,9 +60,10 @@ let rec subtype_type :
         Interface_env.t -> Type.t -> Type.t -> Position.t -> Constraint_set.t =
     fun visited ienv t1 t2 pos ->
         match t1, t2 with
-            | Base b1, Base b2 when b1 = b2->
-                        Constraint_set.empty
-
+            | Base b1, Base b2 when b1 = b2 ->
+              Constraint_set.empty
+            | TVar s1, TVar s2 when s1 = s2 ->
+              Constraint_set.empty
             (* Subtyping covariant for tuples and sums *)
             | Tuple tyas, Tuple tybs ->
                 Constraint_set.union_many
@@ -68,13 +93,13 @@ let rec subtype_type :
                     Constraint_set.union args_constrs body_constrs
             | Mailbox {
                 capability = capability1;
-                interface = iname1;
+                interface = (iname1, _);
                 pattern = Some pat1;
                 quasilinearity = ql1
               },
               Mailbox {
                 capability = capability2;
-                interface = iname2;
+                interface = (iname2, _);
                 pattern = Some pat2;
                 quasilinearity = ql2
               } ->

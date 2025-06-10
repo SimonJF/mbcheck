@@ -286,14 +286,16 @@ and synthesise_comp ienv env comp =
             (* Ensure target has interface type *)
             begin
                 match target_ty with
-                    | PInterface iname ->
+                    | PInterface (iname, tyargs) ->
                         (* Check that:
                             - Message tag is contained within interface
                             - Message payload pretype matches that of the interface *)
                         let interface_withPos = IEnv.lookup iname ienv [(WithPos.pos comp)] in
+                        let typarams = Interface.typarams (WithPos.node interface_withPos) in
                         let payload_target_tys =
                             WithPos.node interface_withPos
-                            |> Interface.lookup ~pos_list:(WithPos.extract_pos_pair interface_withPos comp)  tag
+                            |> Interface.lookup ~pos_list:(WithPos.extract_pos_pair interface_withPos comp) tag
+                            |> List.map (Type_utils.substitute_types typarams tyargs)
                             |> List.map Pretype.of_type
                         in
                         let () =
@@ -312,7 +314,7 @@ and synthesise_comp ienv env comp =
                         Send {
                             target;
                             message = (tag, vals);
-                            iname = Some iname
+                            iface = Some (iname, tyargs)
                          }), Pretype.unit
                     | ty -> Gripers.type_mismatch_with_expected pos "an interface type" ty
             end
@@ -326,9 +328,9 @@ and synthesise_comp ienv env comp =
             WithPos.make ~pos(Free (v, Some iface)), Pretype.unit
         | Guard { target; pattern; guards; _ } ->
             let (target, target_ty) = synthv target in
-            let iname =
+            let iface =
                 match target_ty with
-                    | PInterface iname -> iname
+                    | PInterface iface -> iface
                     | t -> Gripers.type_mismatch_with_expected pos "an interface type" t
             in
             (* We can synthesise the type of a guard expression as long as it is
@@ -340,13 +342,13 @@ and synthesise_comp ienv env comp =
                     | [] ->
                         Gripers.cannot_synth_empty_guards pos ()
                     | g :: gs ->
-                        let g, g_ty = synth_guard ienv env iname g in
+                        let g, g_ty = synth_guard ienv env iface g in
                         let gs =
-                            List.map (fun g -> check_guard pos ienv env iname g g_ty) gs
+                            List.map (fun g -> check_guard pos ienv env iface g g_ty) gs
                         in
                         g :: gs, g_ty
             in
-            WithPos.make ~pos(Guard { target; pattern; guards; iname = Some iname }), g_ty
+            WithPos.make ~pos(Guard { target; pattern; guards; iface = Some iface }), g_ty
 and check_comp ienv env comp ty  =
     let pos = WithPos.pos comp in
     match WithPos.node comp with
@@ -355,17 +357,17 @@ and check_comp ienv env comp ty  =
             WithPos.make ~pos (Return v)
         | Guard { target; pattern; guards; _ } when guards = [(WithPos.make ~pos Fail)] ->
             let target, target_ty = synthesise_val ienv env target in
-            let iname =
+            let iface =
                 match target_ty with
-                    | PInterface iname -> iname
+                    | PInterface iface -> iface
                     | t -> Gripers.type_mismatch_with_expected pos "an interface type" t
             in
-            WithPos.make ~pos (Guard { target; pattern; guards = [(WithPos.make ~pos Fail)]; iname = Some iname })
+            WithPos.make ~pos (Guard { target; pattern; guards = [(WithPos.make ~pos Fail)]; iface = Some iface })
         | _ ->
             let comp, inferred_ty = synthesise_comp ienv env comp in
             check_tys [pos] ty inferred_ty;
             comp
-and synth_guard ienv env iname g =
+and synth_guard ienv env ((iname, typarams) : (string * (Type.t[@name "ty"]) list)) g =
     let interface_withPos = IEnv.lookup iname ienv [(WithPos.pos g)] in
     let iface = WithPos.node interface_withPos in
     let pos = WithPos.pos g in
@@ -390,18 +392,18 @@ and synth_guard ienv env iname g =
                 |> PretypeEnv.bind_many payload_entries
                 |> PretypeEnv.bind
                     (Var.of_binder mailbox_binder)
-                    (Pretype.PInterface iname)
+                    (Pretype.PInterface (iname, typarams))
             in
             let cont, cont_ty = synthesise_comp ienv env cont in
             WithPos.make ~pos (Receive { tag; payload_binders; mailbox_binder; cont }), cont_ty
         | Empty (x, e) ->
-            let env = PretypeEnv.bind (Var.of_binder x) (Pretype.PInterface iname) env in
+            let env = PretypeEnv.bind (Var.of_binder x) (Pretype.PInterface (iname, typarams)) env in
             let e, e_ty = synthesise_comp ienv env e in
             WithPos.make ~pos (Empty (x, e)), e_ty
         | Fail ->
             Gripers.cannot_synth_fail pos ()
-and check_guard pos ienv env iname g ty =
-    let g, inferred_ty = synth_guard ienv env iname g in
+and check_guard pos ienv env (iface : string * (Type.t[@name "ty"]) list) g ty =
+    let g, inferred_ty = synth_guard ienv env iface g in
     check_tys [pos] ty inferred_ty;
     g
 

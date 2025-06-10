@@ -71,15 +71,16 @@ let join : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t =
                         (Fun { linear = false; args = dom1; result = cod1 }, subty_constrs)
                 | Mailbox { pattern = None; _ }, _ | _, Mailbox { pattern = None; _ } ->
                     assert false (* Set by pre-typing *)
-                | Mailbox { capability = cap1; interface = iface1; pattern =
+                | Mailbox { capability = cap1; interface = (iname1, tyargs1); pattern =
                     Some pat1; quasilinearity = ql1 },
-                  Mailbox { capability = cap2; interface = iface2; pattern =
+                  Mailbox { capability = cap2; interface = (iname2, _); pattern =
                       Some pat2; quasilinearity = ql2 } ->
+                      (* should take care of that later *)
                       (* We can only join variables with the same interface
                          name. If these match, we can join the types. *)
-                      if iface1 <> iface2 then
+                      if iname1 <> iname2 then
                           Gripers.env_interface_mismatch true
-                            t1 t2 var iface1 iface2 [pos]
+                            t1 t2 var iname1 iname2 [pos]
                       else
                           (* Check sequencing of QL *)
                           let ql =
@@ -93,7 +94,7 @@ let join : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t =
                                 (cap1, pat1) (cap2, pat2) in
                           Mailbox {
                               capability = cap;
-                              interface = iface1;
+                              interface = (iname1, tyargs1);
                               pattern = Some pat;
                               quasilinearity = ql
                           }, constrs
@@ -207,21 +208,22 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
                         (Fun { linear = linear1; args = dom1; result = cod1 }, Constraint_set.empty)
                 | Mailbox { pattern = None; _ }, _ | _, Mailbox { pattern = None; _ } ->
                     assert false (* Set by pre-typing *)
-                | Mailbox { capability = cap1; interface = iface1; pattern =
+                | Mailbox { capability = cap1; interface = (iname1, tyargs1); pattern =
                     Some pat1; quasilinearity = ql1 },
-                  Mailbox { capability = cap2; interface = iface2; pattern =
+                  Mailbox { capability = cap2; interface = (iname2, _); pattern =
                       Some pat2; quasilinearity = ql2 } ->
+                      (* take care of that later *)
                       (* As before -- interface names must be the same*)
-                      if iface1 <> iface2 then
+                      if iname1 <> iname2 then
                           Gripers.env_interface_mismatch
-                            false t1 t2 var iface1 iface2 [pos]
+                            false t1 t2 var iname1 iname2 [pos]
                       else
                           let ((cap, pat), constrs) =
                               intersect_mailbox_types var
                                 (cap1, pat1) (cap2, pat2) in
                           Mailbox {
                               capability = cap;
-                              interface = iface1;
+                              interface = (iname1, tyargs1);
                               pattern = Some pat;
                               (* Must take strongest QL across all branches. *)
                               quasilinearity = Quasilinearity.max ql1 ql2

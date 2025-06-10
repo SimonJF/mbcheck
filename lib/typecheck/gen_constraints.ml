@@ -146,6 +146,7 @@ and check_val :
         let open Type in
         let open Pretype in
         match ty, pty with
+            | TVar s1, PVar s2 when s1 = s2 -> ()
             | Mailbox { interface; _ }, PInterface iname when interface = iname -> ()
             | Base b1, PBase b2 when b1 = b2 -> ()
             | Fun _, PFun _ -> 
@@ -276,20 +277,22 @@ and synthesise_comp :
                 [fun_constrs; arg_constrs; env_constrs]
             in
             (result_ty, env, constrs)
-        | Send { target; message = (tag, payloads) ; iname } ->
+        | Send { target; message = (tag, payloads) ; iface } ->
             let open Type in
             (* Option.get safe since interface name will have been filled in
                by pre-type checking *)
-            let iname = Option.get iname in
+            let (iname, tyargs) = Option.get iface in
             let interface_withPos = IEnv.lookup iname ienv [pos] in
+            let typarams = Interface.typarams (WithPos.node interface_withPos) in
             let payload_types =
                 Interface.lookup ~pos_list:[WithPos.pos interface_withPos; pos] tag (WithPos.node interface_withPos)
+                |> List.map (Type_utils.substitute_types typarams tyargs)
             in
             (* Check target has correct output type *)
             let target_ty =
                 Mailbox {
                     capability = Out;
-                    interface = iname;
+                    interface = (iname, tyargs);
                     pattern = Some (Message tag);
                     (* 'Send' gives the MB type the least specific
                        quasilinearity (Usable). It can be coerced to Returnable
@@ -601,9 +604,9 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
             in
             let env = Ty_env.delete_many bnd_vars env in
             (env, constrs)
-        | Guard { iname = None; _ } -> (* Should have been filled in by pre-typing *)
+        | Guard { iface = None; _ } -> (* Should have been filled in by pre-typing *)
             assert false
-        | Guard { target; pattern; guards; iname = Some iname } ->
+        | Guard { target; pattern; guards; iface = Some (iname, tyargs) } ->
             let open Type in
             (* Check guard types, and generate constraints, and pattern for guards *)
             let (guards_env, guards_pat, guards_constrs) =
@@ -612,7 +615,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                compatible with the synthesised pattern. *)
             let target_ty = Mailbox {
                 capability = In;
-                interface = iname;
+                interface = (iname, tyargs);
                 pattern = Some guards_pat;
                 (* We can only receive on a Returnable guard (since the name
                    goes out of scope afterwards) *)
@@ -794,7 +797,7 @@ and check_guard :
                                 match ty with
                                     | Mailbox { interface; _ } when (List.mem interface mb_iface_tys) ->
                                         Gripers.duplicate_interface_receive_env
-                                        v interface 
+                                        v (fst interface)
                                         [pos]
                                     | _ -> ()
                             ) env
@@ -822,7 +825,8 @@ and check_guard :
                 let goal =
                     Type.Mailbox {
                         capability = Capability.In;
-                        interface = iname;
+                        (* take care of that *)
+                        interface = (iname, []);
                         pattern = Some One;
                         quasilinearity = Quasilinearity.Returnable;
                     }
