@@ -60,15 +60,17 @@ let join : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t =
             match (t1, t2) with
                 | Base b1, Base b2 when b1 = b2 ->
                     (Base b1, Constraint_set.empty)
-                | Fun { linear = linear1; args = dom1; result = cod1 },
-                  Fun { linear = linear2; args = dom2; result = cod2 }
+                | TVar s1, TVar s2 when s1 = s2 ->
+                    (TVar s1, Constraint_set.empty)
+                | Fun { linear = linear1; args = dom1; result = cod1; typarams=typarams1 },
+                  Fun { linear = linear2; args = dom2; result = cod2; _ }
                     when (not linear1) && (not linear2) && dom1 = dom2 && cod1 = cod2 ->
                         let subty_constrs =
                             Constraint_set.union
                                 (subtype ienv t1 t2 pos)
                                 (subtype ienv t2 t1 pos)
                         in
-                        (Fun { linear = false; args = dom1; result = cod1 }, subty_constrs)
+                        (Fun { linear = false; typarams=typarams1; args = dom1; result = cod1 }, subty_constrs)
                 | Mailbox { pattern = None; _ }, _ | _, Mailbox { pattern = None; _ } ->
                     assert false (* Set by pre-typing *)
                 | Mailbox { capability = cap1; interface = (iname1, tyargs1); pattern =
@@ -202,10 +204,12 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
             match t1, t2 with
                 | Base b1, Base b2 when b1 = b2 ->
                     (Base b1, Constraint_set.empty)
-                | Fun { linear = linear1; args = dom1; result = cod1 },
-                  Fun { linear = linear2; args = dom2; result = cod2 }
+                | TVar s1, TVar s2 when s1 = s2 ->
+                    (TVar s1, Constraint_set.empty)
+                | Fun { linear = linear1; typarams=typarams1; args = dom1; result = cod1 },
+                  Fun { linear = linear2; args = dom2; result = cod2; _ }
                     when (linear1 = linear2) && dom1 = dom2 && cod1 = cod2 ->
-                        (Fun { linear = linear1; args = dom1; result = cod1 }, Constraint_set.empty)
+                    (Fun { linear = linear1; typarams=typarams1; args = dom1; result = cod1 }, Constraint_set.empty)
                 | Mailbox { pattern = None; _ }, _ | _, Mailbox { pattern = None; _ } ->
                     assert false (* Set by pre-typing *)
                 | Mailbox { capability = cap1; interface = (iname1, tyargs1); pattern =

@@ -153,6 +153,7 @@ let rec synthesise_val ienv env value : (value * Pretype.t) =
             wrap (Lam { linear; parameters; body; result_type }),
             Pretype.PFun {
                 linear = linear;
+                typarams = [];
                 args = param_types;
                 result = result_type 
             }
@@ -251,15 +252,18 @@ and synthesise_comp ienv env comp =
             let e1 = check_comp ienv env e1 (Pretype.unit) in
             let e2, e2_ty = synth e2 in
             WithPos.make ~pos(Seq (e1, e2)), e2_ty
-        | App { func; args } ->
+        | App { func; tyargs; args } ->
             let open Pretype in
             (* Synthesise type for function; ensure it is a function type *)
             let (func, f_ty) = synthv func in
             let arg_anns, result_ann =
                 begin
                     match f_ty with
-                        | PFun { args; result; _ } ->
-                            List.map Pretype.of_type args, result
+                        | PFun { typarams; args; result; _ } ->
+                            (* substitute !!*)
+                            let args' = List.map (Type_utils.substitute_types typarams tyargs) args in
+                            let result' = Type_utils.substitute_types typarams tyargs result in
+                            List.map Pretype.of_type args', result'
                         | t ->
                             Gripers.type_mismatch_with_expected pos "a function type" t
                 end
@@ -278,7 +282,7 @@ and synthesise_comp ienv env comp =
                     check_val ienv env arg arg_ty)
             in
             (* Synthesise result type *)
-            WithPos.make ~pos(App { func; args }), Pretype.of_type result_ann
+            WithPos.make ~pos(App { func; tyargs; args }), Pretype.of_type result_ann
         | Send { target; message = (tag, vals); _ } ->
             let open Pretype in
             (* Typecheck target *)
@@ -428,6 +432,7 @@ let check { prog_interfaces; prog_decls; prog_body } =
             (Var.of_binder d.decl_name,
                 Pretype.PFun {
                     linear = false;
+                    typarams = d.typarams;
                     args = param_tys;
                     result = d.decl_return_type
                 })) (WithPos.extract_list_node prog_decls)

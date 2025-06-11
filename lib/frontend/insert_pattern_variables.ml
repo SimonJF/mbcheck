@@ -13,9 +13,10 @@ let rec annotate_type =
     function
         | Base t -> Base t
         | TVar s -> TVar s
-        | Fun { linear; args; result } ->
+        | Fun { linear; typarams; args; result } ->
             Fun {
                 linear;
+                typarams;
                 args = List.map annotate_type args;
                 result = annotate_type result
             }

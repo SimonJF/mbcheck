@@ -31,7 +31,7 @@ let with_pos_from_positions p1 p2 newE = ParserPosition.with_pos (p1, p2) newE
 
 let parse_error x pos_list = Errors.Parse_error (x,pos_list)
 
-let binary_op op_name x1 x2 = App { func = ParserPosition.with_pos ((get_start_pos x1),(get_end_pos x2)) (Primitive op_name); args = [x1; x2] }
+let binary_op op_name x1 x2 = App { func = ParserPosition.with_pos ((get_start_pos x1),(get_end_pos x2)) (Primitive op_name); tyargs=[]; args = [x1; x2] }
 
 
 %}
@@ -162,10 +162,11 @@ basic_expr:
     | FAIL LEFT_PAREN expr RIGHT_PAREN LEFT_BRACK ty RIGHT_BRACK { with_pos_from_positions $startpos $endpos ( SugarFail ($3, $6))}
     | tuple_exprs { with_pos_from_positions $startpos $endpos ( Tuple $1 ) }
     (* App *)
-    | fact LEFT_PAREN expr_list RIGHT_PAREN
+    | fact typarams LEFT_PAREN expr_list RIGHT_PAREN
         { with_pos_from_positions $startpos $endpos (
             App {   func = with_pos_from_positions $startpos $endpos ($1);
-                    args = $3 } 
+                    tyargs = $2;
+                    args = $4 } 
         )}
     (* Lam *)
     | linearity LEFT_PAREN annotated_var_list RIGHT_PAREN COLON ty LEFT_BRACE expr RIGHT_BRACE
@@ -251,14 +252,17 @@ parenthesised_datatypes:
     | LEFT_PAREN ty_list RIGHT_PAREN { $2 }
 
 ty:
-    | parenthesised_datatypes RIGHTARROW simple_ty  { Type.Fun { linear = false; args = $1; result = $3} }
-    | parenthesised_datatypes LOLLI simple_ty       { Type.Fun { linear = true;  args = $1; result = $3} }
+    | parenthesised_datatypes RIGHTARROW simple_ty  { Type.Fun { linear = false; typarams = []; args = $1; result = $3} }
+    | parenthesised_datatypes LOLLI simple_ty       { Type.Fun { linear = true; typarams = []; args = $1; result = $3} }
     | LEFT_PAREN simple_ty PLUS simple_ty RIGHT_PAREN { Type.make_sum_type $2 $4 }
     | tuple_annotation { Type.make_tuple_type $1 }
     | simple_ty { $1 }
 
+typarams:
+| LT separated_list(COMMA, ty) GT { $2 }
+
 param_interface:
-| CONSTRUCTOR LT separated_list(COMMA, ty) GT { ($1, $3) }
+| CONSTRUCTOR typarams { ($1, $2) }
 
 pat:
 | star_pat PLUS pat { Type.Pattern.Plus ($1, $3) }
@@ -347,14 +351,15 @@ interface:
         { with_pos_from_positions $startpos $endpos ( Interface.make (fst $2) (snd $2) $4)  }
 
 decl:
-    | DEF VARIABLE LEFT_PAREN annotated_var_list RIGHT_PAREN COLON ty LEFT_BRACE expr
+    | DEF VARIABLE typarams LEFT_PAREN annotated_var_list RIGHT_PAREN COLON ty LEFT_BRACE expr
     RIGHT_BRACE {
         with_pos_from_positions $startpos $endpos ( 
         {
           decl_name = $2;
-          decl_parameters = $4;
-          decl_return_type = $7;
-          decl_body = $9
+          typarams = $3;
+          decl_parameters = $5;
+          decl_return_type = $8;
+          decl_body = $10
         })
     }
 

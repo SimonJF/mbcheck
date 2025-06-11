@@ -66,6 +66,7 @@ type program = {
 }
 and decl = {
     decl_name: (Binder.t[@name "binder"]);
+    typarams : (Type.t[@name "ty"]) list;
     decl_parameters: ((Binder.t[@name "binder"]) * (Type.t[@name "ty"])) list;
     decl_return_type: (Type.t[@name "ty"]);
     decl_body: comp
@@ -82,6 +83,7 @@ and comp_node =
     | Return of value
     | App of {
         func: value;
+        tyargs: (Type.t[@name "ty"]) list;
         args: value list
       }
     | If of { test: value; then_expr: comp; else_expr: comp }
@@ -170,9 +172,10 @@ and pp_interface ppf iface =
         (pp_print_comma_list pp_msg_ty) xs
 (* Declarations *)
 and pp_decl ppf decl_with_pos =
-    let { WithPos.node = { decl_name; decl_parameters; decl_return_type; decl_body }; _ } = decl_with_pos in
-    fprintf ppf "def %a(%a): %a {@,@[<v 2>  %a@]@,}"
+  let { WithPos.node = { decl_name; typarams; decl_parameters; decl_return_type; decl_body }; _ } = decl_with_pos in
+    fprintf ppf "def %a<%a>(%a): %a {@,@[<v 2>  %a@]@,}"
         Binder.pp decl_name
+        (pp_print_list Type.pp) typarams
         (pp_print_comma_list pp_param) decl_parameters
         Type.pp decl_return_type
         pp_comp decl_body
@@ -210,9 +213,10 @@ and pp_comp ppf comp_with_pos =
             pp_value test
             pp_comp then_expr
             pp_comp else_expr
-    | App { func; args } ->
-        fprintf ppf "%a(%a)"
+    | App { func; tyargs; args } ->
+        fprintf ppf "%a<%a>(%a)"
             pp_value func
+            (pp_print_list Type.pp) tyargs
             (pp_print_comma_list pp_value) args
     | New (iname, _) -> fprintf ppf "new[%s]" iname
     | Spawn e -> fprintf ppf "spawn {@[<v>@,%a@]@,}" pp_comp e

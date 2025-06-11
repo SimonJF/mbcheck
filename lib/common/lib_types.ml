@@ -6,9 +6,9 @@ open Common_types
 let signatures =
     let open Type in
     let open Base in
-    let int_op_type = function_type false [Base Int; Base Int] (Base Int) in
-    let int_rel_op_type = function_type false [Base Int; Base Int] (Base Bool) in
-    let bool_rel_op_type = function_type false [Base Bool; Base Bool] (Base Bool) in
+    let int_op_type = function_type false [] [Base Int; Base Int] (Base Int) in
+    let int_rel_op_type = function_type false [] [Base Int; Base Int] (Base Bool) in
+    let bool_rel_op_type = function_type false [] [Base Bool; Base Bool] (Base Bool) in
     let int_ops =
         List.map (fun x -> (x, int_op_type)) ["+"; "-"; "/"; "*"]
     in
@@ -20,9 +20,9 @@ let signatures =
     in
     int_ops @ int_rel_ops @ bool_rel_ops @
     [
-        ("print", function_type false [Base Base.String] Type.unit_type);
-        ("concat", function_type false [Base Base.String; Base Base.String] Type.string_type);
-        ("rand", function_type false [Base Base.Int] (Base Base.Int));
-        ("sleep", function_type false [Base Base.Int] Type.unit_type);
-        ("intToString", function_type false [Base Base.Int] (Base Base.String))
+      ("print", function_type false [] [Base Base.String] Type.unit_type);
+      ("concat", function_type false [] [Base Base.String; Base Base.String] Type.string_type);
+      ("rand", function_type false [] [Base Base.Int] (Base Base.Int));
+      ("sleep", function_type false [] [Base Base.Int] Type.unit_type);
+      ("intToString", function_type false [][Base Base.Int] (Base Base.String))
     ]

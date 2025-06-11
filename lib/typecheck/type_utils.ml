@@ -38,8 +38,10 @@ let substitute_types xs ys =
         | Some t' -> t'
       end
     | Base _ -> t
-    | Fun { linear; args; result } ->
+    | Fun { linear; typarams; args; result } ->
       Fun { linear;
+            (* take care of that later *)
+            typarams;
             args=(List.map (subst_aux varmap) args);
             result=(subst_aux varmap result)
           }
@@ -78,9 +80,9 @@ let rec subtype_type :
                     (* Should have been sorted by annotation pass *)
                     assert false
             | Fun { linear = lin1; args = args1;
-                    result = body1 },
+                    result = body1; _ },
               Fun { linear = lin2; args = args2;
-                    result = body2 } ->
+                    result = body2; _ } ->
                     let () =
                         if lin1 <> lin2 then
                             Gripers.subtype_linearity_mismatch t1 t2 [pos]

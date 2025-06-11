@@ -67,10 +67,11 @@ and transform_decl :
     Sugar_ast.decl ->
     Ir.Binder.t ->
         (env -> Ir.decl -> Ir.decl) -> Ir.decl =
-            fun env {decl_parameters; decl_return_type; decl_body; _} decl_binder k ->
+      fun env {decl_parameters; typarams; decl_return_type; decl_body; _} decl_binder k ->
     let (bnds, env') = add_names env fst decl_parameters in
     {
         decl_name = decl_binder;
+        typarams;
         decl_parameters = List.combine bnds (List.map snd decl_parameters);
         decl_return_type;
         decl_body = transform_expr env' decl_body id
@@ -175,10 +176,10 @@ and transform_expr :
                 | Ir.Return ({ node = Ir.Tuple []; _ }) ->
                     transform_expr env e2 k
                 | _ -> WithPos.make ~pos:pos' (Ir.Seq (c1, transform_expr env e2 k)))
-        | App {func; args} ->
+        | App {func; tyargs; args} ->
             transform_subterm env func (fun env funcv ->
             transform_list env args (fun argvs ->
-                with_same_pos (Ir.App { func = funcv; args = argvs })) k)
+                  with_same_pos (Ir.App { func = funcv; tyargs; args = argvs })) k)
         | If {test; then_expr; else_expr} ->
                 transform_subterm env test (fun env v ->
                 with_same_pos (

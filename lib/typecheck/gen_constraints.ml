@@ -60,8 +60,8 @@ let rec synthesise_val :
                         ty, Ty_env.singleton v ty, Constraint_set.empty
                     (* In limited circumstances we can use a pretype annotation to
                        synthesise a function *)
-                    | _, PFun { linear; args; result } ->
-                        let ty = Type.function_type linear args result in
+                    | _, PFun { linear; typarams; args; result } ->
+                        let ty = Type.function_type linear typarams args result in
                         ty, Ty_env.singleton v ty, Constraint_set.empty
                     | _, _ ->
                         Gripers.synth_variable v [pos]
@@ -134,7 +134,7 @@ let rec synthesise_val :
             let constrs = Constraint_set.union_many
                 [body_constrs; parameter_constrs; unr_constrs]
             in
-            let ty = Type.function_type linear parameter_tys result_type in
+            let ty = Type.function_type linear [] parameter_tys result_type in
             (ty, returnable_env, constrs)
         | _ -> Gripers.cannot_synthesise_value v [pos]
 and check_val :
@@ -242,14 +242,17 @@ and synthesise_comp :
             (Type.unit_type, env, constrs)
         | Free (_, None) -> assert false
         (* Application is a synthesis case, since functions are always annotated. *)
-        | App { func; args } ->
+        | App { func; tyargs; args } ->
             (* Synthesise the type for the function.
                Note that the function will always be annotated. *)
+            let _ = tyargs in
             let fun_ty, fun_env, fun_constrs = synthesise_val ienv decl_env func in
             let arg_tys, result_ty =
                 match fun_ty with
-                    | Type.Fun { args; result; _ } ->
-                        (args, result)
+                    | Type.Fun { typarams; args; result; _ } ->
+                        let args' = List.map (Type_utils.substitute_types typarams tyargs) args in
+                        let result' = Type_utils.substitute_types typarams tyargs result in
+                        (args', result')
                     | ty -> Gripers.expected_function func ty [pos]
             in
             (* Check that all argument types are compatible with the annotation *)
@@ -869,7 +872,7 @@ let check_decls ienv decls =
         let decl_entry d =
             let args = List.map snd d.decl_parameters in
             Var.of_binder d.decl_name,
-            Type.make_function_type false args d.decl_return_type
+            Type.make_function_type false d.typarams args d.decl_return_type
         in
         List.map decl_entry decl_nodes
         |> Ty_env.from_list

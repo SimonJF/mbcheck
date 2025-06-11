@@ -251,7 +251,7 @@ end
 type t =
     | TVar of string
     | Base of base
-    | Fun of { linear: bool; args: t list; result: t }
+    | Fun of { linear: bool; typarams: t list; args: t list; result: t }
     | Tuple of t list
     | Sum of (t * t)
     | Mailbox of {
@@ -297,8 +297,8 @@ let string_type = Base Base.String
 let bool_type = Base Base.Bool
 let unit_type = Tuple []
 let atom = Base Base.Atom
-let function_type linear args result =
-    Fun { linear; args; result }
+let function_type linear typarams args result =
+    Fun { linear; typarams; args; result }
 
 let mailbox_send_unit interface quasilinearity =
     Mailbox {
@@ -313,9 +313,10 @@ let rec pp ppf =
   function
     | Base b -> Base.pp ppf b
     | TVar s -> fprintf ppf "%s" s
-    | Fun { linear; args; result } ->
+    | Fun { linear; typarams; args; result } ->
         let arrow = if linear then "-o" else "->" in
-        fprintf ppf "(%a) %s %a"
+        fprintf ppf "<%a> (%a) %s %a"
+            (pp_print_list pp) typarams
             (pp_print_comma_list pp) args
             arrow
             pp result
@@ -416,8 +417,8 @@ let rec is_returnable = function
     | Sum  (t1, t2) -> is_returnable t1 && is_returnable t2
     | _ -> true
 
-let make_function_type linear args result =
-    Fun { linear; args; result }
+let make_function_type linear typarams args result =
+    Fun { linear; typarams; args; result }
 
 let make_tuple_type tys =
     Tuple (List.map make_returnable tys)
