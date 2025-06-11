@@ -23,15 +23,27 @@ def fullFuture<x>(value : x, self : Future<x>?) : Unit {
 	}
 }
 
-def intClient() : Unit {
-	let futureBox = new[Future<Int>] in
-	let self = new[User<Int>] in
-	spawn { emptyFuture<Int>(futureBox) };
-	futureBox ! Put(0);
+def client<x>(value : x) : Unit {
+	let futureBox = new[Future<x>] in
+	let self = new[User<x>] in
+	spawn { emptyFuture<x>(futureBox) };
+	futureBox ! Put(value);
 	futureBox ! Get(self);
-	guard self : Reply {
-		receive Reply(value) from self ->
-			free(self);
-			print("received")
+	futureBox ! Get(self);
+	futureBox ! Get(self);
+	guard self : Reply . Reply . Reply {
+		receive Reply(v1) from self ->
+			print("1st receive");
+			guard self : Reply . Reply {
+				receive Reply(v2) from self ->
+					print("2nd receive");
+					guard self : Reply {
+						receive Reply(v3) from self ->
+							free(self);
+							print("3rd receive")
+					}
+			}
 	}
 }
+
+let test = spawn { client<Int>(10) }; spawn { client<Int>(5) }; spawn { client<Bool>(true) } in ()
