@@ -162,10 +162,10 @@ basic_expr:
     | FAIL LEFT_PAREN expr RIGHT_PAREN LEFT_BRACK ty RIGHT_BRACK { with_pos_from_positions $startpos $endpos ( SugarFail ($3, $6))}
     | tuple_exprs { with_pos_from_positions $startpos $endpos ( Tuple $1 ) }
     (* App *)
-    | fact typarams LEFT_PAREN expr_list RIGHT_PAREN
+    | fact typarams? LEFT_PAREN expr_list RIGHT_PAREN
         { with_pos_from_positions $startpos $endpos (
             App {   func = with_pos_from_positions $startpos $endpos ($1);
-                    tyargs = $2;
+                    tyargs = (match $2 with Some ts -> ts | None -> []);
                     args = $4 } 
         )}
     (* Lam *)
@@ -351,12 +351,12 @@ interface:
         { with_pos_from_positions $startpos $endpos ( Interface.make (fst $2) (snd $2) $4)  }
 
 decl:
-    | DEF VARIABLE typarams LEFT_PAREN annotated_var_list RIGHT_PAREN COLON ty LEFT_BRACE expr
+    | DEF VARIABLE typarams? LEFT_PAREN annotated_var_list RIGHT_PAREN COLON ty LEFT_BRACE expr
     RIGHT_BRACE {
         with_pos_from_positions $startpos $endpos ( 
         {
           decl_name = $2;
-          typarams = $3;
+          typarams = (match $3 with Some ts -> ts | None -> []);
           decl_parameters = $5;
           decl_return_type = $8;
           decl_body = $10

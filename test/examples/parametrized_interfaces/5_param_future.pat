@@ -23,7 +23,7 @@ def fullFuture<x>(value : x, self : Future<x>?) : Unit {
 	}
 }
 
-def intClient<>() : Unit {
+def intClient() : Unit {
 	let futureBox = new[Future<Int>] in
 	let self = new[User<Int>] in
 	spawn { emptyFuture<Int>(futureBox) };
@@ -32,6 +32,6 @@ def intClient<>() : Unit {
 	guard self : Reply {
 		receive Reply(value) from self ->
 			free(self);
-			print<>("received")
+			print("received")
 	}
 }

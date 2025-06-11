@@ -22,10 +22,10 @@ def client<x>(value : x) : Unit {
 	guard self : Reply {
 		receive Reply(v) from self ->
 			free(self);
-			print<>("received")
+			print("received")
 	}
 }
 
-def intClient<>() : Unit {
+def intClient() : Unit {
 	client<Int>(0)
 }

@@ -14,7 +14,7 @@ def mirror<x>(self : Mirror<x>?) : Unit {
 	}
 }
 
-def client<>() : Unit {
+def client() : Unit {
 	let boolMirrorBox = new[Mirror<Bool>] in
 	let self = new[User<Bool>] in
 	spawn { mirror<Bool>(boolMirrorBox) };
@@ -22,7 +22,7 @@ def client<>() : Unit {
 	guard self : Reply {
 		receive Reply(x) from self ->
 			free(self);
-			print<>("received")
+			print("received")
 	};
 	let intMirrorBox = new[Mirror<Int>] in
 	let self = new[User<Int>] in
@@ -31,6 +31,6 @@ def client<>() : Unit {
 	guard self : Reply {
 		receive Reply(x) from self ->
 			free(self);
-			print<>("received")
+			print("received")
 	}
 }
