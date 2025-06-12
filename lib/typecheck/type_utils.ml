@@ -14,7 +14,6 @@ let make_unrestricted t pos =
         (* Trivially unrestricted *)
         | Base _
         | Tuple []
-        (* take care of that *)
         | TVar _
         | Fun { linear = false; _ } -> Constraint_set.empty
         (* Cannot be unrestricted *)
@@ -28,7 +27,6 @@ let make_unrestricted t pos =
         | _ -> assert false
 
 (* Auxiliary definitions*)
-(* must take care of error handling at some point *)
 let substitute_types xs ys =
   let rec subst_aux varmap t =
     match t with
@@ -40,7 +38,6 @@ let substitute_types xs ys =
     | Base _ -> t
     | Fun { linear; typarams; args; result } ->
       Fun { linear;
-            (* take care of that later *)
             typarams;
             args=(List.map (subst_aux varmap) args);
             result=(subst_aux varmap result)
@@ -51,6 +48,7 @@ let substitute_types xs ys =
     | Mailbox { capability; interface=(iname, tyargs); pattern; quasilinearity } ->
       let tyargs' = List.map (subst_aux varmap) tyargs in
       Mailbox { capability; interface=(iname, tyargs'); pattern; quasilinearity }
+
   in subst_aux (List.combine xs ys)
 
 (* Checks whether t1 is a subtype of t2, and produces the necessary constraints.

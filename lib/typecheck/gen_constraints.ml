@@ -147,7 +147,7 @@ and check_val :
         let open Pretype in
         match ty, pty with
             | TVar s1, PVar s2 when s1 = s2 -> ()
-            | Mailbox { interface; _ }, PInterface iname when interface = iname -> ()
+            | Mailbox { interface; _ }, PInterface iface when interface = iface -> ()
             | Base b1, PBase b2 when b1 = b2 -> ()
             | Fun _, PFun _ -> 
                 (* Function pretypes are now fully typed, so any errors will be
@@ -613,7 +613,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
             let open Type in
             (* Check guard types, and generate constraints, and pattern for guards *)
             let (guards_env, guards_pat, guards_constrs) =
-                check_guards ienv decl_env iname pattern guards ty in
+                check_guards ienv decl_env (iname, tyargs) pattern guards ty in
             (* Check to see whether the MB handle can be given a type that's
                compatible with the synthesised pattern. *)
             let target_ty = Mailbox {
@@ -661,9 +661,9 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
 (* Synthesises types for all guards, checks that their types are compatible, and
  * returns the intersection of the resulting environments and generated pattern. *)
 and check_guards :
-    IEnv.t -> Ty_env.t -> interface_name -> Type.Pattern.t -> Ir.guard list ->
+    IEnv.t -> Ty_env.t -> (interface_name * Type.t list) -> Type.Pattern.t -> Ir.guard list ->
         Type.t -> Nullable_env.t * Type.Pattern.t * Constraint_set.t =
-        fun ienv decl_env iname guard_pat gs ty ->
+        fun ienv decl_env (iname, typarams) guard_pat gs ty ->
           let open Ir in
           let open Type in
           (* Do a duplication check on guards *)
@@ -694,7 +694,7 @@ and check_guards :
           List.fold_left (fun (env, pat, acc_constrs) g ->
             (* TC Guard *)
             let (g_env, g_pat, g_constrs) =
-              check_guard ienv decl_env iname guard_pat g ty
+              check_guard ienv decl_env (iname, typarams) guard_pat g ty
             in
             (* Calculate environment intersection *)
             let (env, env_constrs) = Nullable_env.intersect g_env env (WithPos.pos g) in
@@ -707,9 +707,9 @@ and check_guards :
 (* Checks the type for a single guard, returning type, environment, pattern,
    and constraint set. *)
 and check_guard :
-    IEnv.t -> Ty_env.t -> interface_name -> Type.Pattern.t -> Ir.guard -> Type.t ->
+    IEnv.t -> Ty_env.t -> (interface_name * Type.t list) -> Type.Pattern.t -> Ir.guard -> Type.t ->
         Nullable_env.t * Type.Pattern.t * Constraint_set.t =
-        fun ienv decl_env iname pat g ty ->
+        fun ienv decl_env (iname, typarams) pat g ty ->
           let open Ir in
           let open Type in
           let pos = WithPos.pos g in
@@ -828,8 +828,7 @@ and check_guard :
                 let goal =
                     Type.Mailbox {
                         capability = Capability.In;
-                        (* take care of that *)
-                        interface = (iname, []);
+                        interface = (iname, typarams);
                         pattern = Some One;
                         quasilinearity = Quasilinearity.Returnable;
                     }

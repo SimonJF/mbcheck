@@ -260,10 +260,14 @@ and synthesise_comp ienv env comp =
                 begin
                     match f_ty with
                         | PFun { typarams; args; result; _ } ->
-                            (* substitute !!*)
+                          begin
+                          try
                             let args' = List.map (Type_utils.substitute_types typarams tyargs) args in
                             let result' = Type_utils.substitute_types typarams tyargs result in
                             List.map Pretype.of_type args', result'
+                          with Invalid_argument _ ->
+                            Gripers.arity_error pos (List.length typarams) (List.length tyargs)
+                          end
                         | t ->
                             Gripers.type_mismatch_with_expected pos "a function type" t
                 end
@@ -297,10 +301,13 @@ and synthesise_comp ienv env comp =
                         let interface_withPos = IEnv.lookup iname ienv [(WithPos.pos comp)] in
                         let typarams = Interface.typarams (WithPos.node interface_withPos) in
                         let payload_target_tys =
+                          try
                             WithPos.node interface_withPos
                             |> Interface.lookup ~pos_list:(WithPos.extract_pos_pair interface_withPos comp) tag
                             |> List.map (Type_utils.substitute_types typarams tyargs)
                             |> List.map Pretype.of_type
+                          with Invalid_argument _ ->
+                            Gripers.arity_error pos (List.length typarams) (List.length tyargs)
                         in
                         let () =
                             let iface_len = List.length payload_target_tys in

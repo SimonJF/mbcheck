@@ -357,7 +357,6 @@ let show t =
 
 let rec is_lin = function
     | Base _ -> false
-    (* take care of that later *)
     | TVar _ -> false
     | Fun { linear; _ } -> linear
     (* !1 is unrestricted... *)
