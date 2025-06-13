@@ -259,10 +259,10 @@ ty:
     | simple_ty { $1 }
 
 typarams:
-| LT separated_list(COMMA, ty) GT { $2 }
+| LEFT_BRACK separated_list(COMMA, ty) RIGHT_BRACK { $2 }
 
 param_interface:
-| CONSTRUCTOR typarams { ($1, $2) }
+| CONSTRUCTOR typarams? { match $2 with Some ts -> ($1, ts) | None -> ($1, []) }
 
 pat:
 | star_pat PLUS pat { Type.Pattern.Plus ($1, $3) }
@@ -322,7 +322,6 @@ simple_ty:
     | base_ty { $1 }
 
 base_ty:
-    | VARIABLE { Type.TVar $1 }
     | CONSTRUCTOR {
         match $1 with
             | "Atom" -> Type.Base Base.Atom
@@ -330,8 +329,7 @@ base_ty:
             | "Int" -> Type.Base Base.Int
             | "Bool" -> Type.Base Base.Bool
             | "String" -> Type.Base Base.String
-            | _ -> raise (parse_error "Expected Atom, Int, Bool, or String"
-                            [Position.make ~start:$startpos ~finish:$endpos ~code:!source_code_instance])
+            | s -> Type.TVar s
     }
 
 message_ty:

@@ -1,32 +1,32 @@
-interface User<x> {
-	Reply(x)
+interface User[A] {
+	Reply(A)
 }
 
-interface Future<x> {
-	Put(x),
-	Get(User<x>!)
+interface Future[A] {
+	Put(A),
+	Get(User[A]!)
 }
 
-def emptyFuture<x>(self : Future<x>?) : Unit {
+def emptyFuture[A](self : Future[A]?) : Unit {
 	guard self : Put . Get* {
 		receive Put(value) from self ->
-			fullFuture<x>(value, self)
+			fullFuture[A](value, self)
 	}
 }
 
-def fullFuture<x>(value : x, self : Future<x>?) : Unit {
+def fullFuture[A](value : A, self : Future[A]?) : Unit {
 	guard self : Get* {
 		free -> ()
 		receive Get(sender) from self ->
 			sender ! Reply(value);
-			fullFuture<x>(value, self)
+			fullFuture[A](value, self)
 	}
 }
 
-def client<x>(value : x) : Unit {
-	let futureBox = new[Future<x>] in
-	let self = new[User<x>] in
-	spawn { emptyFuture<x>(futureBox) };
+def client[A](value : A) : Unit {
+	let futureBox = new[Future[A]] in
+	let self = new[User[A]] in
+	spawn { emptyFuture[A](futureBox) };
 	futureBox ! Put(value);
 	futureBox ! Get(self);
 	futureBox ! Get(self);
@@ -46,4 +46,4 @@ def client<x>(value : x) : Unit {
 	}
 }
 
-let test = spawn { client<Int>(10) }; spawn { client<Int>(5) }; spawn { client<Bool>(true) } in ()
+let test = spawn { client[Int](10) }; spawn { client[Int](5) }; spawn { client[Bool](true) } in ()

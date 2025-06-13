@@ -1,12 +1,12 @@
-interface User<x> {
-	Reply(x)
+interface User[A] {
+	Reply(A)
 }
 
-interface Mirror<x> {
-	Put(x, User<x>!)
+interface Mirror[A] {
+	Put(A, User[A]!)
 }
 
-def mirror<x>(self : Mirror<x>?) : Unit {
+def mirror[A](self : Mirror[A]?) : Unit {
 	guard self : Put {
 		receive Put(msg, sender) from self ->
 			free(self);
@@ -14,10 +14,10 @@ def mirror<x>(self : Mirror<x>?) : Unit {
 	}
 }
 
-def client<x>(value : x) : Unit {
-	let mirrorBox = new[Mirror<x>] in
-	let self = new[User<x>] in
-	spawn { mirror<x>(mirrorBox) };
+def client[A](value : A) : Unit {
+	let mirrorBox = new[Mirror[A]] in
+	let self = new[User[A]] in
+	spawn { mirror[A](mirrorBox) };
 	mirrorBox ! Put(value, self);
 	guard self : Reply {
 		receive Reply(v) from self ->
@@ -27,5 +27,5 @@ def client<x>(value : x) : Unit {
 }
 
 def intClient() : Unit {
-	client<Int>(0)
+	client[Int](0)
 }

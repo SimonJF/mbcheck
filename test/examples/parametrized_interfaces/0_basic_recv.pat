@@ -1,8 +1,8 @@
-interface Recv<> {
+interface Recv {
 	Put(Bool)
 }
 
-def boolRecv(self : Recv<>?) : Unit {
+def boolRecv(self : Recv?) : Unit {
 	guard self : Put {
 		receive Put(b) from self ->
 			free(self);
@@ -11,7 +11,7 @@ def boolRecv(self : Recv<>?) : Unit {
 }
 
 def boolClient() : Unit {
-	let mb = new[Recv<>] in
+	let mb = new[Recv] in
 	spawn { boolRecv(mb) };
 	mb ! Put(true)
 }
