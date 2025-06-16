@@ -109,6 +109,125 @@ end
 
 module IEnv = Interface_env
 
+(* Check that typaram contains only typing variables *)
+let check_typarams pos typarams =
+    List.for_all
+      (fun (t : (Type.t[@name "ty"])) ->
+        match t with
+        TVar _ -> true
+        | _ -> Gripers.type_mismatch_with_expected pos
+                        "type variable" (Pretype.of_type t))
+      typarams
+
+(* Check that all type variables occuring in t are in typarams *)
+let check_tvar_in_params pos typarams (t : (Type.t[@name "ty"])) =
+    let rec aux (t : (Type.t[@name "ty"])) =
+        match t with
+        TVar s ->
+            if List.mem t typarams
+            then true
+            else Gripers.unbound_variable pos s
+            | Base _ -> true
+        | Fun _ -> true (* take care of that later *)
+        | Tuple ts ->
+            List.for_all aux ts
+        | Sum (t1, t2) ->
+            (aux t1) && (aux t2)
+        | Mailbox _ -> true
+    in aux t
+
+(* Check that all type variables occuring in interface are bound *)
+let check_iface_is_closed (iface_with_pos : Interface.t WithPos.t) : bool =
+    let iface = WithPos.node iface_with_pos in
+    let pos = WithPos.pos iface_with_pos in
+    let typarams = iface.typarams in
+    (check_typarams pos typarams)
+    && (List.for_all
+        (fun (_, ts) -> List.for_all (check_tvar_in_params pos typarams) ts)
+        iface.env)
+
+(* Check that all type variables occuring in declaration are bound *)
+let check_decl_is_closed (decl_with_pos : Ir.decl WithPos.t) =
+    let decl = WithPos.node decl_with_pos in
+    let pos = WithPos.pos decl_with_pos in
+    let typarams = decl.typarams in
+    let iface_aux pos typarams iface =
+        match iface with
+        None -> true
+        | Some (_, ts) ->
+            List.for_all (check_tvar_in_params pos typarams) ts
+    in
+    (* check that value is type-closed *)
+    let rec value_aux (v : Ir.value) : bool =
+        let vn = WithPos.node v in
+        let pos = WithPos.pos v in
+        match vn with
+        VAnnotate (v, t) ->
+            (check_tvar_in_params pos typarams t)
+            && (value_aux v)
+        | Atom _ | Constant _ | Primitive _ | Variable _ -> true
+        | Tuple vs -> List.for_all value_aux vs
+        | Inl v | Inr v -> value_aux v
+        | Lam { parameters; result_type; body; _ } ->
+            (List.for_all (fun (_, t) -> check_tvar_in_params pos typarams t) parameters)
+            && (check_tvar_in_params pos typarams result_type)
+            && (comp_aux body)
+    (* check that guard is type-closed *)
+    and guard_aux (g : Ir.guard) : bool =
+        let gn = WithPos.node g in
+        match gn with
+        Receive { cont; _ } -> comp_aux cont
+        | Empty (_, c) -> comp_aux c
+        | Fail -> true
+    (* check that comp is type-closed *)
+    and comp_aux (c : Ir.comp) : bool =
+        let cn = WithPos.node c in
+        let pos = WithPos.pos c in
+        match cn with
+        Annotate (c, t) ->
+            (check_tvar_in_params pos typarams t)
+            && (comp_aux c)
+        | Let { term; cont; _ } ->
+            (comp_aux term)
+            && (comp_aux cont)
+        | Seq (c1, c2) ->
+            (comp_aux c1)
+            && (comp_aux c2)
+        | Return v -> value_aux v
+        | App { tyargs; func; args; } ->
+            (value_aux func)
+            && (List.for_all value_aux args)
+            && (List.for_all (check_tvar_in_params pos typarams) tyargs)
+        | If { then_expr; else_expr; _ } ->
+            (comp_aux then_expr)
+            && (comp_aux else_expr)
+        | LetTuple { tuple; cont; _ } ->
+            (value_aux tuple) && (comp_aux cont)
+        | Case { term; branch1=((_, t1), c1); branch2=((_, t2), c2); _ } ->
+            (value_aux term)
+            && (check_tvar_in_params pos typarams t1)
+            && (check_tvar_in_params pos typarams t2)
+            && (comp_aux c1)
+            && (comp_aux c2)
+        | New (_, ts) ->
+            List.for_all (check_tvar_in_params pos typarams) ts
+        | Spawn c ->
+            comp_aux c
+        | Send { target; iface; _ } ->
+            (value_aux target) && (iface_aux pos typarams iface)
+        | Free (v, iface) ->
+            (value_aux v) && (iface_aux pos typarams iface)
+        | Guard { target; guards; iface; _} ->
+            (value_aux target)
+            && (iface_aux pos typarams iface)
+            && (List.for_all guard_aux guards)
+    in
+    (check_typarams pos typarams)
+    && (List.for_all (fun (_, t) -> check_tvar_in_params pos typarams t) decl.decl_parameters)
+    && (check_tvar_in_params pos typarams decl.decl_return_type)
+    && (comp_aux decl.decl_body)
+
+
 (* We take a bidirectional approach. Unlike in gen_constraints,
    as with most bidirectional systems, we try and synthesise as much
    as we can, since we carry around the type environment with us and
@@ -421,6 +540,10 @@ and check_guard pos ienv env (iface : string * (Type.t[@name "ty"]) list) g ty =
 (* Top-level typechecker *)
 let check { prog_interfaces; prog_decls; prog_body } =
 
+    (* Check that interface and definitions are type-closed.
+       Unbound_variable is raised otherwiser. *)
+    let _ = List.for_all check_iface_is_closed prog_interfaces in
+    let _ = List.for_all check_decl_is_closed prog_decls in
     (* Construct interface environment from interface list *)
     let ienv = IEnv.from_list prog_interfaces in
     let param_pretypes =
