@@ -184,6 +184,28 @@
                 {"name": "Additional non-supported non-fail guard with nontrivial continuation", "filename": "errors/pat_constr3.pat", "exit_code": 1},
                 {"name": "Additional non-supported free guard", "filename": "errors/pat_constr4.pat", "exit_code": 1}
             ]
+        },
+        { "group": "Parametrized interfaces (Good)",
+          "tests":
+            [
+                {"name": "Basic send", "filename": "examples/parametrized_interfaces/0_basic_recv.pat", "exit_code": 0},
+                {"name": "Receive interface", "filename": "examples/parametrized_interfaces/1_param_recv.pat", "exit_code": 0},
+                {"name": "Mirror with mutually recursive interfaces", "filename": "examples/parametrized_interfaces/2_param_send.pat", "exit_code": 0},
+                {"name": "Parametrized mirror definition", "filename": "examples/parametrized_interfaces/3_param_mirror_def.pat", "exit_code": 0},
+                {"name": "Parametrized mirror definition and client", "filename": "examples/parametrized_interfaces/4_param_client_def.pat", "exit_code": 0},
+                {"name": "Parametrized mirror definition and client", "filename": "examples/parametrized_interfaces/4_param_client_def.pat", "exit_code": 0},
+                {"name": "Fully parametrized future", "filename": "examples/parametrized_interfaces/5_param_future.pat", "exit_code": 0}
+            ]
+        },
+        { "group": "Parametrized interfaces (Wrong)",
+          "tests":
+            [
+                {"name": "Type is not boundable", "filename": "examples/parametrized_interfaces/wrong/0_unboundable_type.pat", "exit_code": 1},
+                {"name": "Interface is not type closed", "filename": "examples/parametrized_interfaces/wrong/0_unclosed_interface.pat", "exit_code": 1},
+                {"name": "Definition is not type closed", "filename": "examples/parametrized_interfaces/wrong/0_unclosed_definition.pat", "exit_code": 1},
+                {"name": "Send payload mismatch", "filename": "examples/parametrized_interfaces/wrong/1_send_mismatch.pat", "exit_code": 1},
+                {"name": "Spawn wrong arity", "filename": "examples/parametrized_interfaces/wrong/1_spawn_mismatch.pat", "exit_code": 1}
+            ]
         }
     ]
 }
