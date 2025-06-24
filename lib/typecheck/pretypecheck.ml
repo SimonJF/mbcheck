@@ -128,7 +128,10 @@ let check_tvar_in_params pos typarams (t : (Type.t[@name "ty"])) =
             then true
             else Gripers.unbound_variable pos s
             | Base _ -> true
-        | Fun _ -> true (* take care of that later *)
+        | Fun { typarams=fun_typarams; args; result; _ } ->
+            (List.for_all aux fun_typarams)
+            && (List.for_all aux args)
+            && (aux result)
         | Tuple ts ->
             List.for_all aux ts
         | Sum (t1, t2) ->

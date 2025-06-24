@@ -75,14 +75,16 @@ let join : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t =
                     assert false (* Set by pre-typing *)
                 | Mailbox { capability = cap1; interface = (iname1, tyargs1); pattern =
                     Some pat1; quasilinearity = ql1 },
-                  Mailbox { capability = cap2; interface = (iname2, _); pattern =
+                  Mailbox { capability = cap2; interface = (iname2, tyargs2); pattern =
                       Some pat2; quasilinearity = ql2 } ->
-                      (* should take care of that later *)
                       (* We can only join variables with the same interface
-                         name. If these match, we can join the types. *)
+                         name and type arguments. If these match, we can join the types. *)
                       if iname1 <> iname2 then
                           Gripers.env_interface_mismatch true
                             t1 t2 var iname1 iname2 [pos]
+                      else if tyargs1 <> tyargs2 then
+                          Gripers.env_tyargs_mismatch true
+                            t1 t2 var iname1 tyargs1 tyargs2 [pos]
                       else
                           (* Check sequencing of QL *)
                           let ql =
@@ -214,13 +216,16 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
                     assert false (* Set by pre-typing *)
                 | Mailbox { capability = cap1; interface = (iname1, tyargs1); pattern =
                     Some pat1; quasilinearity = ql1 },
-                  Mailbox { capability = cap2; interface = (iname2, _); pattern =
+                  Mailbox { capability = cap2; interface = (iname2, tyargs2); pattern =
                       Some pat2; quasilinearity = ql2 } ->
-                      (* take care of that later *)
                       (* As before -- interface names must be the same*)
                       if iname1 <> iname2 then
                           Gripers.env_interface_mismatch
                             false t1 t2 var iname1 iname2 [pos]
+                      (* as well as type arguments *)
+                      else if tyargs1 <> tyargs2 then
+                          Gripers.env_tyargs_mismatch true
+                            t1 t2 var iname1 tyargs1 tyargs2 [pos]
                       else
                           let ((cap, pat), constrs) =
                               intersect_mailbox_types var
