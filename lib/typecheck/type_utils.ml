@@ -5,8 +5,9 @@ open Common.Source_code
 
 
 (* Tries to ensure that a type is treated as unrestricted. All base types are
-   unrestricted. Output mailbox types cannot be made unrestricted. Input mailbox
-   types are unrestricted if they are equivalent to 1.
+   unrestricted. Input mailbox types cannot be made unrestricted. An output mailbox
+   type !E can be treated as unrestricted if 1 is included in E (i.e., we could
+   choose not to send).
  *)
 let make_unrestricted t pos =
     let open Type in
