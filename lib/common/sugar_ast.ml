@@ -28,6 +28,7 @@ and expr_node =
     | Seq of expr * expr
     | App of {
         func: expr;
+        tyargs: (Type.t[@name "ty"]) list;
         args: expr list
     }
     | If of { test: expr; then_expr: expr; else_expr: expr }
@@ -51,20 +52,20 @@ and expr_node =
        not wired to their continuations. I've experimented with the
        bidirectional rules and it seems that this does not pose any problems. *)
     (* That said, we may revisit this later when we look at deadlock detection. *)
-    | New of string (* interface name *)
+    | New of (string * (Type.t[@name "ty"]) list) (* interface name *)
     | Spawn of expr
     (* interface names for Send and Guard will be added after pre-type checking *)
     | Send of {
         target: expr;
         message: (string * (expr list));
-        iname: string option
+        iface: (string * (Type.t[@name "ty"]) list) option
     }
     | Guard of {
         target: expr;
         (* At least at the moment, each guard must be annotated with a pattern *)
         pattern: (Type.Pattern.t [@name "pattern"]);
         guards: guard list;
-        iname: string option
+        iface: (string * (Type.t[@name "ty"]) list) option
     }
     | Free of expr
     (* fail(e)[A], desugars to (guard e : 0 { fail } : A) *)
@@ -91,6 +92,7 @@ and guard_node =
     | Fail of (Type.t[@name "ty"])
 and decl = {
     decl_name: string;
+    typarams: (Type.t[@name "ty"]) list;
     decl_parameters: (string * (Type.t[@name "ty"])) list;
     decl_return_type: (Type.t[@name "ty"]);
     decl_body: expr
@@ -141,11 +143,12 @@ and pp_interface ppf iface =
         (pp_print_comma_list pp_msg_ty) xs
 (* Declarations *)
 and pp_decl ppf decl =
-    let  { decl_name; decl_parameters; decl_return_type; decl_body } =
+  let  { decl_name; typarams; decl_parameters; decl_return_type; decl_body } =
         WithPos.node decl
     in
-    fprintf ppf "def %s(%a): %a {@,@[<v 2>  %a@]@,}"
+    fprintf ppf "def %s<%a>(%a): %a {@,@[<v 2>  %a@]@,}"
       decl_name
+      (pp_print_list Type.pp) typarams
       (pp_print_comma_list pp_param) decl_parameters
       Type.pp decl_return_type
       pp_expr decl_body
@@ -193,11 +196,12 @@ and pp_expr ppf expr_with_pos =
             pp_expr else_expr
     | Seq (e1, e2) ->
         fprintf ppf "(%a;@,%a)" pp_expr e1 pp_expr e2
-    | App { func; args } ->
-        fprintf ppf "%a(%a)"
+    | App { func; tyargs; args } ->
+        fprintf ppf "%a<%a>(%a)"
             pp_expr func
+            (pp_print_list Type.pp) tyargs
             (pp_print_comma_list pp_expr) args
-    | New iname -> fprintf ppf "new[%s]" iname
+    | New (iname, _) -> fprintf ppf "new[%s]" iname
     | Spawn e -> fprintf ppf "spawn {@[<v>@,%a@]@,}" pp_expr e
     | Send { target; message; _ (* iname *) } ->
         (* Special-case the common case of sending to a variable.

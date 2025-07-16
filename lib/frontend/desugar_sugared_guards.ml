@@ -30,7 +30,7 @@ let visitor =
                 target = new_target;
                 pattern = Type.Pattern.Zero;
                 guards = [WithPos.make ~pos:(WithPos.pos new_target) (Fail ty)];
-                iname = None
+                iface = None
               } in
               let new_expr_node = Annotate (WithPos.make ~pos:(WithPos.pos new_target) new_guard, ty) in
               { expr_with_pos with node = new_expr_node }

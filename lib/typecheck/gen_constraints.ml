@@ -60,8 +60,8 @@ let rec synthesise_val :
                         ty, Ty_env.singleton v ty, Constraint_set.empty
                     (* In limited circumstances we can use a pretype annotation to
                        synthesise a function *)
-                    | _, PFun { linear; args; result } ->
-                        let ty = Type.function_type linear args result in
+                    | _, PFun { linear; typarams; args; result } ->
+                        let ty = Type.function_type linear typarams args result in
                         ty, Ty_env.singleton v ty, Constraint_set.empty
                     | _, _ ->
                         Gripers.synth_variable v [pos]
@@ -134,7 +134,7 @@ let rec synthesise_val :
             let constrs = Constraint_set.union_many
                 [body_constrs; parameter_constrs; unr_constrs]
             in
-            let ty = Type.function_type linear parameter_tys result_type in
+            let ty = Type.function_type linear [] parameter_tys result_type in
             (ty, returnable_env, constrs)
         | _ -> Gripers.cannot_synthesise_value v [pos]
 and check_val :
@@ -146,7 +146,8 @@ and check_val :
         let open Type in
         let open Pretype in
         match ty, pty with
-            | Mailbox { interface; _ }, PInterface iname when interface = iname -> ()
+            | TVar s1, PVar s2 when s1 = s2 -> ()
+            | Mailbox { interface; _ }, PInterface iface when interface = iface -> ()
             | Base b1, PBase b2 when b1 = b2 -> ()
             | Fun _, PFun _ -> 
                 (* Function pretypes are now fully typed, so any errors will be
@@ -241,14 +242,17 @@ and synthesise_comp :
             (Type.unit_type, env, constrs)
         | Free (_, None) -> assert false
         (* Application is a synthesis case, since functions are always annotated. *)
-        | App { func; args } ->
+        | App { func; tyargs; args } ->
             (* Synthesise the type for the function.
                Note that the function will always be annotated. *)
+            let _ = tyargs in
             let fun_ty, fun_env, fun_constrs = synthesise_val ienv decl_env func in
             let arg_tys, result_ty =
                 match fun_ty with
-                    | Type.Fun { args; result; _ } ->
-                        (args, result)
+                    | Type.Fun { typarams; args; result; _ } ->
+                        let args' = List.map (Type_utils.substitute_types typarams tyargs) args in
+                        let result' = Type_utils.substitute_types typarams tyargs result in
+                        (args', result')
                     | ty -> Gripers.expected_function func ty [pos]
             in
             (* Check that all argument types are compatible with the annotation *)
@@ -276,20 +280,22 @@ and synthesise_comp :
                 [fun_constrs; arg_constrs; env_constrs]
             in
             (result_ty, env, constrs)
-        | Send { target; message = (tag, payloads) ; iname } ->
+        | Send { target; message = (tag, payloads) ; iface } ->
             let open Type in
             (* Option.get safe since interface name will have been filled in
                by pre-type checking *)
-            let iname = Option.get iname in
+            let (iname, tyargs) = Option.get iface in
             let interface_withPos = IEnv.lookup iname ienv [pos] in
+            let typarams = Interface.typarams (WithPos.node interface_withPos) in
             let payload_types =
                 Interface.lookup ~pos_list:[WithPos.pos interface_withPos; pos] tag (WithPos.node interface_withPos)
+                |> List.map (Type_utils.substitute_types typarams tyargs)
             in
             (* Check target has correct output type *)
             let target_ty =
                 Mailbox {
                     capability = Out;
-                    interface = iname;
+                    interface = (iname, tyargs);
                     pattern = Some (Message tag);
                     (* 'Send' gives the MB type the least specific
                        quasilinearity (Usable). It can be coerced to Returnable
@@ -601,18 +607,18 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
             in
             let env = Ty_env.delete_many bnd_vars env in
             (env, constrs)
-        | Guard { iname = None; _ } -> (* Should have been filled in by pre-typing *)
+        | Guard { iface = None; _ } -> (* Should have been filled in by pre-typing *)
             assert false
-        | Guard { target; pattern; guards; iname = Some iname } ->
+        | Guard { target; pattern; guards; iface = Some (iname, tyargs) } ->
             let open Type in
             (* Check guard types, and generate constraints, and pattern for guards *)
             let (guards_env, guards_pat, guards_constrs) =
-                check_guards ienv decl_env iname pattern guards ty in
+                check_guards ienv decl_env (iname, tyargs) pattern guards ty in
             (* Check to see whether the MB handle can be given a type that's
                compatible with the synthesised pattern. *)
             let target_ty = Mailbox {
                 capability = In;
-                interface = iname;
+                interface = (iname, tyargs);
                 pattern = Some guards_pat;
                 (* We can only receive on a Returnable guard (since the name
                    goes out of scope afterwards) *)
@@ -655,9 +661,9 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
 (* Synthesises types for all guards, checks that their types are compatible, and
  * returns the intersection of the resulting environments and generated pattern. *)
 and check_guards :
-    IEnv.t -> Ty_env.t -> interface_name -> Type.Pattern.t -> Ir.guard list ->
+    IEnv.t -> Ty_env.t -> (interface_name * Type.t list) -> Type.Pattern.t -> Ir.guard list ->
         Type.t -> Nullable_env.t * Type.Pattern.t * Constraint_set.t =
-        fun ienv decl_env iname guard_pat gs ty ->
+        fun ienv decl_env (iname, typarams) guard_pat gs ty ->
           let open Ir in
           let open Type in
           (* Do a duplication check on guards *)
@@ -688,7 +694,7 @@ and check_guards :
           List.fold_left (fun (env, pat, acc_constrs) g ->
             (* TC Guard *)
             let (g_env, g_pat, g_constrs) =
-              check_guard ienv decl_env iname guard_pat g ty
+              check_guard ienv decl_env (iname, typarams) guard_pat g ty
             in
             (* Calculate environment intersection *)
             let (env, env_constrs) = Nullable_env.intersect g_env env (WithPos.pos g) in
@@ -701,9 +707,9 @@ and check_guards :
 (* Checks the type for a single guard, returning type, environment, pattern,
    and constraint set. *)
 and check_guard :
-    IEnv.t -> Ty_env.t -> interface_name -> Type.Pattern.t -> Ir.guard -> Type.t ->
+    IEnv.t -> Ty_env.t -> (interface_name * Type.t list) -> Type.Pattern.t -> Ir.guard -> Type.t ->
         Nullable_env.t * Type.Pattern.t * Constraint_set.t =
-        fun ienv decl_env iname pat g ty ->
+        fun ienv decl_env (iname, typarams) pat g ty ->
           let open Ir in
           let open Type in
           let pos = WithPos.pos g in
@@ -794,7 +800,7 @@ and check_guard :
                                 match ty with
                                     | Mailbox { interface; _ } when (List.mem interface mb_iface_tys) ->
                                         Gripers.duplicate_interface_receive_env
-                                        v interface 
+                                        v (fst interface)
                                         [pos]
                                     | _ -> ()
                             ) env
@@ -822,7 +828,7 @@ and check_guard :
                 let goal =
                     Type.Mailbox {
                         capability = Capability.In;
-                        interface = iname;
+                        interface = (iname, typarams);
                         pattern = Some One;
                         quasilinearity = Quasilinearity.Returnable;
                     }
@@ -865,7 +871,7 @@ let check_decls ienv decls =
         let decl_entry d =
             let args = List.map snd d.decl_parameters in
             Var.of_binder d.decl_name,
-            Type.make_function_type false args d.decl_return_type
+            Type.make_function_type false d.typarams args d.decl_return_type
         in
         List.map decl_entry decl_nodes
         |> Ty_env.from_list

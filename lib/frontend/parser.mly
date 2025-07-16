@@ -31,7 +31,7 @@ let with_pos_from_positions p1 p2 newE = ParserPosition.with_pos (p1, p2) newE
 
 let parse_error x pos_list = Errors.Parse_error (x,pos_list)
 
-let binary_op op_name x1 x2 = App { func = ParserPosition.with_pos ((get_start_pos x1),(get_end_pos x2)) (Primitive op_name); args = [x1; x2] }
+let binary_op op_name x1 x2 = App { func = ParserPosition.with_pos ((get_start_pos x1),(get_end_pos x2)) (Primitive op_name); tyargs=[]; args = [x1; x2] }
 
 
 %}
@@ -153,7 +153,7 @@ basic_expr:
     | CASE expr OF LEFT_BRACE inl_branch PIPE inr_branch RIGHT_BRACE
         { with_pos_from_positions $startpos $endpos ( Case { term = $2; branch1 = $5; branch2 = $7} )}
     (* New *)
-    | NEW LEFT_BRACK interface_name RIGHT_BRACK { with_pos_from_positions $startpos $endpos ( New $3 )}
+    | NEW LEFT_BRACK param_interface RIGHT_BRACK { with_pos_from_positions $startpos $endpos ( New $3 )}
     (* Spawn *)
     | SPAWN LEFT_BRACE expr RIGHT_BRACE { with_pos_from_positions $startpos $endpos ( Spawn $3 )}
     (* Free *)
@@ -162,10 +162,11 @@ basic_expr:
     | FAIL LEFT_PAREN expr RIGHT_PAREN LEFT_BRACK ty RIGHT_BRACK { with_pos_from_positions $startpos $endpos ( SugarFail ($3, $6))}
     | tuple_exprs { with_pos_from_positions $startpos $endpos ( Tuple $1 ) }
     (* App *)
-    | fact LEFT_PAREN expr_list RIGHT_PAREN
+    | fact typarams? LEFT_PAREN expr_list RIGHT_PAREN
         { with_pos_from_positions $startpos $endpos (
             App {   func = with_pos_from_positions $startpos $endpos ($1);
-                    args = $3 } 
+                    tyargs = (match $2 with Some ts -> ts | None -> []);
+                    args = $4 } 
         )}
     (* Lam *)
     | linearity LEFT_PAREN annotated_var_list RIGHT_PAREN COLON ty LEFT_BRACE expr RIGHT_BRACE
@@ -175,7 +176,7 @@ basic_expr:
         { with_pos_from_positions $startpos $endpos( 
             Send {  target = with_pos_from_positions $startpos $endpos ($1); 
                     message = $3; 
-                    iname = None 
+                    iface = None 
             }
         )}
     (* If-Then-Else *)
@@ -188,7 +189,7 @@ basic_expr:
                 target = $2;
                 pattern = $4;
                 guards = $6;
-                iname = None
+                iface = None
             }
         )}
     | op { with_pos_from_positions $startpos $endpos ( $1 )}
@@ -251,46 +252,49 @@ parenthesised_datatypes:
     | LEFT_PAREN ty_list RIGHT_PAREN { $2 }
 
 ty:
-    | parenthesised_datatypes RIGHTARROW simple_ty  { Type.Fun { linear = false; args = $1; result = $3} }
-    | parenthesised_datatypes LOLLI simple_ty       { Type.Fun { linear = true;  args = $1; result = $3} }
+    | parenthesised_datatypes RIGHTARROW simple_ty  { Type.Fun { linear = false; typarams = []; args = $1; result = $3} }
+    | parenthesised_datatypes LOLLI simple_ty       { Type.Fun { linear = true; typarams = []; args = $1; result = $3} }
     | LEFT_PAREN simple_ty PLUS simple_ty RIGHT_PAREN { Type.make_sum_type $2 $4 }
     | tuple_annotation { Type.make_tuple_type $1 }
     | simple_ty { $1 }
 
-interface_name:
-    | CONSTRUCTOR { $1 }
+typarams:
+| LEFT_BRACK separated_list(COMMA, ty) RIGHT_BRACK { $2 }
+
+param_interface:
+| CONSTRUCTOR typarams? { match $2 with Some ts -> ($1, ts) | None -> ($1, []) }
 
 pat:
-    | star_pat PLUS pat { Type.Pattern.Plus ($1, $3) }
-    | star_pat DOT pat  { Type.Pattern.Concat ($1, $3) }
-    | star_pat          { $1 }
+| star_pat PLUS pat { Type.Pattern.Plus ($1, $3) }
+| star_pat DOT pat  { Type.Pattern.Concat ($1, $3) }
+| star_pat          { $1 }
 
 star_pat:
-    | simple_pat STAR   { Type.Pattern.Many $1 }
-    | simple_pat        { $1 }
+| simple_pat STAR   { Type.Pattern.Many $1 }
+| simple_pat        { $1 }
 
 simple_pat:
-    | CONSTRUCTOR { Type.Pattern.Message $1 }
-    | INT {
-            match $1 with
-                | 0 -> Type.Pattern.Zero
-                | 1 -> Type.Pattern.One
-                | _ -> raise (parse_error "Invalid pattern: expected 0 or 1." 
-                                [Position.make ~start:$startpos ~finish:$endpos ~code:!source_code_instance])
-        }
-    | LEFT_PAREN pat RIGHT_PAREN { $2 }
-
-ql:
-    | LEFT_BRACK CONSTRUCTOR RIGHT_BRACK {
-        match $2 with
-            | "R" -> Type.Quasilinearity.Returnable
-            | "U" -> Type.Quasilinearity.Usable
-            | _ -> raise (parse_error "Invalid usage: expected U or R." 
+| CONSTRUCTOR { Type.Pattern.Message $1 }
+| INT {
+        match $1 with
+            | 0 -> Type.Pattern.Zero
+            | 1 -> Type.Pattern.One
+            | _ -> raise (parse_error "Invalid pattern: expected 0 or 1." 
                             [Position.make ~start:$startpos ~finish:$endpos ~code:!source_code_instance])
     }
+| LEFT_PAREN pat RIGHT_PAREN { $2 }
+
+ql:
+| LEFT_BRACK CONSTRUCTOR RIGHT_BRACK {
+    match $2 with
+        | "R" -> Type.Quasilinearity.Returnable
+        | "U" -> Type.Quasilinearity.Usable
+        | _ -> raise (parse_error "Invalid usage: expected U or R." 
+                        [Position.make ~start:$startpos ~finish:$endpos ~code:!source_code_instance])
+}
 
 mailbox_ty:
-    | CONSTRUCTOR BANG simple_pat? ql? {
+| param_interface BANG simple_pat? ql? {
         let quasilinearity =
             Option.value $4 ~default:(Type.Quasilinearity.Usable)
         in
@@ -301,7 +305,7 @@ mailbox_ty:
             quasilinearity
         })
     }
-    | CONSTRUCTOR QUERY simple_pat? ql? {
+    | param_interface QUERY simple_pat? ql? {
         let quasilinearity =
             Option.value $4 ~default:(Type.Quasilinearity.Returnable)
         in
@@ -325,8 +329,7 @@ base_ty:
             | "Int" -> Type.Base Base.Int
             | "Bool" -> Type.Base Base.Bool
             | "String" -> Type.Base Base.String
-            | _ -> raise (parse_error "Expected Atom, Int, Bool, or String"
-                            [Position.make ~start:$startpos ~finish:$endpos ~code:!source_code_instance])
+            | s -> Type.TVar s
     }
 
 message_ty:
@@ -342,18 +345,19 @@ annotated_var_list:
     | separated_list(COMMA, annotated_var)  { $1 }
 
 interface:
-    | INTERFACE interface_name LEFT_BRACE message_list RIGHT_BRACE 
-        { with_pos_from_positions $startpos $endpos ( Interface.make $2 $4)  }
+    | INTERFACE param_interface LEFT_BRACE message_list RIGHT_BRACE 
+        { with_pos_from_positions $startpos $endpos ( Interface.make (fst $2) (snd $2) $4)  }
 
 decl:
-    | DEF VARIABLE LEFT_PAREN annotated_var_list RIGHT_PAREN COLON ty LEFT_BRACE expr
+    | DEF VARIABLE typarams? LEFT_PAREN annotated_var_list RIGHT_PAREN COLON ty LEFT_BRACE expr
     RIGHT_BRACE {
         with_pos_from_positions $startpos $endpos ( 
         {
           decl_name = $2;
-          decl_parameters = $4;
-          decl_return_type = $7;
-          decl_body = $9
+          typarams = (match $3 with Some ts -> ts | None -> []);
+          decl_parameters = $5;
+          decl_return_type = $8;
+          decl_body = $10
         })
     }
 

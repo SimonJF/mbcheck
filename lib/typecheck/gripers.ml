@@ -182,6 +182,20 @@ let env_interface_mismatch is_join t1 t2 var iface1 iface2 pos_list =
     in
     raise (constraint_gen_error ~subsystem msg pos_list )
 
+let env_tyargs_mismatch is_join t1 t2 var iface tyargs1 tyargs2 pos_list =
+    let subsystem =
+        if is_join then Errors.GenJoin else Errors.GenIntersect
+    in
+    let msg =
+        Format.asprintf
+            "Unable to combine types %a and %a for variable %a as they have type arguments (%a and %a) for interface %s."
+            Type.pp t1 Type.pp t2 Ir.Var.pp_name var
+            (Format.pp_print_list Type.pp) tyargs1
+            (Format.pp_print_list Type.pp) tyargs2
+            iface
+    in
+    raise (constraint_gen_error ~subsystem msg pos_list )
+
 let type_mismatch is_join t1 t2 var pos_list =
     let subsystem =
         if is_join then Errors.GenJoin else Errors.GenIntersect

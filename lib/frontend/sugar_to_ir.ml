@@ -67,10 +67,11 @@ and transform_decl :
     Sugar_ast.decl ->
     Ir.Binder.t ->
         (env -> Ir.decl -> Ir.decl) -> Ir.decl =
-            fun env {decl_parameters; decl_return_type; decl_body; _} decl_binder k ->
+      fun env {decl_parameters; typarams; decl_return_type; decl_body; _} decl_binder k ->
     let (bnds, env') = add_names env fst decl_parameters in
     {
         decl_name = decl_binder;
+        typarams;
         decl_parameters = List.combine bnds (List.map snd decl_parameters);
         decl_return_type;
         decl_body = transform_expr env' decl_body id
@@ -175,10 +176,10 @@ and transform_expr :
                 | Ir.Return ({ node = Ir.Tuple []; _ }) ->
                     transform_expr env e2 k
                 | _ -> WithPos.make ~pos:pos' (Ir.Seq (c1, transform_expr env e2 k)))
-        | App {func; args} ->
+        | App {func; tyargs; args} ->
             transform_subterm env func (fun env funcv ->
             transform_list env args (fun argvs ->
-                with_same_pos (Ir.App { func = funcv; args = argvs })) k)
+                  with_same_pos (Ir.App { func = funcv; tyargs; args = argvs })) k)
         | If {test; then_expr; else_expr} ->
                 transform_subterm env test (fun env v ->
                 with_same_pos (
@@ -186,11 +187,11 @@ and transform_expr :
                     test = v;
                     then_expr = transform_expr env then_expr id;
                     else_expr = transform_expr env else_expr id }) |> k env)
-        | New i -> with_same_pos (Ir.New i) |> k env
+        | New iface -> with_same_pos (Ir.New iface) |> k env
         | Spawn e -> with_same_pos (Ir.Spawn (transform_expr env e id)) |> k env
         | Free e ->
             transform_subterm env e (fun _ v -> with_same_pos (Ir.Free (v, None))) |> k env
-        | Send {target; message; iname} ->
+        | Send {target; message; iface} ->
             let (tag, payloads) = message in
             transform_subterm env target (fun env pid ->
                 transform_list env payloads (fun payload_vs ->
@@ -198,8 +199,8 @@ and transform_expr :
                     Ir.Send {
                         target = pid;
                         message = (tag, payload_vs);
-                        iname })) k)
-        | Guard {target; pattern; guards; iname} ->
+                        iface })) k)
+        | Guard {target; pattern; guards; iface} ->
             transform_subterm env target (fun env v ->
                 let gs = List.map (fun x -> transform_guard env x) guards in
                 with_same_pos (
@@ -207,7 +208,7 @@ and transform_expr :
                     target = v;
                     pattern;
                     guards = gs;
-                    iname
+                    iface
                 }) |> k env )
         |  SugarFail (_, _) -> (* shouldn't ever match *)
                 raise (Errors.internal_error "sugar_to_ir.ml" "Encountered SugarFree/SugarFail expression during the IR translation stage")
