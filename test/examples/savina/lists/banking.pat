@@ -86,7 +86,7 @@ def choose_dst_acc(tellerMb: TellerMb!, numAccounts: Int, srcAccountMb: [Account
   # send funds to itself).
   let dstAccountId = rand(numAccounts - 2) in
 
-  let (dstAccount, rest) = (pick(dstAccountMbs, dstAccountId, (nil : [AccountMb!])) : ([AccountMb!] * [AccountMb!]))
+  let (dstAccount, rest) = (pick(dstAccountMbs, dstAccountId, (nil : [AccountMb!])) : ([AccountMb!Credit] * [AccountMb!1]))
   in
 
   let amount = rand(200) in

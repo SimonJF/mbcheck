@@ -161,14 +161,13 @@ let rec synthesise_val ienv env value : (value * Pretype.t) =
                     (fun (b, ty) -> Var.of_binder b, Pretype.of_type ty)
                     parameters
             in
-            let result_prety = Pretype.of_type result_type in
             let env = PretypeEnv.bind_many pretype_params env in
-            let body = check_comp ienv env body result_prety in
+            let body = check_comp ienv env body (Pretype.of_type result_type) in
             wrap (Lam { linear; parameters; body; result_type }),
             Pretype.PFun {
                 linear = linear;
                 args = param_types;
-                result = result_prety
+                result = result_type 
             }
         | Inl _ | Inr _ -> Gripers.cannot_synth_sum value
         | Nil -> Gripers.cannot_synth_nil value
@@ -317,7 +316,7 @@ and synthesise_comp ienv env comp =
                     check_val ienv env arg arg_ty)
             in
             (* Synthesise result type *)
-            WithPos.make ~pos(App { func; args }), result_ann
+            WithPos.make ~pos(App { func; args }), Pretype.of_type result_ann
         | Send { target; message = (tag, vals); _ } ->
             let open Pretype in
             (* Typecheck target *)
@@ -466,7 +465,7 @@ let check { prog_interfaces; prog_decls; prog_body } =
                 Pretype.PFun {
                     linear = false;
                     args = param_tys;
-                    result = Pretype.of_type d.decl_return_type
+                    result = d.decl_return_type
                 })) (WithPos.extract_list_node prog_decls)
         |> PretypeEnv.from_list
     in

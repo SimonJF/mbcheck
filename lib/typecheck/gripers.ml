@@ -12,14 +12,6 @@ let synth_variable v pos_list =
     in
     raise (constraint_gen_error ~subsystem:(Errors.GenSynth) msg pos_list)
 
-let synth_mailbox_function v pos_list =
-    let msg =
-        Format.asprintf
-            "Cannot synthesise type for variable %a: can only synthesise types for functions which return a base type" Ir.Var.pp_name v
-    in
-    raise (constraint_gen_error ~subsystem:(Errors.GenSynth) msg pos_list)
-
-
 let subtype_cap_mismatch t1 t2 pos_list =
     let msg =
       Format.asprintf

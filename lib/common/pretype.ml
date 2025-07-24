@@ -9,9 +9,7 @@ open Util.Utility
 
 type t =
     | PBase of base
-    (* Functions are always annotated with argument types.
-       The codomain is a pretype, since it is not in binding position. *)
-    | PFun of { linear: bool; args: (Type.t[@name "ty"]) list; result: t[@name "pretype"] }
+    | PFun of { linear: bool; args: (Type.t[@name "ty"]) list; result: (Type.t[@name "ty"]) }
     | PInterface of string
     | PSum of (t * t)
     | PTuple of t list
@@ -32,7 +30,7 @@ let rec pp ppf =
         fprintf ppf "(%a) %s %a"
             (pp_print_comma_list Type.pp) args
             arrow
-            pp result
+            Type.pp result
     | PTuple ts ->
         let pp_star ppf () = pp_print_string ppf " * " in
         fprintf ppf "(%a)"
@@ -54,7 +52,7 @@ let show t =
 let rec of_type = function
     | Type.Base b -> PBase b
     | Type.Fun { linear; args; result } ->
-        PFun { linear; args; result = of_type result }
+        PFun { linear; args; result = result }
     | Type.Tuple ts -> PTuple (List.map of_type ts)
     | Type.Sum (t1, t2) -> PSum (of_type t1, of_type t2)
     | Type.List t -> PList (of_type t)
@@ -67,10 +65,7 @@ let rec of_type = function
 let rec to_type = function
     | PBase b -> Some (Type.Base b)
     | PFun { linear; args; result } ->
-        Option.bind (to_type result)
-        (fun result ->
-            Some (Type.Fun { linear; args; result })
-        )
+        Some (Type.Fun { linear; args; result })
     | PTuple ts ->
         let rec go acc =
             function

@@ -60,20 +60,9 @@ let rec synthesise_val :
                         ty, Ty_env.singleton v ty, Constraint_set.empty
                     (* In limited circumstances we can use a pretype annotation to
                        synthesise a function *)
-                    | _, PFun { linear; args; result = PBase b } ->
-                        let ty = Type.function_type linear args (Type.Base b) in
+                    | _, PFun { linear; args; result } ->
+                        let ty = Type.function_type linear args result in
                         ty, Ty_env.singleton v ty, Constraint_set.empty
-                    (* Units *)
-                    | _, PFun { linear; args; result = PTuple [] } ->
-                            let ty = Type.function_type linear args (Type.Tuple []) in
-                        ty, Ty_env.singleton v ty, Constraint_set.empty
-                    | _, PFun _ ->
-                        Gripers.synth_mailbox_function v [pos]
-                    (* Although we have an interface pretype annotation, it's not possible
-                       to reliably infer a mailbox type (even with a fresh constraint) since
-                       we don't, a priori, know the capability. Even if we record the initial
-                       capability, it may be used at different 'modes' throughout the function,
-                       so any inference would in effect be a guess. *)
                     | _, _ ->
                         Gripers.synth_variable v [pos]
             end
@@ -159,8 +148,10 @@ and check_val :
         match ty, pty with
             | Mailbox { interface; _ }, PInterface iname when interface = iname -> ()
             | Base b1, PBase b2 when b1 = b2 -> ()
-            | Fun { result = rty; _ }, PFun { result = rpty; _ } ->
-                check_pretype_consistency rty rpty
+            | Fun _, PFun _ -> 
+                (* Function pretypes are now fully typed, so any errors will be
+                   picked up in constraint generation or constraint resolution. *)
+                ()
             | Tuple ts, PTuple pts ->
                 List.combine ts pts
                 |> List.iter (uncurry check_pretype_consistency)
