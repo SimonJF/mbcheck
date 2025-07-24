@@ -375,6 +375,13 @@ let is_output_mailbox = function
     | Mailbox { capability = Out; pattern = Some _; _ } -> true
     | _ -> false
 
+let rec contains_output_mailbox = function
+    | Mailbox { capability = Out; pattern = Some _; _} -> true
+    | Sum (t1, t2) -> contains_output_mailbox t1 || contains_output_mailbox t2
+    | Tuple ts -> List.exists contains_output_mailbox ts
+    | List t -> contains_output_mailbox t
+    | _ -> false
+
 let is_tuple = function
     | Tuple _ -> true
     | _ -> false

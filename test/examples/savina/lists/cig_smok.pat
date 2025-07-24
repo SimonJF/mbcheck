@@ -49,16 +49,16 @@ def notify_smoker(numSmokers: Int, smokerMbs: [SmokerMb!]): [SmokerMb!] {
 
 def notify_aux(choice: Int, time: Int, smokerMbs: [SmokerMb!]): [SmokerMb!] {
 if (choice == 0) {
-    caseL smokerMbs : [SmokerMb!]  of {
-        nil -> smokerMbs
+    caseL smokerMbs : [SmokerMb!(1 + StartSmoking)]  of {
+        nil -> nil
         | (mb cons mbs) ->
             mb ! StartSmoking(rand(time));
-            smokerMbs
+            (mb cons mbs)
     }
 }
 else {
     caseL smokerMbs : [SmokerMb!] of {
-        nil -> smokerMbs
+        nil -> nil
         | (mb cons mbs) ->
             let smokerMbs = notify_aux(choice - 1, time, mbs) in
             (mb cons smokerMbs)
@@ -69,7 +69,7 @@ else {
 ## Notifies all smokers to terminate.
 def notify_smoker_exit(smokerMbs: [SmokerMb!]): [SmokerMb!] {
     caseL smokerMbs : [SmokerMb!] of {
-        nil -> smokerMbs
+        nil -> nil
         | (mb cons mbs) ->
             mb ! Exit();
             notify_smoker_exit(mbs)

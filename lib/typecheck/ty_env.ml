@@ -257,24 +257,24 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
             let disjoints =
               let (disjoint_sends, disjoint_others) =
                 List.partition (fun (_, ty) ->
-                  Type.is_output_mailbox ty
+                  Type.contains_output_mailbox ty
                 ) (disjoint1 @ disjoint2)
               in
-              (* !E becomes !(E + 1) *)
-              let disjoint_sends =
-                List.map (fun (var, ty) ->
-                  let ty =
-                    match ty with
-                      | Mailbox { capability = Out; interface; quasilinearity; pattern = Some pat } ->
+              (* Relaxes a mailbox type from !E to !(E+1) *)
+              let rec relax_send_type = function
+                | Mailbox { capability = Out; interface; quasilinearity; pattern = Some pat } ->
                           let pat = Pattern.Plus (pat, Pattern.One) in
                           Mailbox { capability = Out; interface; quasilinearity; pattern = Some pat }
-                      | _ ->
-                          raise (Errors.internal_error "ty_env.ml" "error in disjoint MB combination")
-                  in
+                | List ty -> List (relax_send_type ty)
+                | _ ->
+                  raise (Errors.internal_error "ty_env.ml" "error in disjoint MB combination")
+              in
+              let disjoint_sends =
+                List.map (fun (var, ty) ->
+                  let ty = relax_send_type ty in
                   (var, ty)
                 ) disjoint_sends
               in
-
               let () =
                 List.iter (fun (var, ty) ->
                     if Type.is_lin ty then
