@@ -16,13 +16,14 @@ BENCHMARKS =\
         ("Ping Pong", os.path.join("test", "examples", "savina", "ping_pong_strict.pat")),
         ("Thread Ring", os.path.join("test", "examples", "savina", "thread_ring.pat")),
         ("Counter", os.path.join("test", "examples", "savina", "count.pat")),
-        ("K-Fork", os.path.join("test", "examples", "savina", "kfork.pat")),
+        ("K-Fork", os.path.join("test", "examples", "savina", "lists", "kfork.pat")),
         ("Fibonacci", os.path.join("test", "examples", "savina", "fib.pat")),
-        ("Big", os.path.join("test", "examples", "savina", "big.pat")),
+        ("Big", os.path.join("test", "examples", "savina", "lists", "big.pat")),
         ("Philosopher", os.path.join("test", "examples", "savina", "philosopher.pat")),
-        ("Smokers", os.path.join("test", "examples", "savina", "cig_smok.pat")),
+        ("Smokers", os.path.join("test", "examples", "savina", "lists", "cig_smok.pat")),
         ("Log Map", os.path.join("test", "examples", "savina", "log_map.pat")),
-        ("Transaction", os.path.join("test", "examples", "savina", "banking.pat"))
+        ("Transaction", os.path.join("test", "examples", "savina", "lists", "banking.pat")),
+	("Barber", os.path.join("test", "examples", "savina", "lists", "barber.pat")),
      ]
 
 # Tries to run in strict mode -- returns True if it works, False otherwise
