@@ -49,7 +49,7 @@ def notify_smoker(numSmokers: Int, smokerMbs: [SmokerMb!]): [SmokerMb!] {
 
 def notify_aux(choice: Int, time: Int, smokerMbs: [SmokerMb!]): [SmokerMb!] {
 if (choice == 0) {
-    caseL smokerMbs : [SmokerMb!(1 + StartSmoking)]  of {
+    caseL smokerMbs : [SmokerMb!]  of {
         nil -> nil
         | (mb cons mbs) ->
             mb ! StartSmoking(rand(time));
@@ -81,7 +81,10 @@ def notify_smoker_exit(smokerMbs: [SmokerMb!]): [SmokerMb!] {
 def arbiter_loop(self: ArbiterMb?, numSmokers: Int, numRounds: Int, smokerMbs: [SmokerMb!]): Unit {
   guard self: *StartedSmoking {
     free ->
-      ()
+      caseL smokerMbs : [SmokerMb!] of {
+      nil -> ()
+      | (a cons as) -> ()
+  }
     receive StartedSmoking() from self ->
 
       # The if here introduces the internal choice, which means that on the
