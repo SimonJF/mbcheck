@@ -55,7 +55,7 @@ let join : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t =
                         ((In, pat), constrs)
         in
 
-        let join_types (var: Ir.Var.t) (t1: Type.t) (t2: Type.t) : (Type.t * Constraint_set.t) =
+        let rec join_types (var: Ir.Var.t) (t1: Type.t) (t2: Type.t) : (Type.t * Constraint_set.t) =
             let open Type in
             match (t1, t2) with
                 | Base b1, Base b2 when b1 = b2 ->
@@ -97,32 +97,9 @@ let join : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t =
                               pattern = Some pat;
                               quasilinearity = ql
                           }, constrs
-                | List (Mailbox { capability = cap1; interface = iface1; pattern =
-                    Some pat1; quasilinearity = ql1 }),
-                  List (Mailbox { capability = cap2; interface = iface2; pattern =
-                      Some pat2; quasilinearity = ql2 }) ->
-                      (* We can only join variables with the same interface
-                         name. If these match, we can join the types. *)
-                      if iface1 <> iface2 then
-                          Gripers.env_interface_mismatch true
-                            t1 t2 var iface1 iface2 [pos]
-                      else
-                          (* Check sequencing of QL *)
-                          let ql =
-                              match Quasilinearity.sequence ql1 ql2 with
-                                | Some ql -> ql
-                                | None ->
-                                    Gripers.invalid_ql_sequencing var [pos]
-                          in
-                          let ((cap, pat), constrs) =
-                              join_mailbox_types var
-                                (cap1, pat1) (cap2, pat2) in
-                          Mailbox {
-                              capability = cap;
-                              interface = iface1;
-                              pattern = Some pat;
-                              quasilinearity = ql
-                          }, constrs
+                | List ty1, List ty2 ->
+                    let ty, constrs = join_types var ty1 ty2 in
+                    List ty, constrs
                 | _, _ ->
                     Gripers.type_mismatch true t1 t2 var [pos]
         in

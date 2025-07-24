@@ -247,15 +247,15 @@ and pp_expr ppf expr_with_pos =
             (pp_print_comma_list Type.pp) ts
             pp_expr term
             pp_expr cont
-    | Nil -> pp_print_string ppf "Nil"
+    | Nil -> pp_print_string ppf "nil"
     | Cons (e1, e2) ->
-        fprintf ppf "Cons %a %a" pp_expr e1 pp_expr e2
+        fprintf ppf "cons %a %a" pp_expr e1 pp_expr e2
     | CaseL { term; ty = t1; nil = e1; cons = ((b1, b2), e2) } -> begin
       match t1 with
         | List t ->
 	          fprintf
             ppf
-            "caseL %a : %a of {@[@[nil -> [@%a@]@]][cons %a %a -> [@%a@]@]@]]}"
+            "caseL %a : %a of {@[@[nil -> @[%a@]@]@]@[cons %a %a -> @[%a@]@]@]}"
             pp_expr term
             Type.pp t1
             pp_expr e1
