@@ -3,7 +3,7 @@ import os
 import subprocess
 from tabulate import tabulate
 
-REPETITIONS = 100
+REPETITIONS = 1000
 
 BENCHMARKS =\
     [
