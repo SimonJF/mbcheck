@@ -45,7 +45,7 @@ def producer_exit(self: ProducerMb?, numMessages: Int): Unit {
 
 ## Counter process main loop handling increment requests.
 def counter(self: CounterMb?, total: Int): Unit {
-  guard self: (*Inc) . Get {
+  guard self: Inc* . Get {
     free -> ()
     receive Inc() from self ->
       counter(self, total + 1)
@@ -70,7 +70,7 @@ def counter(self: CounterMb?, total: Int): Unit {
 
 ## Counter process exit procedure that flushes potential residual messages.
 def counter_exit(self: CounterMb?): Unit {
-  guard self: *Inc {
+  guard self: Inc* {
     free -> ()
     receive Inc() from self ->
       counter_exit(self)

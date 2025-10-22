@@ -26,7 +26,7 @@ interface ClientMb {
 #
 # Returns: Unit value.
 def master(self: MasterMb?): Unit {
-    guard self: *Task {
+    guard self: Task* {
         free -> () # No more tasks to handle.    
         receive Task(replyTo, n) from self ->
             
@@ -96,7 +96,7 @@ def farm(count: Int, chunks: Int, pool: PoolMb!): Unit {
 #
 # Returns: Accumulated total.
 def harvest(acc: Int, pool: PoolMb?): Int {
-    guard pool: *Result {
+    guard pool: Result* {
         free -> 
             # We do not keep track of the expected number of chunks since this
             # is something that is done automatically by the runtime. The fact

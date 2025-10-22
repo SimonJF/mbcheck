@@ -47,7 +47,7 @@ def philosopher_loop(self: PhilosopherMb?, id: Int, numRounds: Int, arbiterMb: A
 ## Arbiter process managing the allocation and deallocation of forks to 
 ## philosopher processes, as well as coordinating their termination.
 def arbiter(self: ArbiterMb?, numExitedPhilosophers: Int, fork1: Bool, fork2: Bool): Unit {
-  guard self: *(Hungry + Done + Exit) {
+  guard self: (Hungry + Done + Exit)* {
     free -> 
       ()
     receive Hungry(philosopherMb, philosopherId) from self ->
@@ -104,7 +104,7 @@ def deallocate_forks(id: Int, fork1: Bool, fork2: Bool): Unit {
 
 ## Arbiter process exit procedure flushing potential residual messages.
 def arbiter_exit(self: ArbiterMb?): Unit {
-  guard self: *(Hungry + Done + Exit) {
+  guard self: (Hungry + Done + Exit)* {
     free -> ()
     receive Hungry(philosopherMb, philosopherId) from self ->
       arbiter_exit(self)

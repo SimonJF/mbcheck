@@ -281,7 +281,7 @@ pat:
     | star_pat          { $1 }
 
 star_pat:
-    | STAR simple_pat   { Type.Pattern.Many $2 }
+    | simple_pat STAR   { Type.Pattern.Many $1 }
     | simple_pat        { $1 }
 
 simple_pat:

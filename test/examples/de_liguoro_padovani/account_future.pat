@@ -53,7 +53,7 @@ def resume(future: FutureMb?): Unit {
 #
 # Returns: Count of stale messages. 
 def flush(account: AccountMb?, stale: Int): Int {
-    guard account: (*Debit) . (*Credit) {
+    guard account: Debit* . Credit* {
         free -> stale
         receive Debit(amount, sender) from account ->
             flush(account, stale + 1)
@@ -69,7 +69,7 @@ def flush(account: AccountMb?, stale: Int): Int {
 #
 # Returns: Unit value.
 def account(self: AccountMb?, balance: Int): Unit {
-    guard self: ((*Debit) . (*Credit)) . Stop {
+    guard self: (Debit* . Credit*) . Stop {
         receive Debit(amount, sender) from self ->
             sender ! Reply();
             account(self, balance + amount)

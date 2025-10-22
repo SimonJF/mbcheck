@@ -18,7 +18,7 @@ def await(barrier: Barrier?): Unit {
 }
 
 def account(self: Account?, balance: Int): Unit {
-    guard self : ((*Debit) . (*Credit))  {
+    guard self : (Debit* . Credit*)  {
         # receive Stop() from self -> free(self)
         free -> ()
 
