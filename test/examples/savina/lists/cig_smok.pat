@@ -28,7 +28,7 @@ def create_smokers(self: ArbiterMb?, moreSmokers: Int, acc: [SmokerMb!]): (Arbit
 ## Arbiter process handling the creation of smokers and launching of main loop.
 def arbiter(self: ArbiterMb?, numRounds: Int): Unit {
 
-  guard self: Start . (*StartedSmoking) {
+  guard self: Start . (StartedSmoking*) {
     receive Start(numSmokers) from self ->
 
        let (self, smokerMbs) = create_smokers(self, numSmokers, (nil : [SmokerMb!])) in
@@ -79,7 +79,7 @@ def notify_smoker_exit(smokerMbs: [SmokerMb!]): [SmokerMb!] {
 ## Arbiter process main loop issuing start smoking requests and handling started
 ## smoking replies.
 def arbiter_loop(self: ArbiterMb?, numSmokers: Int, numRounds: Int, smokerMbs: [SmokerMb!]): Unit {
-  guard self: *StartedSmoking {
+  guard self: StartedSmoking* {
     free ->
       caseL smokerMbs : [SmokerMb!] of {
       nil -> ()
@@ -114,7 +114,7 @@ def arbiter_loop(self: ArbiterMb?, numSmokers: Int, numRounds: Int, smokerMbs: [
 ## smoking replies to/from the arbiter.
 def smoker(self: SmokerMb?, arbiterMb: ArbiterMb!): Unit {
   # Smoker may be asked to smoke more than once, or none. This is why the *.
-  guard self: (*StartSmoking) . (*Exit) {
+  guard self: (StartSmoking*) . (Exit*) {
     free ->
       () # Since the smoker might not even receive an Exit/StartSmoking message due to the if condition above.
     receive StartSmoking(ms) from self ->
@@ -128,7 +128,7 @@ def smoker(self: SmokerMb?, arbiterMb: ArbiterMb!): Unit {
 
 ## Smoker process exit procedure that flushes potential residual messages.
 def smoker_exit(self: SmokerMb?): Unit {
-  guard self: (*StartSmoking) . (*Exit) {
+  guard self: (StartSmoking*) . (Exit*) {
     free -> () # In case I have one or more Exit/StartSmoking messages due to the if condition above.
     receive StartSmoking(ms) from self ->
       smoker_exit(self)

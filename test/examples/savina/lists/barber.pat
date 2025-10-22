@@ -31,7 +31,7 @@ interface CustomerMb {
 }
 
 def room(self: RoomMb?, capacity: Int, waiters: [CustomerMb!], waiting: Int, barber: BarberMb!): Unit {
-    guard self: *(Enter + Next + Exit) {
+    guard self: (Enter + Next + Exit)* {
         free -> ()
         receive Enter(customerMb) from self ->
             if (waiting == capacity) {
@@ -58,7 +58,7 @@ def room(self: RoomMb?, capacity: Int, waiters: [CustomerMb!], waiting: Int, bar
 }
 
 def roomExit(self : RoomMb?) : Unit {
-    guard self: *(Enter + Next + Exit) {
+    guard self: (Enter + Next + Exit)* {
         free -> ()
         receive Enter(customerMb) from self -> roomExit(self)
         receive Next() from self -> roomExit(self)
@@ -67,7 +67,7 @@ def roomExit(self : RoomMb?) : Unit {
 }
 
 def barber(self: BarberMb?): Unit {
-    guard self: *(Enter + Exit) {
+    guard self: (Enter + Exit)* {
         free -> ()
         receive Enter(customerMb, roomMb) from self ->
             sleep(10);
@@ -80,7 +80,7 @@ def barber(self: BarberMb?): Unit {
 }
 
 def barberExit(self : BarberMb?) : Unit {
-    guard self: *(Enter + Exit) {
+    guard self: (Enter + Exit)* {
         free -> ()
         receive Enter(customerMb, roomMb) from self -> barberExit(self)
         receive Exit() from self -> barberExit(self)
@@ -117,7 +117,7 @@ def doneCustomers(customerMbs : [CustomerMb!]) : Unit {
 }
 
 def selector(self: SelectorMb?, generator: Int, haircuts: Int, target: Int, customers : [CustomerMb!], room: RoomMb!): Unit {
-    guard self: *(Start + Returned) {
+    guard self: (Start + Returned)* {
         free -> ()
         receive Start() from self ->
             let (self, newCustomers) = spawnCustomers(self, generator, 0, (nil : [CustomerMb!])) in
@@ -138,7 +138,7 @@ def selector(self: SelectorMb?, generator: Int, haircuts: Int, target: Int, cust
 }
 
 def selectorExit(self : SelectorMb?) : Unit {
-    guard self: *(Start + Returned) {
+    guard self: (Start + Returned)* {
         free -> ()
         receive Start() from self -> selectorExit(self)
         receive Returned(customerMb) from self -> selectorExit(self)
@@ -146,7 +146,7 @@ def selectorExit(self : SelectorMb?) : Unit {
 }
 
 def customer(self: CustomerMb?, selector: SelectorMb!): Unit {
-    guard self: *(Full + Start + Done + Exit) {
+    guard self: (Full + Start + Done + Exit)* {
         free -> ()
         receive Full(room) from self ->
             sleep(10);
@@ -164,7 +164,7 @@ def customer(self: CustomerMb?, selector: SelectorMb!): Unit {
 }
 
 def customerExit(self : CustomerMb?) : Unit {
-    guard self: *(Full + Start + Done + Exit) {
+    guard self: (Full + Start + Done + Exit)* {
         free -> ()
         receive Full(room) from self -> customerExit(self)
         receive Start(room) from self -> customerExit(self)

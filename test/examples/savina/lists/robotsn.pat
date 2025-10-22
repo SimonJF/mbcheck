@@ -22,7 +22,7 @@ interface Warehouse {
 
 # Door
 def freeDoor(self: Door?, warehouse: Warehouse!): Unit {
-    guard self : *Want {
+    guard self : Want* {
         free -> ()
         receive Want(part, robot) from self ->
             robot ! GoIn(self);
@@ -32,15 +32,15 @@ def freeDoor(self: Door?, warehouse: Warehouse!): Unit {
 }
 
 def busyDoor(self: Door?): Unit {
-    guard self : Inside . Prepared . *Want {
+    guard self : Inside . Prepared . Want* {
         receive Want(partNum, robot) from self ->
             robot ! Busy();
             busyDoor(self)
         receive Inside(robot) from self ->
-            guard self : Prepared . *Want {
+            guard self : Prepared . Want* {
                 receive Prepared(warehouse) from self ->
                     warehouse ! Deliver(robot, self);
-                    guard self : WantLeave . TableIdle . *Want {
+                    guard self : WantLeave . TableIdle . Want* {
                         receive WantLeave(robot) from self ->
                             robot ! GoOut(self);
                             finaliseDoor(self, warehouse)
@@ -50,14 +50,14 @@ def busyDoor(self: Door?): Unit {
 }
 
 def finaliseDoor(self: Door?, warehouse: Warehouse!): Unit {
-    guard self : Outside . TableIdle . *Want {
+    guard self : Outside . TableIdle . Want* {
         receive Outside() from self ->
-            guard self : TableIdle . *Want {
+            guard self : TableIdle . Want* {
                 receive TableIdle(warehouse) from self ->
                     freeDoor(self, warehouse)
             }
         receive TableIdle(warehouse) from self ->
-            guard self : Outside . *Want {
+            guard self : Outside . Want* {
                 receive Outside() from self ->
                     freeDoor(self, warehouse)
             }
