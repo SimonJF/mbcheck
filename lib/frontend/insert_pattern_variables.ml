@@ -12,9 +12,11 @@ let rec annotate_type =
     let open Type in
     function
         | Base t -> Base t
-        | Fun { linear; args; result } ->
+        | TVar s -> TVar s
+        | Fun { linear; typarams; args; result } ->
             Fun {
                 linear;
+                typarams;
                 args = List.map annotate_type args;
                 result = annotate_type result
             }
@@ -49,7 +51,7 @@ let annotate_interface_type =
 let annotate_interface iface =
     Interface.bindings iface
     |> List.map (fun (tag, tys) -> (tag, List.map annotate_interface_type tys))
-    |> Interface.(make (name iface))
+    |> Interface.(make (name iface) (typarams iface))
 
 (* The visitor traverses the AST to annotate parameters of higher-order
    functions. *)

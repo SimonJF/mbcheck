@@ -109,6 +109,128 @@ end
 
 module IEnv = Interface_env
 
+(* Check that typaram contains only typing variables *)
+let check_typarams pos typarams =
+    List.for_all
+      (fun (t : (Type.t[@name "ty"])) ->
+        match t with
+        TVar _ -> true
+        | _ -> Gripers.type_mismatch_with_expected pos
+                        "type variable" (Pretype.of_type t))
+      typarams
+
+(* Check that all type variables occuring in t are in typarams *)
+let check_tvar_in_params pos typarams (t : (Type.t[@name "ty"])) =
+    let rec aux (t : (Type.t[@name "ty"])) =
+        match t with
+        TVar s ->
+            if List.mem t typarams
+            then true
+            else Gripers.unbound_variable pos s
+            | Base _ -> true
+        | Fun { typarams=fun_typarams; args; result; _ } ->
+            (List.for_all aux fun_typarams)
+            && (List.for_all aux args)
+            && (aux result)
+        | Tuple ts ->
+            List.for_all aux ts
+        | Sum (t1, t2) ->
+            (aux t1) && (aux t2)
+        | Mailbox _ -> true
+    in aux t
+
+(* Check that all type variables occuring in interface are bound *)
+let check_iface_is_closed (iface_with_pos : Interface.t WithPos.t) : bool =
+    let iface = WithPos.node iface_with_pos in
+    let pos = WithPos.pos iface_with_pos in
+    let typarams = iface.typarams in
+    (check_typarams pos typarams)
+    && (List.for_all
+        (fun (_, ts) -> List.for_all (check_tvar_in_params pos typarams) ts)
+        iface.env)
+
+(* Check that all type variables occuring in declaration are bound *)
+let check_decl_is_closed (decl_with_pos : Ir.decl WithPos.t) =
+    let decl = WithPos.node decl_with_pos in
+    let pos = WithPos.pos decl_with_pos in
+    let typarams = decl.typarams in
+    let iface_aux pos typarams iface =
+        match iface with
+        None -> true
+        | Some (_, ts) ->
+            List.for_all (check_tvar_in_params pos typarams) ts
+    in
+    (* check that value is type-closed *)
+    let rec value_aux (v : Ir.value) : bool =
+        let vn = WithPos.node v in
+        let pos = WithPos.pos v in
+        match vn with
+        VAnnotate (v, t) ->
+            (check_tvar_in_params pos typarams t)
+            && (value_aux v)
+        | Atom _ | Constant _ | Primitive _ | Variable _ -> true
+        | Tuple vs -> List.for_all value_aux vs
+        | Inl v | Inr v -> value_aux v
+        | Lam { parameters; result_type; body; _ } ->
+            (List.for_all (fun (_, t) -> check_tvar_in_params pos typarams t) parameters)
+            && (check_tvar_in_params pos typarams result_type)
+            && (comp_aux body)
+    (* check that guard is type-closed *)
+    and guard_aux (g : Ir.guard) : bool =
+        let gn = WithPos.node g in
+        match gn with
+        Receive { cont; _ } -> comp_aux cont
+        | Empty (_, c) -> comp_aux c
+        | Fail -> true
+    (* check that comp is type-closed *)
+    and comp_aux (c : Ir.comp) : bool =
+        let cn = WithPos.node c in
+        let pos = WithPos.pos c in
+        match cn with
+        Annotate (c, t) ->
+            (check_tvar_in_params pos typarams t)
+            && (comp_aux c)
+        | Let { term; cont; _ } ->
+            (comp_aux term)
+            && (comp_aux cont)
+        | Seq (c1, c2) ->
+            (comp_aux c1)
+            && (comp_aux c2)
+        | Return v -> value_aux v
+        | App { tyargs; func; args; } ->
+            (value_aux func)
+            && (List.for_all value_aux args)
+            && (List.for_all (check_tvar_in_params pos typarams) tyargs)
+        | If { then_expr; else_expr; _ } ->
+            (comp_aux then_expr)
+            && (comp_aux else_expr)
+        | LetTuple { tuple; cont; _ } ->
+            (value_aux tuple) && (comp_aux cont)
+        | Case { term; branch1=((_, t1), c1); branch2=((_, t2), c2); _ } ->
+            (value_aux term)
+            && (check_tvar_in_params pos typarams t1)
+            && (check_tvar_in_params pos typarams t2)
+            && (comp_aux c1)
+            && (comp_aux c2)
+        | New (_, ts) ->
+            List.for_all (check_tvar_in_params pos typarams) ts
+        | Spawn c ->
+            comp_aux c
+        | Send { target; iface; _ } ->
+            (value_aux target) && (iface_aux pos typarams iface)
+        | Free (v, iface) ->
+            (value_aux v) && (iface_aux pos typarams iface)
+        | Guard { target; guards; iface; _} ->
+            (value_aux target)
+            && (iface_aux pos typarams iface)
+            && (List.for_all guard_aux guards)
+    in
+    (check_typarams pos typarams)
+    && (List.for_all (fun (_, t) -> check_tvar_in_params pos typarams t) decl.decl_parameters)
+    && (check_tvar_in_params pos typarams decl.decl_return_type)
+    && (comp_aux decl.decl_body)
+
+
 (* We take a bidirectional approach. Unlike in gen_constraints,
    as with most bidirectional systems, we try and synthesise as much
    as we can, since we carry around the type environment with us and
@@ -153,6 +275,7 @@ let rec synthesise_val ienv env value : (value * Pretype.t) =
             wrap (Lam { linear; parameters; body; result_type }),
             Pretype.PFun {
                 linear = linear;
+                typarams = [];
                 args = param_types;
                 result = result_type 
             }
@@ -251,15 +374,22 @@ and synthesise_comp ienv env comp =
             let e1 = check_comp ienv env e1 (Pretype.unit) in
             let e2, e2_ty = synth e2 in
             WithPos.make ~pos(Seq (e1, e2)), e2_ty
-        | App { func; args } ->
+        | App { func; tyargs; args } ->
             let open Pretype in
             (* Synthesise type for function; ensure it is a function type *)
             let (func, f_ty) = synthv func in
             let arg_anns, result_ann =
                 begin
                     match f_ty with
-                        | PFun { args; result; _ } ->
-                            List.map Pretype.of_type args, result
+                        | PFun { typarams; args; result; _ } ->
+                          begin
+                          try
+                            let args' = List.map (Type_utils.substitute_types typarams tyargs) args in
+                            let result' = Type_utils.substitute_types typarams tyargs result in
+                            List.map Pretype.of_type args', result'
+                          with Invalid_argument _ ->
+                            Gripers.arity_error pos (List.length typarams) (List.length tyargs)
+                          end
                         | t ->
                             Gripers.type_mismatch_with_expected pos "a function type" t
                 end
@@ -278,7 +408,7 @@ and synthesise_comp ienv env comp =
                     check_val ienv env arg arg_ty)
             in
             (* Synthesise result type *)
-            WithPos.make ~pos(App { func; args }), Pretype.of_type result_ann
+            WithPos.make ~pos(App { func; tyargs; args }), Pretype.of_type result_ann
         | Send { target; message = (tag, vals); _ } ->
             let open Pretype in
             (* Typecheck target *)
@@ -286,15 +416,20 @@ and synthesise_comp ienv env comp =
             (* Ensure target has interface type *)
             begin
                 match target_ty with
-                    | PInterface iname ->
+                    | PInterface (iname, tyargs) ->
                         (* Check that:
                             - Message tag is contained within interface
                             - Message payload pretype matches that of the interface *)
                         let interface_withPos = IEnv.lookup iname ienv [(WithPos.pos comp)] in
+                        let typarams = Interface.typarams (WithPos.node interface_withPos) in
                         let payload_target_tys =
+                          try
                             WithPos.node interface_withPos
-                            |> Interface.lookup ~pos_list:(WithPos.extract_pos_pair interface_withPos comp)  tag
+                            |> Interface.lookup ~pos_list:(WithPos.extract_pos_pair interface_withPos comp) tag
+                            |> List.map (Type_utils.substitute_types typarams tyargs)
                             |> List.map Pretype.of_type
+                          with Invalid_argument _ ->
+                            Gripers.arity_error pos (List.length typarams) (List.length tyargs)
                         in
                         let () =
                             let iface_len = List.length payload_target_tys in
@@ -312,7 +447,7 @@ and synthesise_comp ienv env comp =
                         Send {
                             target;
                             message = (tag, vals);
-                            iname = Some iname
+                            iface = Some (iname, tyargs)
                          }), Pretype.unit
                     | ty -> Gripers.type_mismatch_with_expected pos "an interface type" ty
             end
@@ -326,9 +461,9 @@ and synthesise_comp ienv env comp =
             WithPos.make ~pos(Free (v, Some iface)), Pretype.unit
         | Guard { target; pattern; guards; _ } ->
             let (target, target_ty) = synthv target in
-            let iname =
+            let iface =
                 match target_ty with
-                    | PInterface iname -> iname
+                    | PInterface iface -> iface
                     | t -> Gripers.type_mismatch_with_expected pos "an interface type" t
             in
             (* We can synthesise the type of a guard expression as long as it is
@@ -340,13 +475,13 @@ and synthesise_comp ienv env comp =
                     | [] ->
                         Gripers.cannot_synth_empty_guards pos ()
                     | g :: gs ->
-                        let g, g_ty = synth_guard ienv env iname g in
+                        let g, g_ty = synth_guard ienv env iface g in
                         let gs =
-                            List.map (fun g -> check_guard pos ienv env iname g g_ty) gs
+                            List.map (fun g -> check_guard pos ienv env iface g g_ty) gs
                         in
                         g :: gs, g_ty
             in
-            WithPos.make ~pos(Guard { target; pattern; guards; iname = Some iname }), g_ty
+            WithPos.make ~pos(Guard { target; pattern; guards; iface = Some iface }), g_ty
 and check_comp ienv env comp ty  =
     let pos = WithPos.pos comp in
     match WithPos.node comp with
@@ -355,17 +490,17 @@ and check_comp ienv env comp ty  =
             WithPos.make ~pos (Return v)
         | Guard { target; pattern; guards; _ } when guards = [(WithPos.make ~pos Fail)] ->
             let target, target_ty = synthesise_val ienv env target in
-            let iname =
+            let iface =
                 match target_ty with
-                    | PInterface iname -> iname
+                    | PInterface iface -> iface
                     | t -> Gripers.type_mismatch_with_expected pos "an interface type" t
             in
-            WithPos.make ~pos (Guard { target; pattern; guards = [(WithPos.make ~pos Fail)]; iname = Some iname })
+            WithPos.make ~pos (Guard { target; pattern; guards = [(WithPos.make ~pos Fail)]; iface = Some iface })
         | _ ->
             let comp, inferred_ty = synthesise_comp ienv env comp in
             check_tys [pos] ty inferred_ty;
             comp
-and synth_guard ienv env iname g =
+and synth_guard ienv env ((iname, typarams) : (string * (Type.t[@name "ty"]) list)) g =
     let interface_withPos = IEnv.lookup iname ienv [(WithPos.pos g)] in
     let iface = WithPos.node interface_withPos in
     let pos = WithPos.pos g in
@@ -390,24 +525,28 @@ and synth_guard ienv env iname g =
                 |> PretypeEnv.bind_many payload_entries
                 |> PretypeEnv.bind
                     (Var.of_binder mailbox_binder)
-                    (Pretype.PInterface iname)
+                    (Pretype.PInterface (iname, typarams))
             in
             let cont, cont_ty = synthesise_comp ienv env cont in
             WithPos.make ~pos (Receive { tag; payload_binders; mailbox_binder; cont }), cont_ty
         | Empty (x, e) ->
-            let env = PretypeEnv.bind (Var.of_binder x) (Pretype.PInterface iname) env in
+            let env = PretypeEnv.bind (Var.of_binder x) (Pretype.PInterface (iname, typarams)) env in
             let e, e_ty = synthesise_comp ienv env e in
             WithPos.make ~pos (Empty (x, e)), e_ty
         | Fail ->
             Gripers.cannot_synth_fail pos ()
-and check_guard pos ienv env iname g ty =
-    let g, inferred_ty = synth_guard ienv env iname g in
+and check_guard pos ienv env (iface : string * (Type.t[@name "ty"]) list) g ty =
+    let g, inferred_ty = synth_guard ienv env iface g in
     check_tys [pos] ty inferred_ty;
     g
 
 (* Top-level typechecker *)
 let check { prog_interfaces; prog_decls; prog_body } =
 
+    (* Check that interface and definitions are type-closed.
+       Unbound_variable is raised otherwiser. *)
+    let _ = List.for_all check_iface_is_closed prog_interfaces in
+    let _ = List.for_all check_decl_is_closed prog_decls in
     (* Construct interface environment from interface list *)
     let ienv = IEnv.from_list prog_interfaces in
     let param_pretypes =
@@ -426,6 +565,7 @@ let check { prog_interfaces; prog_decls; prog_body } =
             (Var.of_binder d.decl_name,
                 Pretype.PFun {
                     linear = false;
+                    typarams = d.typarams;
                     args = param_tys;
                     result = d.decl_return_type
                 })) (WithPos.extract_list_node prog_decls)
