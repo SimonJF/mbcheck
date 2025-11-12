@@ -319,3 +319,44 @@ let make_unrestricted env pos =
     List.fold_left (fun acc (_, ty) ->
         Constraint_set.union acc (make_unrestricted ty pos)
     ) Constraint_set.empty (bindings env)
+
+(* If we are receiving a mailbox variable, without a dependency
+   graph, we must do some fairly coarse-grained aliasing
+   control when receiving from a mailbox or deconstructing a list.
+   There are three strategies:
+      1. Strict: the environment must be entirely unrestricted
+          (i.e., no other mailbox variables are free in the receive
+          block)
+
+      2. Interface: the environment cannot contain a variable of
+          the same interface. This means that we know we won't
+          accidentally alias, without being overly restrictive.
+
+      3. Nothing: No alias control: permissive, but unsafe.
+  *)
+let check_free_mailbox_variables bound_variable_types env =
+    let mb_iface_tys =
+        List.filter_map (fun ty ->
+            if Type.is_mailbox_type ty then
+                Some (Type.get_interface ty)
+            else None)
+        bound_variable_types
+    in
+    let open Settings in
+    let open ReceiveTypingStrategy in
+    match get receive_typing_strategy with
+        | Strict ->
+            iter (fun v ty ->
+                if Type.is_lin ty then
+                    Gripers.unrestricted_recv_env v ty []
+            ) env
+        | Interface ->
+            iter (fun v ty ->
+                match ty with
+                    | Type.Mailbox { interface; _ } when (List.mem interface mb_iface_tys) ->
+                        Gripers.duplicate_interface_receive_env
+                        v interface
+                        []
+                    | _ -> ()
+            ) env
+        | Nothing -> ()

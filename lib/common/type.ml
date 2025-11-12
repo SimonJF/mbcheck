@@ -419,7 +419,7 @@ let rec make_returnable = function
     | Mailbox m -> Mailbox { m with quasilinearity = Quasilinearity.Returnable }
     | Tuple ts -> Tuple (List.map make_returnable ts)
     | Sum (t1, t2) -> Sum (make_returnable t1, make_returnable t2)
-    | List t -> List (make_returnable t)
+    (* | List t -> List (make_returnable t) *)
     | t -> t
 
 let is_unr = is_lin >> not
@@ -441,5 +441,4 @@ let make_tuple_type tys =
 let make_sum_type ty1 ty2 =
     Sum (make_returnable ty1, make_returnable ty2)
 
-let make_list_type ty =
-    List (make_returnable ty)
+let make_list_type ty = List ty

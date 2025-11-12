@@ -450,6 +450,11 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
             in
             (env, constrs)
         | CaseL { term; ty = ty1; nil = comp1; cons = ((bnd1, bnd2), comp2) } ->
+            let elem_ty =
+                match ty1 with
+                    | Type.List elem_ty -> elem_ty
+                    | _ -> Gripers.expected_list_type ty1 [pos]
+            in
             (* Check that scrutinee has annotated list type *)
             let (term_env, term_constrs) =
                 check_val ienv decl_env term ty1
@@ -458,13 +463,17 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
             let (comp1_env, comp1_constrs) = chk comp1 ty in
             (* Next, check that comp2 (cons case) has expected return type *)
             let (comp2_env, comp2_constrs) = chk comp2 ty in
-            (* Next, check that the inferred types in comp2_env match annotations *)
+            (* Next, check that the inferred types in comp2_env match annotations and that
+               the cons case doesn't contain any troublesome mailbox variables that could 
+               introduce unsafe aliasing *)
             let var1 = Var.of_binder bnd1 in
-            let var2 = Var.of_binder bnd2 in
-            let elem_ty =
-                match ty1 with
-                    | Type.List elem_ty -> elem_ty
-                    | _ -> Gripers.expected_list_type ty1 [pos]
+            let var2 = Var.of_binder bnd2 in 
+            let comp2_env_no_binders = Ty_env.delete_many [var1; var2] comp2_env in
+            (* If element type is returnable, we know it's the last lexical occurrence 
+               and we don't need this check. *)
+            let () =
+                if (not (Type.is_returnable elem_ty)) then
+                    Ty_env.check_free_mailbox_variables [elem_ty] comp2_env_no_binders
             in
             let env_constrs =
                 Constraint_set.union
@@ -475,7 +484,8 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
             let isect_env, isect_constrs =
                 Ty_env.intersect
                   comp1_env
-                  (Ty_env.delete_many [var1; var2] comp2_env) pos
+                  comp2_env_no_binders
+                  pos
             in
             (* Finally combine the term env with the intersected env *)
             let env, combine_constrs =
@@ -815,47 +825,7 @@ and check_guard :
                   List.fold_right (Ty_env.delete_binder) payload_binders env
                   |> Ty_env.delete_binder mailbox_binder
                 in
-                (* If we are receiving a mailbox variable, without a dependency
-                   graph, we must do some fairly coarse-grained aliasing
-                   control.
-                   There are three strategies:
-                      1. Strict: the environment must be entirely unrestricted
-                          (i.e., no other mailbox variables are free in the receive
-                          block)
-
-                      2. Interface: the environment cannot contain a variable of
-                          the same interface. This means that we know we won't
-                          accidentally alias, without being overly restrictive.
-
-                      3. Nothing: No alias control: permissive, but unsafe.
-                  *)
-                let () =
-                    let mb_iface_tys =
-                        List.filter_map (fun ty ->
-                            if Type.is_mailbox_type ty then
-                                Some (Type.get_interface ty)
-                            else None)
-                        payload_iface_tys
-                    in
-                    let open Settings in
-                    let open ReceiveTypingStrategy in
-                    match get receive_typing_strategy with
-                        | Strict ->
-                            Ty_env.iter (fun v ty ->
-                                if Type.is_lin ty then
-                                    Gripers.unrestricted_recv_env v ty [pos]
-                            ) env
-                        | Interface ->
-                            Ty_env.iter (fun v ty ->
-                                match ty with
-                                    | Mailbox { interface; _ } when (List.mem interface mb_iface_tys) ->
-                                        Gripers.duplicate_interface_receive_env
-                                        v interface
-                                        [pos]
-                                    | _ -> ()
-                            ) env
-                        | Nothing -> ()
-                in
+                Ty_env.check_free_mailbox_variables payload_iface_tys env;
                 (* Calculate the derivative wrt. the tag, and ensure via a
                    constraint that it is included in the calculated payload
                    type. *)

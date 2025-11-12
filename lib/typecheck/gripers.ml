@@ -228,7 +228,7 @@ let guard_send_return_type ty pos_list =
 let unrestricted_recv_env var ty pos_list =
     let msg =
         Format.asprintf
-            "The body of a receive guard cannot contain free linear capabilities, but variable %a has type %a."
+            "The body of a receive guard or case expression cannot contain free mailbox variables, but variable %a has type %a."
             Ir.Var.pp_name var Type.pp ty
     in
     raise (constraint_gen_error ~subsystem:Errors.GenCheckGuard msg pos_list)
@@ -308,7 +308,7 @@ let let_not_returnable ty pos_list =
 let duplicate_interface_receive_env var iface pos_list =
     let msg =
         Format.asprintf
-            "To prevent unsafe aliasing, no other variables of the same interface as a received variable may be present in the body of a receive guard. However, variable %a also has interface name %s."
+            "To prevent unsafe aliasing, no other variables of the same interface as a received variable may be present in the body of a receive guard or a case expression. However, variable %a also has interface name %s."
             Ir.Var.pp_name var
             iface
     in
