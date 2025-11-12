@@ -27,9 +27,10 @@ module Quasilinearity = struct
        to be returnable.
      *)
     let is_sub x1 x2 =
-        match x1, x2 with
-            | Returnable, Usable -> true
-            | x1, x2 -> x1 = x2
+        (Settings.(get disable_quasilinearity)) ||
+            match x1, x2 with
+                | Returnable, Usable -> true
+                | x1, x2 -> x1 = x2
 
     let max ql1 ql2 =
         if ql1 = Returnable || ql2 = Returnable then
@@ -440,5 +441,5 @@ let make_tuple_type tys =
 let make_sum_type ty1 ty2 =
     Sum (make_returnable ty1, make_returnable ty2)
 
-let make_list_type ty1 =
-    List (make_returnable ty1)
+let make_list_type ty =
+    List (make_returnable ty)
