@@ -56,15 +56,15 @@ def generate_work(tellerMb: TellerMb!, numAccounts: Int, accs : [AccountMb!]): U
   choose_dst_acc(tellerMb, numAccounts, choice, rest)
 }
 
-def pick(accs : [AccountMb!], index : Int, rest : [AccountMb!]) : ([AccountMb!] * [AccountMb!]) {
+def pick(accs : [AccountMb!], index : Int, rest : [AccountMb!]) : ((Unit + AccountMb!) * [AccountMb!]) {
 if (index == 0) {
     caseL accs : [AccountMb!] of {
-        nil -> ((nil : [AccountMb!]), rest)
-        | (a cons as) -> ((a cons (nil : [AccountMb!])), append(rest, as))
+        nil -> let x = () in (inl(x) : (Unit + AccountMb!), rest)
+        | (a cons as) -> (inr(a) : (Unit + AccountMb!), append(rest, as))
     }}
 else {
     caseL accs : [AccountMb!] of {
-        nil ->  ((nil : [AccountMb!]), rest)
+        nil ->  let x = () in (inl(x) : (Unit + AccountMb!), rest)
         | (a cons as) -> pick(as, index - 1, (a cons rest))
     }}
 }
@@ -78,28 +78,28 @@ def append(l1 : [AccountMb!], l2: [AccountMb!]) : [AccountMb!] {
 
 ## Randomly chooses the destination account and issues a credit request. The
 ## function ensures that the source and destination account are different.
-def choose_dst_acc(tellerMb: TellerMb!, numAccounts: Int, srcAccountMb: [AccountMb![R]], dstAccountMbs : [AccountMb!]): Unit {
+def choose_dst_acc(tellerMb: TellerMb!, numAccounts: Int, srcAccount: (Unit + AccountMb!), dstAccountMbs : [AccountMb!]): Unit {
 
-  # Randomly choose destination account to which funds shall be deposited. -2
-  # because rand() is 0-indexed, and because we do not include the source
-  # account in the random choice (i.e., the source account is not permitted to
-  # send funds to itself).
-  let dstAccountId = rand(numAccounts - 2) in
-
-  let (dstAccount, rest) = (pick(dstAccountMbs, dstAccountId, (nil : [AccountMb!])) : ([AccountMb!Credit] * [AccountMb!1]))
-  in
-
-  let amount = rand(200) in
-    caseL srcAccountMb : [AccountMb!] of {
-    nil -> caseL dstAccount : [AccountMb!] of {
-        nil -> ()
-        | (d cons ds) -> ()
-    }
-    | (a cons as) -> caseL dstAccount : [AccountMb!] of {
-        nil -> ()
-        | (d cons ds) -> d ! Credit(tellerMb, amount, a)
-    }
-  }
+  (# Randomly choose destination account to which funds shall be deposited. -2
+    # because rand() is 0-indexed, and because we do not include the source
+    # account in the random choice (i.e., the source account is not permitted to
+    # send funds to itself).
+    let dstAccountId = rand(numAccounts - 2) in
+  
+    let (dstAccount, rest) = (pick(dstAccountMbs, dstAccountId, (nil : [AccountMb!])) : ((Unit + AccountMb!Credit) * [AccountMb!1]))
+    in
+  
+    (let amount = rand(200) in
+          case srcAccount : (Unit + AccountMb!) of {
+          inl(u1) : Unit -> case dstAccount : (Unit + AccountMb!) of {
+              inl(u2) : Unit -> ()
+              | inr(d) : AccountMb! -> ()
+          }
+          | inr(a) : AccountMb! -> case dstAccount : (Unit + AccountMb!) of {
+              inl(u) : Unit -> ()
+              | inr(d) : AccountMb! -> d ! Credit(tellerMb, amount, a)
+          }
+        }))
 }
 
 ## Teller process main loop handling replies from accounts.
