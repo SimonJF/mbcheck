@@ -232,6 +232,18 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
                 | List t1, List t2 ->
                     let ty, constrs = intersect_types var t1 t2 in
                     List ty, constrs
+                | Sum (t1l, t1r), Sum (t2l, t2r) ->
+                    let tl, constrs1 = intersect_types var t1l t2l in
+                    let tr, constrs2 = intersect_types var t1r t2r in
+                    Sum (tl, tr), Constraint_set.union constrs1 constrs2
+                | Tuple ts1, Tuple ts2 ->
+                    let (ts, constrs) =
+                        List.fold_left2 (fun (acc, constrs) t1 t2 -> 
+                            let t, t_constrs = intersect_types var t1 t2 in
+                            t :: acc, Constraint_set.union t_constrs constrs)
+                        ([], Constraint_set.empty) ts1 ts2
+                    in
+                    Tuple ts, constrs
                 | _, _ ->
                     Gripers.type_mismatch false t1 t2 var [pos]
         in
