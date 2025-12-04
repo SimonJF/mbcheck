@@ -26,6 +26,8 @@ let rec make_unrestricted t pos =
         | Tuple tys ->
             Constraint_set.union_many
                 (List.map (fun t -> make_unrestricted t pos) tys)
+        | Sum (ty1, ty2) ->
+            Constraint_set.union (make_unrestricted ty1 pos) (make_unrestricted ty2 pos)
         | List ty ->
             make_unrestricted ty pos
         | _ -> assert false
