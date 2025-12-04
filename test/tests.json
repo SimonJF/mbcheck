@@ -103,6 +103,21 @@
                     "name": "n-tuples, bad (2)",
                     "filename": "pat-tests/n-tuples-bad-2.pat",
                     "exit_code": 1
+                },
+                {
+                    "name": "Lists (1)",
+                    "filename": "pat-tests/list-1.pat",
+                    "exit_code": 0
+                },
+                {
+                    "name": "Lists (2)",
+                    "filename": "pat-tests/list-2.pat",
+                    "exit_code": 0
+                },
+                {
+                    "name": "Lists (with mailboxes)",
+                    "filename": "pat-tests/list-mb.pat",
+                    "exit_code": 0
                 }
             ]
         },
@@ -136,10 +151,21 @@
                 {"name": "Thread Ring", "filename": "examples/savina/thread_ring.pat", "exit_code": 0}
             ]
         },
+        { "group": "Correct examples (Savina with lists)",
+          "tests":
+            [
+                {"name": "Banking (lists)", "filename": "examples/savina/lists/banking.pat", "exit_code": 0},
+                {"name": "Big (lists)", "filename": "examples/savina/lists/big.pat", "exit_code": 0},
+                {"name": "Cigarette Smoker (lists)", "filename": "examples/savina/lists/cig_smok.pat", "exit_code": 0},
+                {"name": "kfork (lists)", "filename": "examples/savina/lists/kfork.pat", "exit_code": 0},
+                {"name": "Sleeping Barber", "filename": "examples/savina/lists/barber.pat", "exit_code": 0}
+            ]
+        },
         { "group": "Correct examples (Others)",
           "tests":
             [
                 {"name": "n-Robots", "filename": "examples/robotsn.pat", "exit_code": 0},
+                {"name": "n-Robots (lists)", "filename": "examples/robotsn-lists.pat", "exit_code": 0},
                 {"name": "Guard annotation is a subpattern", "filename": "examples/pat_constr.pat", "exit_code": 0}
             ]
         },
@@ -177,6 +203,11 @@
                 {
                     "name": "Use after free (4)",
                     "filename": "errors/uaf3.pat",
+                    "exit_code": 1
+                },
+                {
+                    "name": "Use after free (lists)",
+                    "filename": "errors/uaf_lists.pat",
                     "exit_code": 1
                 },
                 {"name": "Insufficient type information", "filename": "errors/pat_constr.pat", "exit_code": 1},

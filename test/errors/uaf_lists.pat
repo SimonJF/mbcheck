@@ -9,8 +9,8 @@ def drain(x: Test?): Unit {
 
 def go(): Unit {
     let x = new[Test] in
-    let xs = (x cons (nil: [Test![U]])) in
-    caseL xs : [Test!] of {
+    let xs = (x cons (nil: List(Test![U]))) in
+    caseL xs : List(Test!) of {
           nil -> ()
         | (a cons as) -> x ! M(a)
     };
