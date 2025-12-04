@@ -415,21 +415,17 @@ let rec make_usable = function
     | List t -> List (make_usable t)
     | t -> t
 
-let rec make_returnable = function
+(* Tuples, sums, and lists can all be returnable even if they contain things that are not returnable,
+   as long as we are careful to avoid aliasing when deconstructing the value. *)
+let make_returnable = function
     | Mailbox m -> Mailbox { m with quasilinearity = Quasilinearity.Returnable }
-    | Tuple ts -> Tuple (List.map make_returnable ts)
-    | Sum (t1, t2) -> Sum (make_returnable t1, make_returnable t2)
-    (* | List t -> List (make_returnable t) *)
     | t -> t
 
 let is_unr = is_lin >> not
 
-let rec is_returnable = function
+let is_returnable = function
     | Mailbox { quasilinearity = ql; _ } ->
         ql = Quasilinearity.Returnable
-    | Tuple ts -> List.for_all is_returnable ts
-    | Sum  (t1, t2) -> is_returnable t1 && is_returnable t2
-    | List t -> is_returnable t
     | _ -> true
 
 let make_function_type linear args result =
