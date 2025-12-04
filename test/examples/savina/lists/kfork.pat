@@ -46,14 +46,14 @@ def spawnActors(numActors: Int, acc: [ActorMb!]): [ActorMb!] {
     } else {
         let newActor = new[ActorMb] in
         spawn { actor(newActor) };
-        spawnActors(numActors - 1, (newActor cons acc))
+        spawnActors(numActors - 1, (newActor :: acc))
     }
 }
 
 def floodActors(numMessages: Int, actorMbs: [ActorMb!]): Unit {
     caseL actorMbs : [ActorMb!] of {
         nil -> ()
-      | (a cons as) ->
+      | (a :: as) ->
             flood(numMessages, a);
             floodActors(numMessages, as)
         }

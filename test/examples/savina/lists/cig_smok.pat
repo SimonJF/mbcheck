@@ -21,7 +21,7 @@ def create_smokers(self: ArbiterMb?, moreSmokers: Int, acc: [SmokerMb!]): (Arbit
     else {
         let newSmoker = new [SmokerMb] in
             spawn { smoker(newSmoker, self) };
-            create_smokers(self, moreSmokers - 1, (newSmoker cons acc))
+            create_smokers(self, moreSmokers - 1, (newSmoker :: acc))
         }
 }
 
@@ -51,17 +51,17 @@ def notify_aux(choice: Int, time: Int, smokerMbs: [SmokerMb!]): [SmokerMb!] {
 if (choice == 0) {
     caseL smokerMbs : [SmokerMb!]  of {
         nil -> nil
-        | (mb cons mbs) ->
+        | (mb :: mbs) ->
             mb ! StartSmoking(rand(time));
-            (mb cons mbs)
+            (mb :: mbs)
     }
 }
 else {
     caseL smokerMbs : [SmokerMb!] of {
         nil -> nil
-        | (mb cons mbs) ->
+        | (mb :: mbs) ->
             let smokerMbs = notify_aux(choice - 1, time, mbs) in
-            (mb cons smokerMbs)
+            (mb :: smokerMbs)
     }
 }
 }
@@ -70,7 +70,7 @@ else {
 def notify_smoker_exit(smokerMbs: [SmokerMb!]): [SmokerMb!] {
     caseL smokerMbs : [SmokerMb!] of {
         nil -> nil
-        | (mb cons mbs) ->
+        | (mb :: mbs) ->
             mb ! Exit();
             notify_smoker_exit(mbs)
         }
@@ -83,7 +83,7 @@ def arbiter_loop(self: ArbiterMb?, numSmokers: Int, numRounds: Int, smokerMbs: [
     free ->
       caseL smokerMbs : [SmokerMb!] of {
       nil -> ()
-      | (a cons as) -> ()
+      | (a :: as) -> ()
   }
     receive StartedSmoking() from self ->
 

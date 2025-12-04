@@ -20,10 +20,10 @@ interface AccountMb {
 def spawnAccounts(self: TellerMb?, numsAccounts: [Int], soFar: Int, acc: [AccountMb!]) : (TellerMb? * [AccountMb!]) {
   caseL numsAccounts : [Int] of {
     nil -> (self, acc)
-    | (n cons ns) ->
+    | (n :: ns) ->
         let accountMb = new [AccountMb] in
         spawn { account(accountMb, soFar, n)};
-        spawnAccounts(self, ns, soFar + 1, (accountMb cons acc))
+        spawnAccounts(self, ns, soFar + 1, (accountMb :: acc))
     }
   }
 
@@ -60,19 +60,19 @@ def pick(accs : [AccountMb![R]], index : Int, rest : [AccountMb![R]]) : ((Unit +
 if (index == 0) {
     caseL accs : [AccountMb![R]] of {
         nil -> let x = () in (inl(x) : (Unit + AccountMb!), rest)
-        | (a cons as) -> (inr(a) : (Unit + AccountMb!), append(rest, as))
+        | (a :: as) -> (inr(a) : (Unit + AccountMb!), append(rest, as))
     }}
 else {
     caseL accs : [AccountMb![R]] of {
         nil ->  let x = () in (inl(x) : (Unit + AccountMb!), rest)
-        | (a cons as) -> pick(as, index - 1, (a cons rest))
+        | (a :: as) -> pick(as, index - 1, (a :: rest))
     }}
 }
 
 def append(l1 : [AccountMb![R]], l2: [AccountMb![R]]) : [AccountMb![R]] {
     caseL l1 : [AccountMb![R]] of {
         nil -> l2
-        | (a cons as) -> append(as, (a cons l2))
+        | (a :: as) -> append(as, (a :: l2))
     }
 }
 
@@ -116,7 +116,7 @@ def teller_loop(self: TellerMb?, accountMbs : [AccountMb!]): Unit {
 def stopAccounts(accs: [AccountMb!]) : Unit {
     caseL accs : [AccountMb!] of {
         nil -> ()
-        | (a cons as) ->
+        | (a :: as) ->
             a ! Stop();
             stopAccounts(as)
         }
@@ -167,7 +167,7 @@ def account_exit(self: AccountMb?): Unit {
 ## Launcher.
 def main(): Unit {
   let tellerMb = new [TellerMb] in
-  spawn { teller(tellerMb, 3, (200 cons (150 cons (50 cons (nil : [Int]))))) };
+  spawn { teller(tellerMb, 3, (200 :: (150 :: (50 :: (nil : [Int]))))) };
 
   tellerMb ! Start()
 }

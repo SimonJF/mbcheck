@@ -49,8 +49,7 @@ let keywords = [
     "of", OF;
     "inl", INL;
     "inr", INR;
-    "nil", NIL;
-    "cons", CONS
+    "nil", NIL
 ]
 }
 
@@ -111,6 +110,7 @@ rule read =
     | "!="     { add_to_source_code lexbuf; NEQ }
     | "->"     { add_to_source_code lexbuf; RIGHTARROW }
     | "-o"     { add_to_source_code lexbuf; LOLLI }
+    | "::"     { add_to_source_code lexbuf; CONS }
     | _ { raise (SyntaxError ("Unexpected char: " ^ Lexing.lexeme lexbuf)) }
     | eof      { EOF }
 and read_string buf =

@@ -120,7 +120,7 @@ def handlePartTaken(self: Warehouse?, door: Door!): Unit {
 def discardList(xs: [Robot!]) : Unit {
     caseL xs : [Robot!] of {
         nil -> ()
-        | (a cons as) -> discardList(as)
+        | (a :: as) -> discardList(as)
     }
 }
 
@@ -130,7 +130,7 @@ def spawnRobots(numRobots: Int, door: Door!, acc: [Robot!]): Unit {
     } else {
         let newRobot = new[Robot] in
         spawn { idleRobot(newRobot, door) };
-        spawnRobots(numRobots - 1, door, (newRobot cons acc))
+        spawnRobots(numRobots - 1, door, (newRobot :: acc))
     }
 }
 

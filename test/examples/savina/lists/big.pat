@@ -126,7 +126,7 @@ def sink_loop(self: SinkMb?, exitMbs : [ExitMb!]): Unit {
 def notifyExits(exitMbs : [ExitMb!]): Unit {
     caseL exitMbs : [ExitMb!] of {
     nil -> ()
-  | (y cons ys) ->
+  | (y :: ys) ->
         y ! Exit();
         notifyExits(ys)
     }
@@ -150,7 +150,7 @@ def main(): Unit {
   spawn { actor(actorMb2, exitMb2, 2, sinkMb) };
   spawn { actor(actorMb3, exitMb3, 3, sinkMb) };
 
-  let xs = (exitMb1 cons (exitMb2 cons (exitMb3 cons (nil : [ExitMb!])))) in sinkMb ! Actors(xs);
+  let xs = (exitMb1 :: (exitMb2 :: (exitMb3 :: (nil : [ExitMb!])))) in sinkMb ! Actors(xs);
 
   actorMb1 ! Neighbors(actorMb2, actorMb3); # actorMb1: ?Neighbors
   actorMb2 ! Neighbors(actorMb1, actorMb3); # actorMb2: ?Neighbors

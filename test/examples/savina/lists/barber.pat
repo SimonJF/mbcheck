@@ -40,14 +40,14 @@ def room(self: RoomMb?, capacity: Int, waiters: [CustomerMb!], waiting: Int, bar
             }
             else {
                 sleep(5);
-                room(self, capacity, (customerMb cons waiters), (waiting + 1), barber)
+                room(self, capacity, (customerMb :: waiters), (waiting + 1), barber)
             }
         receive Next() from self ->
             caseL waiters : [CustomerMb!] of {
                 nil ->
                     sleep(5);
                     room(self, capacity, (nil : [CustomerMb!]), waiting, barber)
-                | (a cons as) -> 
+                | (a :: as) -> 
                     barber ! Enter(a, self);
                     room(self, capacity, as, (waiting - 1), barber)
             }
@@ -94,14 +94,14 @@ def spawnCustomers(self: SelectorMb?, generator: Int, soFar: Int, acc : [Custome
     else {
         let customerMb = new [CustomerMb] in
         spawn { customer(customerMb, self)};
-        spawnCustomers(self, generator, (soFar + 1), (customerMb cons acc))
+        spawnCustomers(self, generator, (soFar + 1), (customerMb :: acc))
     }
 }
 
 def startCustomers(customerMbs : [CustomerMb!], room : RoomMb!) : Unit {
     caseL customerMbs : [CustomerMb!] of {
         nil -> ()
-        | (a cons as) ->
+        | (a :: as) ->
             a ! Start(room);
             startCustomers(as, room)
     } 
@@ -110,7 +110,7 @@ def startCustomers(customerMbs : [CustomerMb!], room : RoomMb!) : Unit {
 def doneCustomers(customerMbs : [CustomerMb!]) : Unit {
     caseL customerMbs : [CustomerMb!] of {
         nil -> ()
-        | (a cons as) ->
+        | (a :: as) ->
             a ! Done();
             doneCustomers(as)
     } 
