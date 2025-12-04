@@ -17,7 +17,7 @@ interface ExitMb {
 
 interface SinkMb {
   Done(),
-  Actors([ExitMb!])
+  Actors(List(ExitMb!))
 }
 
 ## Actor process handling the launching of main loop.
@@ -112,7 +112,7 @@ def sink(self: SinkMb?): Unit {
 }
 
 ## Sink process main loop issuing termination messages.
-def sink_loop(self: SinkMb?, exitMbs : [ExitMb!]): Unit {
+def sink_loop(self: SinkMb?, exitMbs : List(ExitMb!)): Unit {
   guard self: Done* {
     free ->
       # Notify all actors. Placing the sends in this clause ensures that
@@ -123,8 +123,8 @@ def sink_loop(self: SinkMb?, exitMbs : [ExitMb!]): Unit {
   }
 }
 
-def notifyExits(exitMbs : [ExitMb!]): Unit {
-    caseL exitMbs : [ExitMb!] of {
+def notifyExits(exitMbs : List(ExitMb!)): Unit {
+    caseL exitMbs : List(ExitMb!) of {
     nil -> ()
   | (y :: ys) ->
         y ! Exit();
@@ -150,7 +150,7 @@ def main(): Unit {
   spawn { actor(actorMb2, exitMb2, 2, sinkMb) };
   spawn { actor(actorMb3, exitMb3, 3, sinkMb) };
 
-  let xs = (exitMb1 :: (exitMb2 :: (exitMb3 :: (nil : [ExitMb!])))) in sinkMb ! Actors(xs);
+  let xs = (exitMb1 :: (exitMb2 :: (exitMb3 :: (nil : List(ExitMb!))))) in sinkMb ! Actors(xs);
 
   actorMb1 ! Neighbors(actorMb2, actorMb3); # actorMb1: ?Neighbors
   actorMb2 ! Neighbors(actorMb1, actorMb3); # actorMb2: ?Neighbors

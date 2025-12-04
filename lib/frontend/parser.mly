@@ -94,6 +94,7 @@ These will be added in later
 %token OR
 %token CASE
 %token CASEL
+%token LIST
 %token NIL
 %token CONS
 %token OF
@@ -174,7 +175,6 @@ basic_expr:
     | tuple_exprs { with_pos_from_positions $startpos $endpos ( Tuple $1 ) }
     | NIL { with_pos_from_positions $startpos $endpos ( Nil ) }
     | LEFT_PAREN expr CONS expr RIGHT_PAREN { with_pos_from_positions $startpos $endpos ( Cons ($2, $4) ) }
-    (* | LEFT_BRACK expr RIGHT_BRACK { Cons ($2, Nil) } *)
     (* App *)
     | fact LEFT_PAREN expr_list RIGHT_PAREN
         { with_pos_from_positions $startpos $endpos (
@@ -269,7 +269,7 @@ ty:
     | parenthesised_datatypes LOLLI simple_ty       { Type.Fun { linear = true;  args = $1; result = $3} }
     | LEFT_PAREN simple_ty PLUS simple_ty RIGHT_PAREN { Type.make_sum_type $2 $4 }
     | tuple_annotation { Type.make_tuple_type $1 }
-    | LEFT_BRACK simple_ty RIGHT_BRACK { Type.make_list_type $2 }
+    | LIST LEFT_PAREN simple_ty RIGHT_PAREN { Type.make_list_type $3 }
     | simple_ty { $1 }
 
 interface_name:

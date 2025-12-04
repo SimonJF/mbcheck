@@ -117,14 +117,14 @@ def handlePartTaken(self: Warehouse?, door: Door!): Unit {
     }
 }
 
-def discardList(xs: [Robot!]) : Unit {
-    caseL xs : [Robot!] of {
+def discardList(xs: List(Robot!)) : Unit {
+    caseL xs : List(Robot!) of {
         nil -> ()
         | (a :: as) -> discardList(as)
     }
 }
 
-def spawnRobots(numRobots: Int, door: Door!, acc: [Robot!]): Unit {
+def spawnRobots(numRobots: Int, door: Door!, acc: List(Robot!)): Unit {
     if (numRobots <= 0) {
         discardList(acc)
     } else {
@@ -138,7 +138,7 @@ def main(n: Int): Unit {
     let door = new[Door] in
     let warehouse = new[Warehouse] in
     spawn { freeDoor(door, warehouse) };
-    spawnRobots(n, door, (nil : [Robot!]));
+    spawnRobots(n, door, (nil : List(Robot!)));
     spawn { freeWarehouse(warehouse) }
 }
 

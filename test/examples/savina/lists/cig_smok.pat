@@ -14,7 +14,7 @@ interface SmokerMb {
   Exit()
 }
 
-def create_smokers(self: ArbiterMb?, moreSmokers: Int, acc: [SmokerMb!]): (ArbiterMb? * [SmokerMb!]) {
+def create_smokers(self: ArbiterMb?, moreSmokers: Int, acc: List(SmokerMb!)): (ArbiterMb? * List(SmokerMb!)) {
     if (moreSmokers == 0) {
         (self, acc)
     }
@@ -31,7 +31,7 @@ def arbiter(self: ArbiterMb?, numRounds: Int): Unit {
   guard self: Start . (StartedSmoking*) {
     receive Start(numSmokers) from self ->
 
-       let (self, smokerMbs) = create_smokers(self, numSmokers, (nil : [SmokerMb!])) in
+       let (self, smokerMbs) = create_smokers(self, numSmokers, (nil : List(SmokerMb!))) in
 
         let smokerMbs = notify_smoker(numSmokers, smokerMbs) in
         arbiter_loop(self, numSmokers, numRounds, smokerMbs)
@@ -39,7 +39,7 @@ def arbiter(self: ArbiterMb?, numRounds: Int): Unit {
 }
 
 ## Randomly chooses the smoker and requests it to smoke.
-def notify_smoker(numSmokers: Int, smokerMbs: [SmokerMb!]): [SmokerMb!] {
+def notify_smoker(numSmokers: Int, smokerMbs: List(SmokerMb!)): List(SmokerMb!) {
 
   let smokerId = rand(numSmokers - 1) in
   let sleepTimeMs = 1000 in
@@ -47,9 +47,9 @@ def notify_smoker(numSmokers: Int, smokerMbs: [SmokerMb!]): [SmokerMb!] {
   notify_aux(smokerId, sleepTimeMs, smokerMbs)
 }
 
-def notify_aux(choice: Int, time: Int, smokerMbs: [SmokerMb!]): [SmokerMb!] {
+def notify_aux(choice: Int, time: Int, smokerMbs: List(SmokerMb!)): List(SmokerMb!) {
 if (choice == 0) {
-    caseL smokerMbs : [SmokerMb!]  of {
+    caseL smokerMbs : List(SmokerMb!)  of {
         nil -> nil
         | (mb :: mbs) ->
             mb ! StartSmoking(rand(time));
@@ -57,7 +57,7 @@ if (choice == 0) {
     }
 }
 else {
-    caseL smokerMbs : [SmokerMb!] of {
+    caseL smokerMbs : List(SmokerMb!) of {
         nil -> nil
         | (mb :: mbs) ->
             let smokerMbs = notify_aux(choice - 1, time, mbs) in
@@ -67,8 +67,8 @@ else {
 }
 
 ## Notifies all smokers to terminate.
-def notify_smoker_exit(smokerMbs: [SmokerMb!]): [SmokerMb!] {
-    caseL smokerMbs : [SmokerMb!] of {
+def notify_smoker_exit(smokerMbs: List(SmokerMb!)): List(SmokerMb!) {
+    caseL smokerMbs : List(SmokerMb!) of {
         nil -> nil
         | (mb :: mbs) ->
             mb ! Exit();
@@ -78,10 +78,10 @@ def notify_smoker_exit(smokerMbs: [SmokerMb!]): [SmokerMb!] {
 
 ## Arbiter process main loop issuing start smoking requests and handling started
 ## smoking replies.
-def arbiter_loop(self: ArbiterMb?, numSmokers: Int, numRounds: Int, smokerMbs: [SmokerMb!]): Unit {
+def arbiter_loop(self: ArbiterMb?, numSmokers: Int, numRounds: Int, smokerMbs: List(SmokerMb!)): Unit {
   guard self: StartedSmoking* {
     free ->
-      caseL smokerMbs : [SmokerMb!] of {
+      caseL smokerMbs : List(SmokerMb!) of {
       nil -> ()
       | (a :: as) -> ()
   }

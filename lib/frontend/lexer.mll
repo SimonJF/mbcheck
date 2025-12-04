@@ -49,7 +49,8 @@ let keywords = [
     "of", OF;
     "inl", INL;
     "inr", INR;
-    "nil", NIL
+    "nil", NIL;
+    "List", LIST
 ]
 }
 

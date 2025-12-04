@@ -17,8 +17,8 @@ interface AccountMb {
   Stop()
 }
 
-def spawnAccounts(self: TellerMb?, numsAccounts: [Int], soFar: Int, acc: [AccountMb!]) : (TellerMb? * [AccountMb!]) {
-  caseL numsAccounts : [Int] of {
+def spawnAccounts(self: TellerMb?, numsAccounts: List(Int), soFar: Int, acc: List(AccountMb!)) : (TellerMb? * List(AccountMb!)) {
+  caseL numsAccounts : List(Int) of {
     nil -> (self, acc)
     | (n :: ns) ->
         let accountMb = new [AccountMb] in
@@ -29,9 +29,9 @@ def spawnAccounts(self: TellerMb?, numsAccounts: [Int], soFar: Int, acc: [Accoun
 
 ## Teller process handling the creation of account processes and launching of
 ## main loop.
-def teller(self: TellerMb?, numAccounts : Int, numsAccounts: [Int]): Unit {
+def teller(self: TellerMb?, numAccounts : Int, numsAccounts: List(Int)): Unit {
 
-  let (self, accountMbs) = spawnAccounts(self, numsAccounts, 1, (nil : [AccountMb!])) in
+  let (self, accountMbs) = spawnAccounts(self, numsAccounts, 1, (nil : List(AccountMb!))) in
 
   guard self: Start {
     receive Start() from self ->
@@ -47,30 +47,30 @@ def teller(self: TellerMb?, numAccounts : Int, numsAccounts: [Int]): Unit {
 }
 
 ## Randomly chooses the source account.
-def generate_work(tellerMb: TellerMb!, numAccounts: Int, accs : [AccountMb![R]]): Unit {
+def generate_work(tellerMb: TellerMb!, numAccounts: Int, accs : List(AccountMb![R])): Unit {
 
   # Randomly choose source account from which the funds shall be taken.
   let sourceId = rand(numAccounts - 1) in # -1 because rand() is 0-indexed.
 
-  let (choice, rest) = pick(accs, sourceId, (nil : [AccountMb![R]])) in
+  let (choice, rest) = pick(accs, sourceId, (nil : List(AccountMb![R]))) in
   choose_dst_acc(tellerMb, numAccounts, choice, rest)
 }
 
-def pick(accs : [AccountMb![R]], index : Int, rest : [AccountMb![R]]) : ((Unit + AccountMb![R]) * [AccountMb![R]]) {
+def pick(accs : List(AccountMb![R]), index : Int, rest : List(AccountMb![R])) : ((Unit + AccountMb![R]) * List(AccountMb![R])) {
 if (index == 0) {
-    caseL accs : [AccountMb![R]] of {
+    caseL accs : List(AccountMb![R]) of {
         nil -> let x = () in (inl(x) : (Unit + AccountMb!), rest)
         | (a :: as) -> (inr(a) : (Unit + AccountMb!), append(rest, as))
     }}
 else {
-    caseL accs : [AccountMb![R]] of {
+    caseL accs : List(AccountMb![R]) of {
         nil ->  let x = () in (inl(x) : (Unit + AccountMb!), rest)
         | (a :: as) -> pick(as, index - 1, (a :: rest))
     }}
 }
 
-def append(l1 : [AccountMb![R]], l2: [AccountMb![R]]) : [AccountMb![R]] {
-    caseL l1 : [AccountMb![R]] of {
+def append(l1 : List(AccountMb![R]), l2: List(AccountMb![R])) : List(AccountMb![R]) {
+    caseL l1 : List(AccountMb![R]) of {
         nil -> l2
         | (a :: as) -> append(as, (a :: l2))
     }
@@ -78,7 +78,7 @@ def append(l1 : [AccountMb![R]], l2: [AccountMb![R]]) : [AccountMb![R]] {
 
 ## Randomly chooses the destination account and issues a credit request. The
 ## function ensures that the source and destination account are different.
-def choose_dst_acc(tellerMb: TellerMb!, numAccounts: Int, srcAccount: (Unit + AccountMb![R]), dstAccountMbs : [AccountMb![R]]): Unit {
+def choose_dst_acc(tellerMb: TellerMb!, numAccounts: Int, srcAccount: (Unit + AccountMb![R]), dstAccountMbs : List(AccountMb![R])) : Unit {
 
   (# Randomly choose destination account to which funds shall be deposited. -2
     # because rand() is 0-indexed, and because we do not include the source
@@ -86,7 +86,7 @@ def choose_dst_acc(tellerMb: TellerMb!, numAccounts: Int, srcAccount: (Unit + Ac
     # send funds to itself).
     let dstAccountId = rand(numAccounts - 2) in
   
-    let (dstAccount, rest) = (pick(dstAccountMbs, dstAccountId, (nil : [AccountMb![R]])) : ((Unit + AccountMb!Credit[R]) * [AccountMb!1[R]]))
+    let (dstAccount, rest) = (pick(dstAccountMbs, dstAccountId, (nil : List(AccountMb![R]))) : ((Unit + AccountMb!Credit[R]) * List(AccountMb!1[R])))
     in
   
     (let amount = rand(200) in
@@ -103,7 +103,7 @@ def choose_dst_acc(tellerMb: TellerMb!, numAccounts: Int, srcAccount: (Unit + Ac
 }
 
 ## Teller process main loop handling replies from accounts.
-def teller_loop(self: TellerMb?, accountMbs : [AccountMb!]): Unit {
+def teller_loop(self: TellerMb?, accountMbs : List(AccountMb!)): Unit {
   guard self: Reply* {
     free ->
       # All credit requests serviced. Stop accounts.
@@ -113,8 +113,8 @@ def teller_loop(self: TellerMb?, accountMbs : [AccountMb!]): Unit {
   }
 }
 
-def stopAccounts(accs: [AccountMb!]) : Unit {
-    caseL accs : [AccountMb!] of {
+def stopAccounts(accs: List(AccountMb!)) : Unit {
+    caseL accs : List(AccountMb!) of {
         nil -> ()
         | (a :: as) ->
             a ! Stop();
@@ -167,7 +167,7 @@ def account_exit(self: AccountMb?): Unit {
 ## Launcher.
 def main(): Unit {
   let tellerMb = new [TellerMb] in
-  spawn { teller(tellerMb, 3, (200 :: (150 :: (50 :: (nil : [Int]))))) };
+  spawn { teller(tellerMb, 3, (200 :: (150 :: (50 :: (nil : List(Int)))))) };
 
   tellerMb ! Start()
 }

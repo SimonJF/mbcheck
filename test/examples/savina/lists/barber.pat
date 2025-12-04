@@ -30,7 +30,7 @@ interface CustomerMb {
     Exit()
 }
 
-def room(self: RoomMb?, capacity: Int, waiters: [CustomerMb!], waiting: Int, barber: BarberMb!): Unit {
+def room(self: RoomMb?, capacity: Int, waiters: List(CustomerMb!), waiting: Int, barber: BarberMb!): Unit {
     guard self: (Enter + Next + Exit)* {
         free -> ()
         receive Enter(customerMb) from self ->
@@ -43,10 +43,10 @@ def room(self: RoomMb?, capacity: Int, waiters: [CustomerMb!], waiting: Int, bar
                 room(self, capacity, (customerMb :: waiters), (waiting + 1), barber)
             }
         receive Next() from self ->
-            caseL waiters : [CustomerMb!] of {
+            caseL waiters : List(CustomerMb!) of {
                 nil ->
                     sleep(5);
-                    room(self, capacity, (nil : [CustomerMb!]), waiting, barber)
+                    room(self, capacity, (nil : List(CustomerMb!)), waiting, barber)
                 | (a :: as) -> 
                     barber ! Enter(a, self);
                     room(self, capacity, as, (waiting - 1), barber)
@@ -87,7 +87,7 @@ def barberExit(self : BarberMb?) : Unit {
     }
 }
 
-def spawnCustomers(self: SelectorMb?, generator: Int, soFar: Int, acc : [CustomerMb!]): (SelectorMb? * [CustomerMb!]) {
+def spawnCustomers(self: SelectorMb?, generator: Int, soFar: Int, acc : List(CustomerMb!)): (SelectorMb? * List(CustomerMb!)) {
     if (soFar == generator) {
             (self, acc)
         }
@@ -98,8 +98,8 @@ def spawnCustomers(self: SelectorMb?, generator: Int, soFar: Int, acc : [Custome
     }
 }
 
-def startCustomers(customerMbs : [CustomerMb!], room : RoomMb!) : Unit {
-    caseL customerMbs : [CustomerMb!] of {
+def startCustomers(customerMbs : List(CustomerMb!), room : RoomMb!) : Unit {
+    caseL customerMbs : List(CustomerMb!) of {
         nil -> ()
         | (a :: as) ->
             a ! Start(room);
@@ -107,8 +107,8 @@ def startCustomers(customerMbs : [CustomerMb!], room : RoomMb!) : Unit {
     } 
 }
 
-def doneCustomers(customerMbs : [CustomerMb!]) : Unit {
-    caseL customerMbs : [CustomerMb!] of {
+def doneCustomers(customerMbs : List(CustomerMb!)) : Unit {
+    caseL customerMbs : List(CustomerMb!) of {
         nil -> ()
         | (a :: as) ->
             a ! Done();
@@ -116,11 +116,11 @@ def doneCustomers(customerMbs : [CustomerMb!]) : Unit {
     } 
 }
 
-def selector(self: SelectorMb?, generator: Int, haircuts: Int, target: Int, customers : [CustomerMb!], room: RoomMb!): Unit {
+def selector(self: SelectorMb?, generator: Int, haircuts: Int, target: Int, customers : List(CustomerMb!), room: RoomMb!): Unit {
     guard self: (Start + Returned)* {
         free -> ()
         receive Start() from self ->
-            let (self, newCustomers) = spawnCustomers(self, generator, 0, (nil : [CustomerMb!])) in
+            let (self, newCustomers) = spawnCustomers(self, generator, 0, (nil : List(CustomerMb!))) in
             startCustomers(customers, room);
             selector(self, generator, haircuts, target, newCustomers, room)
         receive Returned(customerMb) from self ->
@@ -178,10 +178,10 @@ def main() : Unit {
     spawn {barber(barberMb)};
 
     let roomMb = new [RoomMb] in
-    spawn {room(roomMb, 2, (nil : [CustomerMb!]), 0, barberMb)};
+    spawn {room(roomMb, 2, (nil : List(CustomerMb!)), 0, barberMb)};
 
     let selectorMb = new [SelectorMb] in
-    spawn {selector(selectorMb, 4, 0, 6, (nil : [CustomerMb!]), roomMb)};
+    spawn {selector(selectorMb, 4, 0, 6, (nil : List(CustomerMb!)), roomMb)};
 
     selectorMb ! Start()
 }
