@@ -40,7 +40,7 @@ let rec pp ppf =
             pp t1
             pp t2
     | PList t ->
-        Format.fprintf ppf "[%a]"
+        Format.fprintf ppf "List(%a)"
             pp t
     | PInterface name -> ps name
 
