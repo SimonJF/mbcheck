@@ -1,12 +1,13 @@
-### Adapted from Savina/fjthrput.
+### Adapted from Savina/cigsmok.
 ###
-### Models the creation of n actors that are given a number of messages, for
-### each of which, a computation is performed. The benchmark is parameterized by
-### the number of actor processes. Since the array type is not available in
-### Pat, we fix the number of actor processes to 3.
+### A benchmark modelling n smokers and one arbiter that decides which smoker to
+### allow to smoke. The benchmark is parameterized by the number of smoker 
+### processes. Since the array type is not available in Pat, we fix the number 
+### of account processes to 3.
 
-interface ActorMb {
-  Packet()
+interface ArbiterMb {
+  Start(),
+  StartedSmoking()
 }
 
 interface SmokerMb {
@@ -34,10 +35,14 @@ def arbiter(self: ArbiterMb?, numRounds: Int): Unit {
   }
 }
 
-## Computes the factorial of n.
-def fact(n: Int): Int {
-  if (n <= 0) {
-    1
+## Randomly chooses the smoker and requests it to smoke.
+def notify_smoker(smokerMb1: SmokerMb!, smokerMb2: SmokerMb!, smokerMb3: SmokerMb!): Unit {
+
+  let smokerId = rand(2) in
+  let sleepTimeMs = 1000 in
+
+  if (smokerId == 0) {
+    smokerMb1 ! StartSmoking(rand(sleepTimeMs))
   }
   else {
     if (smokerId == 1) {
@@ -112,21 +117,13 @@ def smoker_exit(self: SmokerMb?): Unit {
   }
 }
 
-## Launcher.
+## Launcher.
 def main(): Unit {
+  
+  let arbiterMb = new [ArbiterMb] in
+  spawn { arbiter(arbiterMb, 10) };
 
-  let actorMb1 = new [ActorMb] in
-  spawn { actor(actorMb1) };
-
-  let actorMb2 = new [ActorMb] in
-  spawn { actor(actorMb2) };
-
-  let actorMb3 = new [ActorMb] in
-  spawn { actor(actorMb3) };
-
-  flood(100, actorMb1);
-  flood(1000, actorMb1);
-  flood(10000, actorMb1)
+  arbiterMb ! Start()
 }
 
 main()
