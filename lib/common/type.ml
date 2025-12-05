@@ -329,7 +329,7 @@ let rec pp ppf =
             pp t1
             pp t2
     | List t ->
-        fprintf ppf "[%a]"
+        fprintf ppf "List(%a)"
             pp t
     | Mailbox { capability; interface; pattern; quasilinearity } ->
         let ql =
