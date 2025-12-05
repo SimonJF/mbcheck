@@ -437,6 +437,12 @@ let pipeline constrs =
            to rid ourselves of pattern variables *)
         substitute_solutions lbs
     in
+    Settings.if_debug (fun () ->
+        Printf.printf "=== Simplified constraint set ===\n\n";
+        PVarMap.iter (fun k p ->
+            Format.(fprintf std_formatter "%s: %a\n" k Pattern.pp p)
+        ) resolved_constraints
+    );
     (* Check if solutions are satisfiable *)
     check_satisfiability resolved_constraints (get_upper_bounds constrs);
     (* Ensure that none of the pattern variables have been solved as zero *)

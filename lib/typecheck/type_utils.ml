@@ -9,12 +9,11 @@ open Common.Source_code
    type !E can be treated as unrestricted if 1 is included in E (i.e., we could
    choose not to send).
  *)
-let make_unrestricted t pos =
+let rec make_unrestricted t pos =
     let open Type in
     match t with
         (* Trivially unrestricted *)
         | Base _
-        | Tuple []
         | Fun { linear = false; _ } -> Constraint_set.empty
         (* Cannot be unrestricted *)
         | Fun { linear = true; _ }
@@ -24,6 +23,13 @@ let make_unrestricted t pos =
         | Mailbox { capability = Capability.Out; pattern = Some pat; _ } ->
                 Constraint_set.of_list
                     [Constraint.make (Pattern.One) pat]
+        | Tuple tys ->
+            Constraint_set.union_many
+                (List.map (fun t -> make_unrestricted t pos) tys)
+        | Sum (ty1, ty2) ->
+            Constraint_set.union (make_unrestricted ty1 pos) (make_unrestricted ty2 pos)
+        | List ty ->
+            make_unrestricted ty pos
         | _ -> assert false
 
 (* Auxiliary definitions*)
@@ -43,12 +49,13 @@ let rec subtype_type :
             (* Subtyping covariant for tuples and sums *)
             | Tuple tyas, Tuple tybs ->
                 Constraint_set.union_many
-                    (List.map (fun (tya, tyb) -> subtype_type visited ienv tya tyb pos) 
+                    (List.map (fun (tya, tyb) -> subtype_type visited ienv tya tyb pos)
                         (List.combine tyas tybs))
             | Sum (tya1, tya2), Sum (tyb1, tyb2) ->
                 Constraint_set.union
                     (subtype_type visited ienv tya1 tyb1 pos)
                     (subtype_type visited ienv tya2 tyb2 pos)
+            | List ty1, List ty2 -> subtype_type visited ienv ty1 ty2 pos
             | Mailbox { pattern = None; _ }, _
             | _, Mailbox { pattern = None; _ } ->
                     (* Should have been sorted by annotation pass *)

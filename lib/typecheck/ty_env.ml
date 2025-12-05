@@ -18,7 +18,7 @@ let lookup_opt = VarMap.find_opt
 let delete = VarMap.remove
 
 let delete_many vars env =
-    List.fold_right (delete) vars env 
+    List.fold_right (delete) vars env
 
 let delete_binder x = VarMap.remove (Ir.Var.of_binder x)
 let singleton = VarMap.singleton
@@ -55,7 +55,7 @@ let join : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t =
                         ((In, pat), constrs)
         in
 
-        let join_types (var: Ir.Var.t) (t1: Type.t) (t2: Type.t) : (Type.t * Constraint_set.t) =
+        let rec join_types (var: Ir.Var.t) (t1: Type.t) (t2: Type.t) : (Type.t * Constraint_set.t) =
             let open Type in
             match (t1, t2) with
                 | Base b1, Base b2 when b1 = b2 ->
@@ -97,6 +97,21 @@ let join : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t =
                               pattern = Some pat;
                               quasilinearity = ql
                           }, constrs
+                | List ty1, List ty2 ->
+                    let ty, constrs = join_types var ty1 ty2 in
+                    List ty, constrs
+                | Sum (t1l, t1r), Sum (t2l, t2r) ->
+                    let tl, constrs1 = join_types var t1l t2l in
+                    let tr, constrs2 = join_types var t1r t2r in
+                    Sum (tl, tr), Constraint_set.union constrs1 constrs2
+                | Tuple ts1, Tuple ts2 ->
+                    let (ts, constrs) =
+                        List.fold_left2 (fun (acc, constrs) t1 t2 ->
+                            let t, t_constrs = join_types var t1 t2 in
+                            t :: acc, Constraint_set.union t_constrs constrs)
+                        ([], Constraint_set.empty) ts1 ts2
+                    in
+                    Tuple ts, constrs
                 | _, _ ->
                     Gripers.type_mismatch true t1 t2 var [pos]
         in
@@ -197,7 +212,7 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
                 | _, _ ->
                     Gripers.inconsistent_branch_capabilities var [pos]
         in
-        let intersect_types var (t1: Type.t) (t2: Type.t) : (Type.t * Constraint_set.t) =
+        let rec intersect_types var (t1: Type.t) (t2: Type.t) : (Type.t * Constraint_set.t) =
             match t1, t2 with
                 | Base b1, Base b2 when b1 = b2 ->
                     (Base b1, Constraint_set.empty)
@@ -226,6 +241,21 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
                               (* Must take strongest QL across all branches. *)
                               quasilinearity = Quasilinearity.max ql1 ql2
                           }, constrs
+                | List t1, List t2 ->
+                    let ty, constrs = intersect_types var t1 t2 in
+                    List ty, constrs
+                | Sum (t1l, t1r), Sum (t2l, t2r) ->
+                    let tl, constrs1 = intersect_types var t1l t2l in
+                    let tr, constrs2 = intersect_types var t1r t2r in
+                    Sum (tl, tr), Constraint_set.union constrs1 constrs2
+                | Tuple ts1, Tuple ts2 ->
+                    let (ts, constrs) =
+                        List.fold_left2 (fun (acc, constrs) t1 t2 -> 
+                            let t, t_constrs = intersect_types var t1 t2 in
+                            t :: acc, Constraint_set.union t_constrs constrs)
+                        ([], Constraint_set.empty) ts1 ts2
+                    in
+                    Tuple ts, constrs
                 | _, _ ->
                     Gripers.type_mismatch false t1 t2 var [pos]
         in
@@ -251,24 +281,24 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
             let disjoints =
               let (disjoint_sends, disjoint_others) =
                 List.partition (fun (_, ty) ->
-                  Type.is_output_mailbox ty
+                  Type.contains_output_mailbox ty
                 ) (disjoint1 @ disjoint2)
               in
-              (* !E becomes !(E + 1) *)
-              let disjoint_sends =
-                List.map (fun (var, ty) ->
-                  let ty =
-                    match ty with
-                      | Mailbox { capability = Out; interface; quasilinearity; pattern = Some pat } ->
+              (* Relaxes a mailbox type from !E to !(E+1) *)
+              let rec relax_send_type = function
+                | Mailbox { capability = Out; interface; quasilinearity; pattern = Some pat } ->
                           let pat = Pattern.Plus (pat, Pattern.One) in
                           Mailbox { capability = Out; interface; quasilinearity; pattern = Some pat }
-                      | _ ->
-                          raise (Errors.internal_error "ty_env.ml" "error in disjoint MB combination")
-                  in
+                | List ty -> List (relax_send_type ty)
+                | _ ->
+                  raise (Errors.internal_error "ty_env.ml" "error in disjoint MB combination")
+              in
+              let disjoint_sends =
+                List.map (fun (var, ty) ->
+                  let ty = relax_send_type ty in
                   (var, ty)
                 ) disjoint_sends
               in
-
               let () =
                 List.iter (fun (var, ty) ->
                     if Type.is_lin ty then
@@ -314,3 +344,43 @@ let make_unrestricted env pos =
         Constraint_set.union acc (make_unrestricted ty pos)
     ) Constraint_set.empty (bindings env)
 
+(* If we are receiving a mailbox variable, without a dependency
+   graph, we must do some fairly coarse-grained aliasing
+   control when receiving from a mailbox or deconstructing a list.
+   There are three strategies:
+      1. Strict: the environment must be entirely unrestricted
+          (i.e., no other mailbox variables are free in the receive
+          block)
+
+      2. Interface: the environment cannot contain a variable of
+          the same interface. This means that we know we won't
+          accidentally alias, without being overly restrictive.
+
+      3. Nothing: No alias control: permissive, but unsafe.
+  *)
+let check_free_mailbox_variables bound_variable_types env =
+    let mb_iface_tys =
+        List.filter_map (fun ty ->
+            if Type.is_mailbox_type ty then
+                Some (Type.get_interface ty)
+            else None)
+        bound_variable_types
+    in
+    let open Settings in
+    let open ReceiveTypingStrategy in
+    match get receive_typing_strategy with
+        | Strict ->
+            iter (fun v ty ->
+                if Type.is_lin ty then
+                    Gripers.unrestricted_recv_env v ty []
+            ) env
+        | Interface ->
+            iter (fun v ty ->
+                match ty with
+                    | Type.Mailbox { interface; _ } when (List.mem interface mb_iface_tys) ->
+                        Gripers.duplicate_interface_receive_env
+                        v interface
+                        []
+                    | _ -> ()
+            ) env
+        | Nothing -> ()
