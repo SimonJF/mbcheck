@@ -410,9 +410,6 @@ let get_quasilinearity = function
 
 let rec make_usable = function
     | Mailbox m -> Mailbox { m with quasilinearity = Quasilinearity.Usable }
-    | Tuple ts -> Tuple (List.map make_usable ts)
-    | Sum (t1, t2) -> Sum (make_usable t1, make_usable t2)
-    | List t -> List (make_usable t)
     | t -> t
 
 (* Tuples, sums, and lists can all be returnable even if they contain things that are not returnable,
