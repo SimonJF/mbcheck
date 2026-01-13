@@ -167,6 +167,8 @@
                 {"name": "n-Robots", "filename": "examples/robotsn.pat", "exit_code": 0},
                 {"name": "n-Robots (lists)", "filename": "examples/robotsn-lists.pat", "exit_code": 0},
                 {"name": "Guard annotation is a subpattern", "filename": "examples/pat_constr.pat", "exit_code": 0}
+                {"name": "Two factor (subprocess)", "filename": "examples/two_factor.pat", "exit_code": 0},
+                {"name": "Two factor (monolithic)", "filename": "examples/two_factor_two.pat", "exit_code": 0}
             ]
         },
         { "group": "Incorrect examples",
