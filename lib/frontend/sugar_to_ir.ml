@@ -55,7 +55,7 @@ let rec transform_prog :
     let (bnds, env') = add_names env (fun d -> d.Sugar_ast.decl_name) nodes in
     {
         prog_interfaces;
-        prog_decls = WithPos.combine_with_pos_list poses 
+        prog_decls = WithPos.combine_with_pos_list poses
                     (List.map (fun (b, d) -> transform_decl env' d b id) (List.combine bnds nodes));
         prog_body =
             match prog_body with
@@ -139,6 +139,11 @@ and transform_expr :
         | Tuple es ->
             transform_exprs env es (fun _ vs ->
                 with_same_pos (Ir.Return (with_same_pos (Ir.Tuple vs))) |> k env)
+        | Nil -> with_same_pos (Ir.Return (with_same_pos (Ir.Nil))) |> k env
+        | Cons (e1, e2) ->
+            transform_subterm env e1 (fun _ v1 ->
+            transform_subterm env e2 (fun _ v2 ->
+                with_same_pos (Ir.Return (with_same_pos (Ir.Cons (v1, v2)))) |> k env))
         | LetTuple {binders = bs; term; cont; _ } ->
             (* let x = M in N*)
             (* Create IR variables based on the binders *)
@@ -167,6 +172,21 @@ and transform_expr :
                     term = v;
                     branch1 = (ir_bnd1, ty1), (transform_expr env1 comp1 id);
                     branch2 = (ir_bnd2, ty2), (transform_expr env2 comp2 id);
+                }) |> k env)
+        | CaseL {
+            term;
+            ty = ty1;
+            nil = comp1;
+            cons = ((bnd1, bnd2), comp2) } ->
+            transform_subterm env term (fun env v ->
+                let (ir_bnd1, env1) = add_name env bnd1 in
+                let (ir_bnd2, env2) = add_name env1 bnd2 in
+                with_same_pos (
+                Ir.CaseL {
+                    term = v;
+                    ty = ty1;
+                    nil = (transform_expr env comp1 id);
+                    cons = (ir_bnd1, ir_bnd2), (transform_expr env2 comp2 id);
                 }) |> k env)
         | Seq (e1, e2) ->
             transform_expr env e1 (fun env c1 ->

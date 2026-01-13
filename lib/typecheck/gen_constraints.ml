@@ -106,7 +106,7 @@ let rec synthesise_val :
                     (* Finally, ensure that the declared type is a subtype of
                        the inferred type *)
                     List.fold_left (fun acc (inferred, declared) ->
-                        Constraint_set.union acc (subtype ienv declared inferred pos)) 
+                        Constraint_set.union acc (subtype ienv declared inferred pos))
                         Constraint_set.empty
                         zipped
                 in
@@ -158,6 +158,8 @@ and check_val :
             | Sum (t1, t2), PSum (pt1, pt2) ->
                 check_pretype_consistency t1 pt1;
                 check_pretype_consistency t2 pt2
+            | List t, PList pt ->
+                check_pretype_consistency t pt
             | _, _ -> Gripers.pretype_consistency ty pty [pos]
     in
     match WithPos.node v with
@@ -181,6 +183,22 @@ and check_val :
                     | Type.Sum (_, t2) ->
                         check_val ienv decl_env v (Type.make_returnable t2)
                     | _ -> Gripers.expected_sum_type ty [pos]
+            end
+        | Nil ->
+            begin
+                match ty with
+                    | Type.List _ -> Ty_env.empty, Constraint_set.empty
+                    | _ -> Gripers.expected_list_type ty [pos]
+            end
+        | Cons (v1, v2) ->
+            begin
+                match ty with
+                    | Type.List t ->
+                        let (env1, constrs1) = check_val ienv decl_env v1 t in
+                        let (env2, constrs2) = check_val ienv decl_env v2 ty in
+                        let env, constrs3 = Ty_env.combine ienv env1 env2 pos in
+                        env, Constraint_set.union_many [constrs1; constrs2; constrs3]
+                    | _ -> Gripers.expected_list_type ty [pos]
             end
         | Tuple vs ->
             let ts =
@@ -351,7 +369,7 @@ and synthesise_comp :
                         in
                         let () =
                             if Type.is_lin binder_ty then
-                                Gripers.unused_synthesised_linear_var 
+                                Gripers.unused_synthesised_linear_var
                                 binder_var binder_ty [pos]
                         in
                         let (env, env_constrs) =
@@ -429,6 +447,54 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                 Constraint_set.union_many
                     [ comp1_constrs; comp2_constrs; env1_constrs;
                       env2_constrs; isect_constrs; env_constrs; term_constrs ]
+            in
+            (env, constrs)
+        | CaseL { term; ty = ty1; nil = comp1; cons = ((bnd1, bnd2), comp2) } ->
+            let elem_ty =
+                match ty1 with
+                    | Type.List elem_ty -> elem_ty
+                    | _ -> Gripers.expected_list_type ty1 [pos]
+            in
+            (* Check that scrutinee has annotated list type *)
+            let (term_env, term_constrs) =
+                check_val ienv decl_env term ty1
+            in
+            (* Next, check that comp1 (nil case) has expected return type *)
+            let (comp1_env, comp1_constrs) = chk comp1 ty in
+            (* Next, check that comp2 (cons case) has expected return type *)
+            let (comp2_env, comp2_constrs) = chk comp2 ty in
+            (* Next, check that the inferred types in comp2_env match annotations and that
+               the cons case doesn't contain any troublesome mailbox variables that could 
+               introduce unsafe aliasing *)
+            let var1 = Var.of_binder bnd1 in
+            let var2 = Var.of_binder bnd2 in 
+            let comp2_env_no_binders = Ty_env.delete_many [var1; var2] comp2_env in
+            (* If element type is returnable, we know it's the last lexical occurrence 
+               and we don't need this check. *)
+            let () =
+                if (not (Type.is_returnable elem_ty)) then
+                    Ty_env.check_free_mailbox_variables [elem_ty] comp2_env_no_binders
+            in
+            let env_constrs =
+                Constraint_set.union
+                    (Ty_env.check_type ienv var1 elem_ty comp2_env pos)
+                    (Ty_env.check_type ienv var2 ty1 comp2_env pos)
+            in
+            (* Calculate merge of the branches (sans binders) *)
+            let isect_env, isect_constrs =
+                Ty_env.intersect
+                  comp1_env
+                  comp2_env_no_binders
+                  pos
+            in
+            (* Finally combine the term env with the intersected env *)
+            let env, combine_constrs =
+                Ty_env.combine ienv term_env isect_env pos
+            in
+            let constrs =
+                Constraint_set.union_many
+                    [ comp1_constrs; comp2_constrs; env_constrs;
+                      combine_constrs; isect_constrs; term_constrs ]
             in
             (env, constrs)
         | Seq (e1, e2) ->
@@ -759,47 +825,7 @@ and check_guard :
                   List.fold_right (Ty_env.delete_binder) payload_binders env
                   |> Ty_env.delete_binder mailbox_binder
                 in
-                (* If we are receiving a mailbox variable, without a dependency
-                   graph, we must do some fairly coarse-grained aliasing
-                   control.
-                   There are three strategies:
-                      1. Strict: the environment must be entirely unrestricted
-                          (i.e., no other mailbox variables are free in the receive
-                          block)
-
-                      2. Interface: the environment cannot contain a variable of
-                          the same interface. This means that we know we won't
-                          accidentally alias, without being overly restrictive.
-
-                      3. Nothing: No alias control: permissive, but unsafe.
-                  *)
-                let () =
-                    let mb_iface_tys =
-                        List.filter_map (fun ty ->
-                            if Type.is_mailbox_type ty then
-                                Some (Type.get_interface ty)
-                            else None)
-                        payload_iface_tys
-                    in
-                    let open Settings in
-                    let open ReceiveTypingStrategy in
-                    match get receive_typing_strategy with
-                        | Strict ->
-                            Ty_env.iter (fun v ty ->
-                                if Type.is_lin ty then
-                                    Gripers.unrestricted_recv_env v ty [pos]
-                            ) env
-                        | Interface ->
-                            Ty_env.iter (fun v ty ->
-                                match ty with
-                                    | Mailbox { interface; _ } when (List.mem interface mb_iface_tys) ->
-                                        Gripers.duplicate_interface_receive_env
-                                        v interface 
-                                        [pos]
-                                    | _ -> ()
-                            ) env
-                        | Nothing -> ()
-                in
+                Ty_env.check_free_mailbox_variables payload_iface_tys env;
                 (* Calculate the derivative wrt. the tag, and ensure via a
                    constraint that it is included in the calculated payload
                    type. *)
@@ -889,7 +915,8 @@ let check_decls ienv decls =
        arguments removed), along with generated constraints. *)
     let check_decl d pos =
         let (env, body_constrs) =
-            check_comp ienv decl_env d.decl_body d.decl_return_type in
+            check_comp ienv decl_env d.decl_body d.decl_return_type
+        in
         (* Check arguments; remove from environment *)
         let (env, arg_constrs) =
             (* Each inferred argument type should be a subtype of the

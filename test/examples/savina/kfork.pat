@@ -1,15 +1,15 @@
 ### Adapted from Savina/fjthrput.
 ###
-### Models the creation of n actors that are given a number of messages, for 
+### Models the creation of n actors that are given a number of messages, for
 ### each of which, a computation is performed. The benchmark is parameterized by
-### the number of actor processes. Since the array type is not available in 
-### Pat, we fix the number of actor processes to 3.
+### the number of actor processes. Since the array type is not available in
+### Pat, we fix the number of actor processes to 3.
 
 interface ActorMb {
   Packet()
 }
 
-## Actor processes handling the packet requests.
+## Actor processes handling the packet requests.
 def actor(self: ActorMb?): Unit {
   guard self: Packet* {
     free ->
@@ -20,17 +20,17 @@ def actor(self: ActorMb?): Unit {
   }
 }
 
-## Computes the factorial of n.
+## Computes the factorial of n.
 def fact(n: Int): Int {
   if (n <= 0) {
     1
   }
   else {
-    n * (fact(n - 1)) 
+    n * (fact(n - 1))
   }
 }
 
-## Sends the given number of messages to the specified actor mailbox.
+## Sends the given number of messages to the specified actor mailbox.
 def flood(numMessages: Int, actorMb: ActorMb!): Unit {
   if (numMessages <= 0) {
     ()
@@ -41,9 +41,9 @@ def flood(numMessages: Int, actorMb: ActorMb!): Unit {
   }
 }
 
-## Launcher.
+## Launcher.
 def main(): Unit {
-  
+
   let actorMb1 = new [ActorMb] in
   spawn { actor(actorMb1) };
 

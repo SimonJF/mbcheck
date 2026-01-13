@@ -97,6 +97,12 @@ and comp_node =
         branch1: ((Binder.t[@name "binder"]) * (Type.t[@name "ty"])) * comp;
         branch2: ((Binder.t[@name "binder"]) * (Type.t[@name "ty"])) * comp
     }
+    | CaseL of {
+        term: value;
+        ty: (Type.t[@name "ty"]);
+        nil: comp;
+        cons: ((Binder.t[@name "binder"]) * (Binder.t[@name "binder"])) * comp
+    }
     | New of string
     | Spawn of comp
     | Send of {
@@ -119,6 +125,8 @@ and value_node =
     | Primitive of primitive_name
     | Variable of (Var.t[@name "var"]) * (Pretype.t[@name "pretype"]) option
     | Tuple of value list
+    | Nil
+    | Cons of value * value
     | Inl of value
     | Inr of value
     | Lam of {
@@ -189,6 +197,16 @@ and pp_branch name ppf ((bnd, ty), c) =
         Binder.pp bnd
         Type.pp ty
         pp_comp c
+and pp_nil name ppf c =
+  fprintf ppf "%s([]) -> @[<v>%a@]"
+    name
+    pp_comp c
+and pp_cons name ppf ((bnd1, bnd2), c) =
+    fprintf ppf "%s(%a :: %a) -> @[<v>%a@]"
+        name
+        Binder.pp bnd1
+        Binder.pp bnd2
+        pp_comp c
 (* Expressions *)
 and pp_comp ppf comp_with_pos =
     let comp_node = WithPos.node comp_with_pos in
@@ -242,6 +260,13 @@ and pp_comp ppf comp_with_pos =
             pp_value term
             (pp_branch "inl") branch1
             (pp_branch "inr") branch2
+    | CaseL { term; ty; nil; cons } ->
+        fprintf ppf
+            "caseL %a: %a of {@[<v>@[<v>%a@]@,@[<v>%a@]@]}"
+            pp_value term
+            Type.pp ty
+            (pp_nil "nil") nil
+            (pp_cons "cons") cons
     | Guard { target; pattern; guards; _ } ->
         fprintf ppf
             "guard %a : %a {@,@[<v 2>  %a@]@,}"
@@ -260,6 +285,9 @@ and pp_value ppf v =
     | Constant c -> Constant.pp ppf c
     | Tuple vs ->
         fprintf ppf "%a" (pp_print_comma_list pp_value) vs
+    | Nil -> Format.pp_print_string ppf "Nil"
+    | Cons (v1, v2) ->
+        fprintf ppf "%a :: %a" pp_value v1 pp_value v2
     | Inl v -> fprintf ppf "inl(%a)" pp_value v
     | Inr v -> fprintf ppf "inr(%a)" pp_value v
     | Lam { linear; parameters; result_type; body } ->
@@ -269,7 +297,7 @@ and pp_value ppf v =
             (pp_print_comma_list pp_param) parameters
             Type.pp result_type
             pp_comp body
-and pp_guard ppf guard_with_pos = 
+and pp_guard ppf guard_with_pos =
     let guard_node = WithPos.node guard_with_pos in
     match guard_node with
     | Receive { tag; payload_binders; mailbox_binder; cont } ->
@@ -293,7 +321,7 @@ let is_free_guard = function
     | Free _ -> true
     | _ -> false
 
-let is_fail_guard guard = 
+let is_fail_guard guard =
     match WithPos.node guard with
     | Fail -> true
     | _ -> false
@@ -312,4 +340,3 @@ let substitute_solution sol =
         end
     in
     visitor#visit_program ()
-

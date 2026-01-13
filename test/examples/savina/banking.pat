@@ -1,10 +1,10 @@
 ### Adapted from Savina/banking.
 ###
-### A benchmark that implements a request-reply chain passing scenario. Several 
+### A benchmark that implements a request-reply chain passing scenario. Several
 ### account processes are spawned, each of which may be sent a credit request
-### by the central teller process. The benchmark is parameterized by the number 
-### of account processes. Since the array type is not available in Pat, we fix 
-### the number of account processes to 3.
+### by the central teller process. The benchmark is parameterized by the number
+### of account processes. Since the array type is not available in Pat, we fix
+### the number of account processes to 3.
 
 interface TellerMb {
   Start(),
@@ -18,10 +18,10 @@ interface AccountMb {
   Stop()
 }
 
-## Teller process handling the creation of account processes and launching of 
-## main loop.
+## Teller process handling the creation of account processes and launching of
+## main loop.
 def teller(self: TellerMb?, numAccounts: Int): Unit {
-  
+
   # Create accounts.
   let accountMb1 = new [AccountMb] in
   spawn { account(accountMb1, 1, 200) };
@@ -35,7 +35,7 @@ def teller(self: TellerMb?, numAccounts: Int): Unit {
   guard self: Start {
     receive Start() from self ->
 
-      # Note. Even if the randomization of message sending is performed in a 
+      # Note. Even if the randomization of message sending is performed in a
       # different processes, there is no risk of a race condition where the
       # messages are sent to a non-existing mailbox. This is because, as can be
       # gleaned above, mailboxes are created in sequential fashion within this
@@ -47,20 +47,20 @@ def teller(self: TellerMb?, numAccounts: Int): Unit {
 
 ## Randomly chooses the source account.
 def generate_work(tellerMb: TellerMb!, numAccounts: Int, acc1: AccountMb![R], acc2: AccountMb![R], acc3 : AccountMb![R]): Unit {
-  
+
   # Randomly choose source account from which the funds shall be taken.
-  let sourceId = rand(numAccounts - 1) in # -1 because rand() is 0-indexed.
+  let sourceId = rand(numAccounts - 1) in # -1 because rand() is 0-indexed.
   if (sourceId == 0) {
 
-    # First source account.
+    # First source account.
     choose_dst_acc(tellerMb, numAccounts, acc1, acc2, acc3)
   }
-  else { 
+  else {
     if (sourceId == 1) {
 
         # Second source account.
         choose_dst_acc(tellerMb, numAccounts, acc2, acc1, acc3)
-    } 
+    }
     else {
 
         # Third source account.
@@ -69,17 +69,17 @@ def generate_work(tellerMb: TellerMb!, numAccounts: Int, acc1: AccountMb![R], ac
   }
 }
 
-## Randomly chooses the destination account and issues a credit request. The
+## Randomly chooses the destination account and issues a credit request. The
 ## function ensures that the source and destination account are different.
 def choose_dst_acc(tellerMb: TellerMb!, numAccounts: Int, srcAccountMb: AccountMb![R], dstAccountMb1: AccountMb![R], dstAccountMb2 : AccountMb![R]): Unit {
-  
-  # Randomly choose destination account to which funds shall be deposited. -2 
-  # because rand() is 0-indexed, and because we do not include the source 
-  # account in the random choice (i.e., the source account is not permitted to
-  # send funds to itself).
-  let dstAccountId = rand(numAccounts - 2) in 
 
-  let dstAccount = 
+  # Randomly choose destination account to which funds shall be deposited. -2
+  # because rand() is 0-indexed, and because we do not include the source
+  # account in the random choice (i.e., the source account is not permitted to
+  # send funds to itself).
+  let dstAccountId = rand(numAccounts - 2) in
+
+  let dstAccount =
     if (dstAccountId == 0) {
       dstAccountMb1
     } else {
@@ -91,12 +91,12 @@ def choose_dst_acc(tellerMb: TellerMb!, numAccounts: Int, srcAccountMb: AccountM
   dstAccount ! Credit(tellerMb, amount, srcAccountMb)
 }
 
-## Teller process main loop handling replies from accounts.
+## Teller process main loop handling replies from accounts.
 def teller_loop(self: TellerMb?, accountMb1: AccountMb!, accountMb2: AccountMb!, accountMb3: AccountMb!): Unit {
   guard self: Reply* {
     free -> 
 
-      # All credit requests serviced. Stop accounts.
+      # All credit requests serviced. Stop accounts.
       accountMb1 ! Stop();
       accountMb2 ! Stop();
       accountMb3 ! Stop()
@@ -105,8 +105,8 @@ def teller_loop(self: TellerMb?, accountMb1: AccountMb!, accountMb2: AccountMb!,
   }
 }
 
-## Account process handling credit requests issued by the teller, and debit 
-## requests issued by other accounts.
+## Account process handling credit requests issued by the teller, and debit
+## requests issued by other accounts.
 def account(self: AccountMb?, id: Int, balance: Int): Unit {
   guard self: (Debit + Credit)* . Stop {
     free -> 
@@ -130,13 +130,13 @@ def account(self: AccountMb?, id: Int, balance: Int): Unit {
           tellerMb ! Reply();
           account(self, id, balance - amount)
       }
-      
+
     receive Stop() from self ->
       account_exit(self)
   }
 }
 
-## Actor process exit procedure that flushes potential residual messages.
+## Actor process exit procedure that flushes potential residual messages.
 def account_exit(self: AccountMb?): Unit {
   guard self: (Debit + Credit)*  {
     free -> ()
@@ -147,7 +147,7 @@ def account_exit(self: AccountMb?): Unit {
   }
 }
 
-## Launcher.
+## Launcher.
 def main(): Unit {
   let tellerMb = new [TellerMb] in
   spawn { teller(tellerMb, 3) };
