@@ -408,7 +408,7 @@ let get_quasilinearity = function
     | Mailbox { quasilinearity; _ } -> quasilinearity
     | _ -> raise (Errors.internal_error "type.ml" "attempted to get quasilinearity of non-mailbox type")
 
-let rec make_usable = function
+let make_usable = function
     | Mailbox m -> Mailbox { m with quasilinearity = Quasilinearity.Usable }
     | t -> t
 
