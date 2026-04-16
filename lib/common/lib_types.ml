@@ -23,6 +23,7 @@ let signatures =
         ("print", function_type false [Base Base.String] Type.unit_type);
         ("concat", function_type false [Base Base.String; Base Base.String] Type.string_type);
         ("rand", function_type false [Base Base.Int] (Base Base.Int));
+        ("randBool", function_type false [] (Base Base.Bool));
         ("sleep", function_type false [Base Base.Int] Type.unit_type);
         ("intToString", function_type false [Base Base.Int] (Base Base.String))
     ]

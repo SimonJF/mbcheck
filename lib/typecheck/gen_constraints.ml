@@ -38,7 +38,8 @@ let rec synthesise_val :
         | Primitive prim ->
             let ty = List.assoc prim Lib_types.signatures in
             ty, Ty_env.empty, Constraint_set.empty
-        (* No harm having this as a synth case as well *)
+        (* No harm having this as a synth case as well. Note that we won't
+           synthesise a returnable type so don't need to do anything special. *)
         | Tuple vs ->
             let tys_envs_constrss = List.map (synthesise_val ienv decl_env) vs in
             let tys, envs, constrss = split3 tys_envs_constrss in
@@ -174,20 +175,39 @@ and check_val :
             begin
                 match ty with
                     | Type.Sum (t1, _) ->
-                        check_val ienv decl_env v (Type.make_returnable t1)
+                        let t1 =
+                            if Settings.(get returnable_datatypes) then
+                                Type.make_returnable ty
+                            else t1
+                        in
+                        check_val ienv decl_env v t1
                     | _ -> Gripers.expected_sum_type ty [pos]
             end
         | Inr v ->
             begin
                 match ty with
                     | Type.Sum (_, t2) ->
+                        let t2 =
+                            if Settings.(get returnable_datatypes) then
+                                Type.make_returnable ty
+                            else t2
+                        in
                         check_val ienv decl_env v (Type.make_returnable t2)
                     | _ -> Gripers.expected_sum_type ty [pos]
             end
         | Nil ->
             begin
                 match ty with
-                    | Type.List _ -> Ty_env.empty, Constraint_set.empty
+                    | Type.List t ->
+                            (* Check whether we can only create lists of
+                               returnable elements *)
+                            let () =
+                                if Settings.(get returnable_datatypes) && (not
+                                    @@ Type.is_returnable t) then
+                                    Gripers.lists_returnable ty [pos]
+                                else ()
+                            in
+                            Ty_env.empty, Constraint_set.empty
                     | _ -> Gripers.expected_list_type ty [pos]
             end
         | Cons (v1, v2) ->
@@ -209,10 +229,14 @@ and check_val :
                 end
             in
             let vs_and_ts = List.combine vs ts in
-            (* Tuple component types must be returnable *)
             let (check_envs, check_constrss) =
                 List.map (fun (v, ty) ->
-                    check_val ienv decl_env v (Type.make_returnable ty)) vs_and_ts
+                    let ty =
+                        if Settings.(get returnable_datatypes) then
+                            Type.make_returnable ty
+                        else ty
+                    in
+                    check_val ienv decl_env v ty) vs_and_ts
                 |> List.split
             in
             let check_constrs = Constraint_set.union_many check_constrss in

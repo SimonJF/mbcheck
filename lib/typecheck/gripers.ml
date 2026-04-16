@@ -322,3 +322,12 @@ let pretype_consistency ty pty pos_list =
             Pretype.pp pty
     in
     raise (constraint_gen_error ~subsystem:Errors.GenCheck msg pos_list)
+
+let lists_returnable ty pos_list =
+    let msg =
+        Format.asprintf
+            "Lists must contain only returnable types, but type %a is not returnable."
+            Type.pp ty
+    in
+    raise (constraint_gen_error ~subsystem:Errors.GenCheck msg pos_list)
+
