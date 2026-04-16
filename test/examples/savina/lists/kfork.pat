@@ -40,7 +40,7 @@ def flood(numMessages: Int, actorMb: ActorMb!): Unit {
   }
 }
 
-def spawnActors(numActors: Int, acc: List(ActorMb!)): List(ActorMb!) {
+def spawnActors(numActors: Int, acc: List(ActorMb![R])): List(ActorMb![R]) {
     if (numActors <= 0) {
         acc
     } else {
@@ -50,8 +50,8 @@ def spawnActors(numActors: Int, acc: List(ActorMb!)): List(ActorMb!) {
     }
 }
 
-def floodActors(numMessages: Int, actorMbs: List(ActorMb!)): Unit {
-    caseL actorMbs : List(ActorMb!) of {
+def floodActors(numMessages: Int, actorMbs: List(ActorMb![R])): Unit {
+    caseL actorMbs : List(ActorMb![R]) of {
         nil -> ()
       | (a :: as) ->
             flood(numMessages, a);
@@ -62,8 +62,8 @@ def floodActors(numMessages: Int, actorMbs: List(ActorMb!)): Unit {
 ## Launcher.
 def main(numActors: Int): Unit {
 
-  let actorMbs = spawnActors(numActors, (nil : List(ActorMb!))) in
-    floodActors(1000, actorMbs)
+  let actorMbs = spawnActors(numActors, (nil : List(ActorMb![R]))) in
+  floodActors(1000, actorMbs)
 }
 
 main(3)
