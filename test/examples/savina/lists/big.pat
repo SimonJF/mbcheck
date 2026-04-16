@@ -150,7 +150,7 @@ def main(): Unit {
   spawn { actor(actorMb2, exitMb2, 2, sinkMb) };
   spawn { actor(actorMb3, exitMb3, 3, sinkMb) };
 
-  let xs = (exitMb1 :: (exitMb2 :: (exitMb3 :: (nil : List(ExitMb![R]))))) in sinkMb ! Actors(xs);
+  let xs = (exitMb1 :: (exitMb2 :: (exitMb3 :: (nil : List(ExitMb!))))) in sinkMb ! Actors(xs);
 
   actorMb1 ! Neighbors(actorMb2, actorMb3); # actorMb1: ?Neighbors
   actorMb2 ! Neighbors(actorMb1, actorMb3); # actorMb2: ?Neighbors

@@ -263,7 +263,7 @@ and synthesise_comp :
             let open Type in
             Mailbox {
                 capability = Capability.In;
-                interface; pattern = Some One;
+                interface; pattern = One;
                 (* 'New' always produces a returnable MB type *)
                 quasilinearity = Quasilinearity.Returnable;
             },
@@ -274,7 +274,7 @@ and synthesise_comp :
                 let open Type in
                 Mailbox {
                     capability = Capability.In;
-                    interface; pattern = Some One;
+                    interface; pattern = One;
                     (* 'New' always produces a returnable MB type *)
                     quasilinearity = Quasilinearity.Returnable;
                 }
@@ -332,7 +332,7 @@ and synthesise_comp :
                 Mailbox {
                     capability = Out;
                     interface = iname;
-                    pattern = Some (Message tag);
+                    pattern = (Message tag);
                     (* 'Send' gives the MB type the least specific
                        quasilinearity (Usable). It can be coerced to Returnable
                        via subtyping later if necessary, but we don't *need*
@@ -703,7 +703,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
             let target_ty = Mailbox {
                 capability = In;
                 interface = iname;
-                pattern = Some guards_pat;
+                pattern = guards_pat;
                 (* We can only receive on a Returnable guard (since the name
                    goes out of scope afterwards) *)
                 quasilinearity = Quasilinearity.Returnable
@@ -832,7 +832,7 @@ and check_guard :
                 let mb_pat =
                   match mb_ty with
                     | Some Mailbox {
-                        capability = Capability.In; pattern = Some pat; _ } -> pat
+                        capability = Capability.In; pattern = pat; _ } -> pat
                     | Some ty ->
                         Gripers.expected_receive_mailbox
                             (Var.of_binder mailbox_binder)
@@ -873,7 +873,7 @@ and check_guard :
                     Type.Mailbox {
                         capability = Capability.In;
                         interface = iname;
-                        pattern = Some One;
+                        pattern = One;
                         quasilinearity = Quasilinearity.Returnable;
                     }
                 in

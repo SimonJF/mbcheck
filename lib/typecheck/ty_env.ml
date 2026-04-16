@@ -69,12 +69,12 @@ let join : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t =
                                 (subtype ienv t2 t1 pos)
                         in
                         (Fun { linear = false; args = dom1; result = cod1 }, subty_constrs)
-                | Mailbox { pattern = None; _ }, _ | _, Mailbox { pattern = None; _ } ->
-                    assert false (* Set by pre-typing *)
+                | UserMailbox _, _ | _, UserMailbox _ ->
+                    assert false (* Should have been desugared *)
                 | Mailbox { capability = cap1; interface = iface1; pattern =
-                    Some pat1; quasilinearity = ql1 },
+                    pat1; quasilinearity = ql1 },
                   Mailbox { capability = cap2; interface = iface2; pattern =
-                      Some pat2; quasilinearity = ql2 } ->
+                      pat2; quasilinearity = ql2 } ->
                       (* We can only join variables with the same interface
                          name. If these match, we can join the types. *)
                       if iface1 <> iface2 then
@@ -94,7 +94,7 @@ let join : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t =
                           Mailbox {
                               capability = cap;
                               interface = iface1;
-                              pattern = Some pat;
+                              pattern = pat;
                               quasilinearity = ql
                           }, constrs
                 | List ty1, List ty2 ->
@@ -220,12 +220,11 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
                   Fun { linear = linear2; args = dom2; result = cod2 }
                     when (linear1 = linear2) && dom1 = dom2 && cod1 = cod2 ->
                         (Fun { linear = linear1; args = dom1; result = cod1 }, Constraint_set.empty)
-                | Mailbox { pattern = None; _ }, _ | _, Mailbox { pattern = None; _ } ->
-                    assert false (* Set by pre-typing *)
+                | UserMailbox _, _ | _, UserMailbox _ -> assert false (* desugared already *)
                 | Mailbox { capability = cap1; interface = iface1; pattern =
-                    Some pat1; quasilinearity = ql1 },
+                    pat1; quasilinearity = ql1 },
                   Mailbox { capability = cap2; interface = iface2; pattern =
-                      Some pat2; quasilinearity = ql2 } ->
+                      pat2; quasilinearity = ql2 } ->
                       (* As before -- interface names must be the same*)
                       if iface1 <> iface2 then
                           Gripers.env_interface_mismatch
@@ -237,7 +236,7 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
                           Mailbox {
                               capability = cap;
                               interface = iface1;
-                              pattern = Some pat;
+                              pattern = pat;
                               (* Must take strongest QL across all branches. *)
                               quasilinearity = Quasilinearity.max ql1 ql2
                           }, constrs
@@ -286,9 +285,9 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
               in
               (* Relaxes a mailbox type from !E to !(E+1) *)
               let rec relax_send_type = function
-                | Mailbox { capability = Out; interface; quasilinearity; pattern = Some pat } ->
+                | Mailbox { capability = Out; interface; quasilinearity; pattern = pat } ->
                           let pat = Pattern.Plus (pat, Pattern.One) in
-                          Mailbox { capability = Out; interface; quasilinearity; pattern = Some pat }
+                          Mailbox { capability = Out; interface; quasilinearity; pattern = pat }
                 | List ty -> List (relax_send_type ty)
                 | _ ->
                   raise (Errors.internal_error "ty_env.ml" "error in disjoint MB combination")

@@ -25,6 +25,7 @@ let show_subsystem = function
 (* Exceptions *)
 exception Parse_error of string * Position.t list
 exception Pretype_error of string * Position.t list
+exception Desugar_error of string * Position.t list
 exception Type_error of string * Position.t list (* Used for errors common to both pretyping and constraint generation *)
 exception Constraint_gen_error of { subsystem: subsystem option; message: string; pos_list: Position.t list  }
 (* It would be a bit nicer to have the constraints on the LHS and RHS here,
@@ -43,6 +44,8 @@ let constraint_solver_error lhs rhs = Constraint_solver_error { lhs; rhs }
 let constraint_solver_zero_error var = Constraint_solver_zero_error var
 let bad_receive_typing_argument bad = Bad_receive_typing_argument bad
 let transform_error err pos_list = Transform_error (err, pos_list)
+let desugar_error err pos_list = Desugar_error (err, pos_list)
+
 
 (* Will likely be more interesting when we have positional information *)
 let format_error = function
@@ -55,6 +58,9 @@ let format_error = function
     | Pretype_error (s, pos_list) ->
         let pos_info = Position.format_pos pos_list in
         Utility.print_error ~note:"PRETYPE" (s ^ " \n " ^ pos_info)
+    | Desugar_error (s, pos_list) ->
+        let pos_info = Position.format_pos pos_list in
+        Utility.print_error ~note:"DESUGAR" (s ^ " \n " ^ pos_info)
     | Transform_error (s, pos_list) ->
         let pos_info = Position.format_pos pos_list in
         Utility.print_error ~note:"TRANSFORM" (s ^ " \n " ^ pos_info)

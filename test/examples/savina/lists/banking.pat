@@ -17,7 +17,7 @@ interface AccountMb {
   Stop()
 }
 
-def spawnAccounts(self: TellerMb?, numsAccounts: List(Int), soFar: Int, acc: List(AccountMb!)) : (TellerMb? * List(AccountMb!)) {
+def spawnAccounts(self: TellerMb?, numsAccounts: List(Int), soFar: Int, acc: List(AccountMb!)) : (TellerMb? * List(AccountMb![R])) {
   caseL numsAccounts : List(Int) of {
     nil -> (self, acc)
     | (n :: ns) ->
