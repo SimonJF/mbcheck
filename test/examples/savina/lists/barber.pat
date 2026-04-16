@@ -36,11 +36,11 @@ def room(self: RoomMb?, capacity: Int, waiters: List(CustomerMb!), waiting: Int,
         receive Enter(customerMb) from self ->
             if (waiting == capacity) {
                 customerMb ! Full(self);
-                room(self, capacity, waiters, waiting, barber)
+                spawn { room(self, capacity, waiters, waiting, barber) }
             }
             else {
                 sleep(5);
-                room(self, capacity, (customerMb :: waiters), (waiting + 1), barber)
+                spawn { room(self, capacity, (customerMb :: waiters), (waiting + 1), barber) }
             }
         receive Next() from self ->
             caseL waiters : List(CustomerMb!) of {

@@ -103,7 +103,7 @@ def choose_dst_acc(tellerMb: TellerMb!, numAccounts: Int, srcAccount: (Unit + Ac
 }
 
 ## Teller process main loop handling replies from accounts.
-def teller_loop(self: TellerMb?, accountMbs : List(AccountMb!)): Unit {
+def teller_loop(self: TellerMb?, accountMbs : List(AccountMb![R])): Unit {
   guard self: Reply* {
     free ->
       # All credit requests serviced. Stop accounts.
