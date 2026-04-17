@@ -92,34 +92,23 @@ def send_pong(id: Int, pingerId: Int, actorMb1: ActorMb!, actorMb2: ActorMb!): U
 
 ## Randomly issues a ping message to one of the participating actors.
 def send_ping(id: Int, actorMb1: ActorMb!, actorMb2: ActorMb!): Unit {
-
   let pongerId = rand(2) in
-
   if (pongerId == 1) {
     actorMb1 ! Ping(id)
-  }
-  else {
+  } else {
     actorMb2 ! Ping(id)
   }
 }
 
 ## Sink process that coordinates actor termination.
-def sink(self: SinkMb?): Unit {
-  guard self: Actors . (Done*) {
-    receive Actors(exitMbs) from self ->
-      spawn { sink_loop(self, exitMbs) }
-  }
-}
-
-## Sink process main loop issuing termination messages.
-def sink_loop(self: SinkMb?, exitMbs : List(ExitMb!)): Unit {
+def sink(self: SinkMb?, exitMbs : List(ExitMb!)): Unit {
   guard self: Done* {
     free ->
       # Notify all actors. Placing the sends in this clause ensures that
       # each actor is notified once.
       notifyExits(exitMbs)
     receive Done() from self ->
-        sink_loop(self, exitMbs)
+        sink(self, exitMbs)
   }
 }
 
@@ -137,7 +126,6 @@ def notifyExits(exitMbs : List(ExitMb!)): Unit {
 def main(): Unit {
 
   let sinkMb = new [SinkMb] in
-  spawn { sink(sinkMb) };
 
   let actorMb1 = new [ActorMb] in # actorMb1: ?1
   let actorMb2 = new [ActorMb] in # actorMb2: ?1
@@ -150,7 +138,8 @@ def main(): Unit {
   spawn { actor(actorMb2, exitMb2, 2, sinkMb) };
   spawn { actor(actorMb3, exitMb3, 3, sinkMb) };
 
-  let xs = (exitMb1 :: (exitMb2 :: (exitMb3 :: (nil : List(ExitMb!))))) in sinkMb ! Actors(xs);
+  let xs = (exitMb1 :: (exitMb2 :: (exitMb3 :: (nil : List(ExitMb!))))) in
+  spawn { sink(sinkMb, xs) };
 
   actorMb1 ! Neighbors(actorMb2, actorMb3); # actorMb1: ?Neighbors
   actorMb2 ! Neighbors(actorMb1, actorMb3); # actorMb2: ?Neighbors
