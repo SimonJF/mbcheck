@@ -40,7 +40,6 @@ let rec synthesise_val :
             ty, Ty_env.empty, Constraint_set.empty
         (* No harm having this as a synth case as well. *)
         | Tuple vs ->
-                (* TODO: Check to see whether synthesised types are returnable *)
             let tys_envs_constrss = List.map (synthesise_val ienv decl_env) vs in
             let tys, envs, constrss = split3 tys_envs_constrss in
             let constrs = Constraint_set.union_many constrss in

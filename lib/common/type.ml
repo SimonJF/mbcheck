@@ -440,15 +440,29 @@ let get_quasilinearity = function
     | UserMailbox { umb_quasilinearity = Some ql; _ } -> ql
     | _ -> raise (Errors.internal_error "type.ml" "attempted to get quasilinearity of non-mailbox type")
 
-let make_usable = function
+(* make_usable always defined on datatypes in order to ensure spawn masking works *)
+let rec make_usable = function
     | Mailbox m -> Mailbox { m with quasilinearity = Quasilinearity.Usable }
+    | List t -> List (make_usable t)
+    | Tuple ts -> Tuple (List.map make_usable ts)
+    | Sum (t1, t2) -> Sum (make_usable t1, make_usable t2)
     | t -> t
 
-(* Tuples, sums, and lists can all be returnable even if they contain things that are not returnable,
-   as long as we are careful to avoid aliasing when deconstructing the value. *)
-let make_returnable = function
+(* make_returnable propagates returnability to datatype components
+   if liberal datatypes is off; otherwise it leaves them untouched *)
+let rec make_returnable = function
     | Mailbox m -> Mailbox { m with quasilinearity = Quasilinearity.Returnable }
-    | t -> t
+    | ty ->
+        begin
+            if not <| Settings.(get liberal_datatypes) then
+                match ty with
+                    | List t -> List (make_returnable t)
+                    | Tuple ts -> Tuple (List.map make_returnable ts)
+                    | Sum (t1, t2) -> Sum (make_returnable t1, make_returnable t2)
+                    | _ -> ty
+            else ty
+        end
+    
 
 let is_unr = is_lin >> not
 

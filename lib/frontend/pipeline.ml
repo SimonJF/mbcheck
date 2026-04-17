@@ -7,9 +7,12 @@ let desugar p =
     |> Desugar_sugared_guards.desugar
 
 let typecheck p ir = 
-    Format.printf
-        "=== Intermediate Representation: ===\n%a\n\n"
-        (Ir.pp_program) ir;
+    let () =
+        if Settings.(get show_ir) then
+            Format.printf
+                "=== Intermediate Representation: ===\n%a\n\n"
+                (Ir.pp_program) ir
+    in
     let ir, prety_opt = Typecheck.Pretypecheck.check ir in
     let (ty, env, constrs) = Typecheck.Gen_constraints.synthesise_program ir in
     let solution = Typecheck.Solve_constraints.solve_constraints constrs in

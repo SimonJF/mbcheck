@@ -29,6 +29,13 @@ let union = VarMap.union
 
 let from_list xs = List.to_seq xs |> VarMap.of_seq
 
+let dump env =
+    VarMap.bindings env
+    |> List.iter (fun (x, ty) ->
+            Format.(fprintf std_formatter "%s : %a\n%!"
+                (Ir.Var.unique_name x)
+                Type.pp ty))
+
 
 (* Joins two sequential or concurrent environments (i.e., where *both*
    actions will happen). *)
@@ -86,6 +93,10 @@ let join : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t =
                               match Quasilinearity.sequence ql1 ql2 with
                                 | Some ql -> ql
                                 | None ->
+                                    Format.printf "Env1:\n";
+                                    dump env1;
+                                    Format.printf "Env2:\n";
+                                    dump env2;
                                     Gripers.invalid_ql_sequencing var [pos]
                           in
                           let ((cap, pat), constrs) =
@@ -319,13 +330,6 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
             from_list (merged @ disjoints), constrs
         in
         intersect_envs env1 env2
-
-let dump env =
-    VarMap.bindings env
-    |> List.iter (fun (x, ty) ->
-            Format.(fprintf std_formatter "%s : %a\n%!"
-                (Ir.Var.unique_name x)
-                Type.pp ty))
 
 let make_usable =
     VarMap.map Type.make_usable
