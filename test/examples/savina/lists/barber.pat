@@ -36,7 +36,7 @@ def room(self: RoomMb?, capacity: Int, waiters: List(CustomerMb!), waiting: Int,
         receive Enter(customerMb) from self ->
             if (waiting == capacity) {
                 customerMb ! Full(self);
-                spawn { room(self, capacity, waiters, waiting, barber) }
+                room(self, capacity, waiters, waiting, barber)
             }
             else {
                 sleep(5);

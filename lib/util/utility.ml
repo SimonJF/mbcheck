@@ -43,6 +43,9 @@ let is_uppercase c =
 
 module ListUtils = struct
 
+let intersect xs ys =
+  List.filter (fun x -> List.mem x ys) xs
+
 let rec split3 : ('a * 'b * 'c) list -> 'a list * 'b list * 'c list = function
     | [] -> ([], [], [])
     | (x, y, z) :: rest ->

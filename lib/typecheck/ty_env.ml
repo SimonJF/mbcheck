@@ -362,13 +362,25 @@ let make_unrestricted env pos =
       3. Nothing: No alias control: permissive, but unsafe.
   *)
 let check_free_mailbox_variables bound_variable_types env =
-    let mb_iface_tys =
+    let rec get_interfaces =
+        let open Type in
+        function
+        | Base _ | Fun _ -> []
+        | Tuple ts -> List.concat_map get_interfaces ts
+        | Sum (t1, t2) -> List.concat_map get_interfaces [t1; t2]
+        | List t -> get_interfaces t
+        | Mailbox { interface; _ } -> [interface]
+        | UserMailbox _ -> assert false
+    in
+    (*
         List.filter_map (fun ty ->
+
             if Type.is_mailbox_type ty then
                 Some (Type.get_interface ty)
             else None)
         bound_variable_types
     in
+    *)
     let open Settings in
     let open ReceiveTypingStrategy in
     match get receive_typing_strategy with
@@ -378,12 +390,22 @@ let check_free_mailbox_variables bound_variable_types env =
                     Gripers.unrestricted_recv_env v ty []
             ) env
         | Interface ->
+            (* Now we need to get the intersection of the interfaces in bound
+               variables and interfaces in environment
+            *)
+
+            (* All interfaces found in the variables being bound by the receive *)
+            let bv_interfaces =
+                List.concat_map get_interfaces bound_variable_types
+            in
+            (* For each binding in the env, ensure it's not also contained in BV interfaces *)
             iter (fun v ty ->
-                match ty with
-                    | Type.Mailbox { interface; _ } when (List.mem interface mb_iface_tys) ->
-                        Gripers.duplicate_interface_receive_env
-                        v interface
-                        []
-                    | _ -> ()
+                let ty_interfaces = get_interfaces ty in
+                let interfaces_in_both = ListUtils.intersect bv_interfaces ty_interfaces in
+                List.iter (fun offending_interface ->
+                    Gripers.duplicate_interface_receive_env
+                    v offending_interface
+                    []
+                ) interfaces_in_both
             ) env
         | Nothing -> ()
