@@ -476,7 +476,11 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
         | CaseL { term; ty = ty1; nil = comp1; cons = ((bnd1, bnd2), comp2) } ->
             let elem_ty =
                 match ty1 with
-                    | Type.List elem_ty -> elem_ty
+                    | Type.List elem_ty ->
+                        if Settings.(get returnable_datatypes) then
+                            Type.make_returnable elem_ty
+                        else
+                            elem_ty
                     | _ -> Gripers.expected_list_type ty1 [pos]
             in
             (* Check that scrutinee has annotated list type *)
@@ -487,9 +491,9 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
             let (comp1_env, comp1_constrs) = chk comp1 ty in
             (* Next, check that comp2 (cons case) has expected return type *)
             let (comp2_env, comp2_constrs) = chk comp2 ty in
-            (* Next, check that the inferred types in comp2_env match annotations and that
-               the cons case doesn't contain any troublesome mailbox variables that could 
-               introduce unsafe aliasing *)
+            (* Next, depending on whether we require returnable datatypes, we either check
+               to see whether the type is returnable, or we do an aliasing check similar to
+               the guards. *)
             let var1 = Var.of_binder bnd1 in
             let var2 = Var.of_binder bnd2 in 
             let comp2_env_no_binders = Ty_env.delete_many [var1; var2] comp2_env in
@@ -636,6 +640,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                 List.map (uncurry get_check_ty) (List.combine ptys inferred_tys)
             in
             let env, constrs =
+                (* In this case we check consistency with the declared types. *)
                 if (List.for_all Option.is_some check_tys) then
                     let check_tys = List.map Option.get check_tys in
                     let target_ty = Type.make_tuple_type check_tys in
