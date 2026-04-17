@@ -12,7 +12,7 @@ val benchmark : int setting
 val receive_typing_strategy : ReceiveTypingStrategy.t setting
 val disable_quasilinearity : bool setting
 val join_not_combine : bool setting
-val returnable_datatypes  : bool setting
+val liberal_datatypes  : bool setting
 
 val set : 'a setting -> 'a -> unit
 val get : 'a setting -> 'a

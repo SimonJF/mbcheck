@@ -176,8 +176,8 @@ and check_val :
                 match ty with
                     | Type.Sum (t1, _) ->
                         let t1 =
-                            if Settings.(get returnable_datatypes) then
-                                Type.make_returnable ty
+                            if not @@ Settings.(get liberal_datatypes) then
+                                Type.make_returnable t1
                             else t1
                         in
                         check_val ienv decl_env v t1
@@ -188,8 +188,8 @@ and check_val :
                 match ty with
                     | Type.Sum (_, t2) ->
                         let t2 =
-                            if Settings.(get returnable_datatypes) then
-                                Type.make_returnable ty
+                            if not @@ Settings.(get liberal_datatypes) then
+                                Type.make_returnable t2
                             else t2
                         in
                         check_val ienv decl_env v (Type.make_returnable t2)
@@ -202,8 +202,8 @@ and check_val :
                             (* Check whether we can only create lists of
                                returnable elements *)
                             let () =
-                                if Settings.(get returnable_datatypes) && (not
-                                    @@ Type.is_returnable t) then
+                                if not (Settings.(get liberal_datatypes)) &&
+                                    (not @@ Type.is_returnable t) then
                                     Gripers.lists_returnable ty [pos]
                                 else ()
                             in
@@ -232,7 +232,7 @@ and check_val :
             let (check_envs, check_constrss) =
                 List.map (fun (v, ty) ->
                     let ty =
-                        if Settings.(get returnable_datatypes) then
+                        if not @@ Settings.(get liberal_datatypes) then
                             Type.make_returnable ty
                         else ty
                     in
@@ -477,7 +477,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
             let elem_ty =
                 match ty1 with
                     | Type.List elem_ty ->
-                        if Settings.(get returnable_datatypes) then
+                        if not @@ Settings.(get liberal_datatypes) then
                             Type.make_returnable elem_ty
                         else
                             elem_ty
@@ -630,7 +630,11 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                 | pty -> Pretype.to_type pty
             in
             let get_check_ty pty = function
-                | Some ty -> Some ty
+                | Some ty ->
+                    if Settings.(get liberal_datatypes) then
+                        Some (Type.make_returnable ty)
+                    else
+                        Some ty
                 | None -> default_ty pty
             in
             (* Precondition: pretypes have already been filled in during pre-typing,
@@ -647,9 +651,16 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                     let (term_env, term_constrs) =
                             check_val ienv decl_env tuple target_ty
                     in
+                    let body_env_no_binders = Ty_env.delete_many bnd_vars body_env in
                     (* Combine environments, union constraints *)
                     let (env, env_constrs) =
-                        Ty_env.combine ienv term_env body_env pos
+                        Ty_env.combine ienv term_env body_env_no_binders pos
+                    in
+                    (* Do continuation aliasing check if any component is non-returnable
+                       (e.g. if we are using liberal DTs) *)
+                    let () =
+                        if not @@ List.for_all (Type.is_returnable) check_tys then
+                            Ty_env.check_free_mailbox_variables check_tys body_env_no_binders
                     in
                     let constrs =
                         Constraint_set.union_many
@@ -665,7 +676,11 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                     in
                     let component_tys =
                         match tuple_ty with
-                            | Type.Tuple tys -> tys
+                            | Type.Tuple tys ->
+                                if not @@ Settings.(get liberal_datatypes) then
+                                    List.map Type.make_returnable tys
+                                else
+                                    tys
                             | _ -> Gripers.expected_tuple_type tuple_ty [pos]
                     in
                     (* If any of the types are actually found in the continuation, then check subtype.
@@ -681,12 +696,15 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                         |> List.map (fun (cty, ity) -> ty_constrs cty ity pos)
                         |> Constraint_set.union_many
                     in
-                    let () =
-                        if not (Type.is_returnable tuple_ty) then
-                            Gripers.let_not_returnable tuple_ty [pos]
-                    in
+                    let body_env_no_binders = Ty_env.delete_many bnd_vars body_env in
                     let (env, env_constrs) =
-                        Ty_env.combine ienv tuple_env body_env pos
+                        Ty_env.combine ienv tuple_env body_env_no_binders pos
+                    in
+                    (* Do continuation aliasing check if any component is non-returnable
+                       (e.g. if we are using liberal DTs) *)
+                    let () =
+                        if not @@ List.for_all (Type.is_returnable) component_tys then
+                            Ty_env.check_free_mailbox_variables component_tys body_env_no_binders
                     in
                     let constrs =
                         Constraint_set.union_many
@@ -694,7 +712,6 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                     in
                     (env, constrs)
             in
-            let env = Ty_env.delete_many bnd_vars env in
             (env, constrs)
         | Guard { iname = None; _ } -> (* Should have been filled in by pre-typing *)
             assert false
