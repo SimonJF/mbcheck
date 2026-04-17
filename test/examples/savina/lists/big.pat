@@ -107,7 +107,7 @@ def send_ping(id: Int, actorMb1: ActorMb!, actorMb2: ActorMb!): Unit {
 def sink(self: SinkMb?): Unit {
   guard self: Actors . (Done*) {
     receive Actors(exitMbs) from self ->
-      sink_loop(self, exitMbs)
+      spawn { sink_loop(self, exitMbs) }
   }
 }
 
