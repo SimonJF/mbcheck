@@ -331,3 +331,11 @@ let lists_returnable ty pos_list =
     in
     raise (constraint_gen_error ~subsystem:Errors.GenCheck msg pos_list)
 
+let tuples_returnable ty pos_list =
+    let msg =
+        Format.asprintf
+            "Tuples must contain only returnable types, but type %a is not returnable."
+            Type.pp ty
+    in
+    raise (constraint_gen_error ~subsystem:Errors.GenCheck msg pos_list)
+

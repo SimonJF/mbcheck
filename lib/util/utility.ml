@@ -12,6 +12,16 @@ type stringset = StringSet.t
 
 (* Pipelining and composition *)
 
+(* Options *)
+let sequence_options xs =
+  List.fold_right
+    (fun x acc ->
+       match x, acc with
+       | Some v, Some vs -> Some (v :: vs)
+       | _ -> None)
+    xs
+    (Some [])
+
 (* Reverse function application (nicer and more uniform than `@@`) *)
 let (<|) f x = f x
 

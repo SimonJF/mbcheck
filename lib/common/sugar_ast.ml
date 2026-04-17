@@ -310,3 +310,17 @@ let substitute_solution sol =
         end
     in
     visitor#visit_program ()
+
+
+let rec is_syntactic_value x =
+    match WithPos.node x with
+        | Var _
+        | Atom _
+        | Primitive _
+        | Constant _
+        | Nil
+        | Lam _ -> true
+        | Cons (x, xs) -> is_syntactic_value x && is_syntactic_value xs
+        | Tuple xs -> List.for_all is_syntactic_value xs
+        | Inl x | Inr x -> is_syntactic_value x
+        | _ -> false

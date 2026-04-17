@@ -38,13 +38,20 @@ let rec synthesise_val :
         | Primitive prim ->
             let ty = List.assoc prim Lib_types.signatures in
             ty, Ty_env.empty, Constraint_set.empty
-        (* No harm having this as a synth case as well. Note that we won't
-           synthesise a returnable type so don't need to do anything special. *)
+        (* No harm having this as a synth case as well. *)
         | Tuple vs ->
+                (* TODO: Check to see whether synthesised types are returnable *)
             let tys_envs_constrss = List.map (synthesise_val ienv decl_env) vs in
             let tys, envs, constrss = split3 tys_envs_constrss in
             let constrs = Constraint_set.union_many constrss in
             let env, constrs2 = Ty_env.combine_many ienv envs pos in
+            (* Ensure any synthesised types are returnable *)
+            let () =
+                if not <| Settings.(get liberal_datatypes) then
+                    List.iter (fun ty ->
+                        if not (Type.is_returnable ty) then
+                            Gripers.tuples_returnable ty [pos]) tys
+            in
             Type.Tuple tys,
                 env,
                 Constraint_set.union constrs constrs2
@@ -192,7 +199,7 @@ and check_val :
                                 Type.make_returnable t2
                             else t2
                         in
-                        check_val ienv decl_env v (Type.make_returnable t2)
+                        check_val ienv decl_env v t2
                     | _ -> Gripers.expected_sum_type ty [pos]
             end
         | Nil ->
@@ -631,7 +638,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
             in
             let get_check_ty pty = function
                 | Some ty ->
-                    if Settings.(get liberal_datatypes) then
+                    if not @@ Settings.(get liberal_datatypes) then
                         Some (Type.make_returnable ty)
                     else
                         Some ty

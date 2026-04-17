@@ -442,14 +442,12 @@ let get_quasilinearity = function
 
 let make_usable = function
     | Mailbox m -> Mailbox { m with quasilinearity = Quasilinearity.Usable }
-    | UserMailbox m -> UserMailbox { m with umb_quasilinearity = Some Quasilinearity.Usable }
     | t -> t
 
 (* Tuples, sums, and lists can all be returnable even if they contain things that are not returnable,
    as long as we are careful to avoid aliasing when deconstructing the value. *)
 let make_returnable = function
     | Mailbox m -> Mailbox { m with quasilinearity = Quasilinearity.Returnable }
-    | UserMailbox m -> UserMailbox { m with umb_quasilinearity = Some Quasilinearity.Returnable }
     | t -> t
 
 let is_unr = is_lin >> not
@@ -463,9 +461,15 @@ let make_function_type linear args result =
     Fun { linear; args; result }
 
 let make_tuple_type tys =
-    Tuple (List.map make_returnable tys)
+    if Settings.(get liberal_datatypes) then
+        Tuple tys
+    else
+        Tuple (List.map make_returnable tys)
 
 let make_sum_type ty1 ty2 =
-    Sum (make_returnable ty1, make_returnable ty2)
+    if Settings.(get liberal_datatypes) then
+        Sum (ty1, ty2)
+    else
+        Sum (make_returnable ty1, make_returnable ty2)
 
 let make_list_type ty = List ty
