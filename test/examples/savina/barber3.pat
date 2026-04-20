@@ -1,6 +1,6 @@
 interface WaitingRoom { Enter(Customer!), Next(Barber!), Sleeping(Barber!),
-    WaitingCustomer(Customer!) }
-interface Customer { Start(), Full(), NoWait(), Wait(), Done() }
+    WaitingCustomer(Customer!), PendingCustomer(Customer!) }
+interface Customer { Start(), Full(), Wait(), Done() }
 interface Barber { Wake(WaitingRoom!), CustomerReady(Customer!, WaitingRoom!),
     RoomEmpty(WaitingRoom!), Exit() }
 
@@ -12,6 +12,18 @@ interface Barber { Wake(WaitingRoom!), CustomerReady(Customer!, WaitingRoom!),
 
 ## In the case that the barber is asleep, there won't be any waiting customers,
 ## and any Enter requests will need to transition us back to waitingRoom
+
+## NOTE: This will only work with Erlang-style semantics for pattern matching
+## (which would be sensible but isn't the current Pat semantics).
+##
+## We shouldn't be relying on numCustomers for actually making deisions in
+## Next(-) -- no way of tracking the dependency between buffer size and
+## numCustomers.
+##
+## In this case we assume we try and consume Enter and WaitingCustomer messages
+## prior to Next messages. The only time we should process a Next message in
+## this state is if all Enter and WaitingCustomer requests have already been
+## processed.
 def waitingRoom(self: WaitingRoom?, numCustomers: Int, capacity: Int): Unit {
     guard self : Enter* . WaitingCustomer* . Next {
         receive Enter(customer) from self ->
@@ -24,28 +36,40 @@ def waitingRoom(self: WaitingRoom?, numCustomers: Int, capacity: Int): Unit {
                 self ! WaitingCustomer(customer);
                 waitingRoom(self, numCustomers + 1, capacity)
             }
+        receive WaitingCustomer(customer) from self ->
+            self ! PendingCustomer(customer);
+            waitingRoomPending(self, numCustomers, capacity)
         receive Next(barber) from self ->
-            if (numCustomers > 0) {
-                guard self : Enter* . WaitingCustomer* {
-                    free -> barber ! Exit()
-                    receive WaitingCustomer(customer) from self ->
-                        barber ! CustomerReady(customer, self);
-                        waitingRoom(self, numCustomers - 1, capacity)
-                    # Customer has just entered
-                    receive Enter(customer) from self ->
-                        customer ! NoWait();
-                        barber ! CustomerReady(customer, self);
-                        waitingRoom(self, numCustomers, capacity)
-                }
-            } else {
-                barber ! RoomEmpty(self);
-                guard self : Enter* . WaitingCustomer* . Sleeping {
-                    receive Sleeping(barber) from self ->
-                        waitingRoomSleepingBarber(self, barber, capacity)
-                }
+            barber ! RoomEmpty(self);
+            guard self : Enter* . WaitingCustomer* . Sleeping {
+                receive Sleeping(barber) from self ->
+                    waitingRoomSleepingBarber(self, barber, capacity)
             }
     }
 }
+
+def waitingRoomPending(self: WaitingRoom?, numCustomers: Int, capacity: Int): Unit {
+    guard self : PendingCustomer . Next . (Enter* . WaitingCustomer*)  {
+        receive Enter(customer) from self ->
+            if (numCustomers >= capacity) {
+                print("Waiting room full; kicking customer out");
+                customer ! Full();
+                waitingRoomPending(self, numCustomers, capacity)
+            } else {
+                customer ! Wait();
+                self ! WaitingCustomer(customer);
+                waitingRoomPending(self, numCustomers + 1, capacity)
+            }
+        receive Next(barber) from self ->
+            guard self : PendingCustomer . Enter* . WaitingCustomer* {
+                free -> barber ! Exit()
+                receive PendingCustomer(customer) from self ->
+                    barber ! CustomerReady(customer, self);
+                    waitingRoom(self, numCustomers - 1, capacity)
+            }
+    }
+}
+
 
 # Called when the barber is snoozing (i.e., numWaiting = 0)
 def waitingRoomSleepingBarber(self: WaitingRoom?, barber: Barber!, capacity: Int): Unit {
@@ -96,15 +120,12 @@ def sleepingBarber(self: Barber?): Unit {
 ### Customer
 def customer(self: Customer?, waitingRoom: WaitingRoom!): Unit {
     waitingRoom ! Enter(self);
-    guard self : Full + (NoWait.Start.Done) + (Wait.Start.Done) {
+    guard self : Full + (Wait.Start.Done) {
         receive Full() from self ->
             print("Room is full. Oh well, best go somewhere else");
             free(self)
         receive Wait() from self ->
             print("Waiting");
-            waitingCustomer(self)
-        receive NoWait() from self ->
-            print("No need to wait; going to barber");
             waitingCustomer(self)
     }
 }
