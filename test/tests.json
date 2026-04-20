@@ -148,6 +148,7 @@
                 {"name": "Philosopher", "filename": "examples/savina/philosopher.pat", "exit_code": 0},
                 {"name": "Ping Pong", "filename": "examples/savina/ping_pong.pat", "exit_code": 0},
                 {"name": "Ping Pong (Strict)", "filename": "examples/savina/ping_pong_strict.pat", "exit_code": 0},
+                {"name": "Sleeping Barber", "filename": "examples/savina/barber.pat", "exit_code": 0},
                 {"name": "Thread Ring", "filename": "examples/savina/thread_ring.pat", "exit_code": 0}
             ]
         },
@@ -157,8 +158,7 @@
                 {"name": "Banking (lists)", "filename": "examples/savina/lists/banking.pat", "exit_code": 0},
                 {"name": "Big (lists)", "filename": "examples/savina/lists/big.pat", "exit_code": 0},
                 {"name": "Cigarette Smoker (lists)", "filename": "examples/savina/lists/cig_smok.pat", "exit_code": 0},
-                {"name": "kfork (lists)", "filename": "examples/savina/lists/kfork.pat", "exit_code": 0},
-                {"name": "Sleeping Barber", "filename": "examples/savina/lists/barber.pat", "exit_code": 0}
+                {"name": "kfork (lists)", "filename": "examples/savina/lists/kfork.pat", "exit_code": 0}
             ]
         },
         { "group": "Correct examples (Others)",
@@ -210,6 +210,11 @@
                 {
                     "name": "Use after free (lists)",
                     "filename": "errors/uaf_lists.pat",
+                    "exit_code": 1
+                },
+                {
+                    "name": "Aliasing through communication (lists)",
+                    "filename": "errors/list-alias-test.pat",
                     "exit_code": 1
                 },
                 {"name": "Insufficient type information", "filename": "errors/pat_constr.pat", "exit_code": 1},
