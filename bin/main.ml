@@ -55,7 +55,7 @@ let () =
       ~docv:"BENCHMARK" ~doc:"number of repetitions for benchmark; -1 (default) for no benchmarking")
     $ Arg.(value & flag & info ["q"; "disable-quasilinearity"] ~doc:"disable quasilinearity checking")
     $ Arg.(value & flag & info ["j"; "join-not-combine"] ~doc:"use sequential join for value subterms, rather than requiring disjointness")
-    $ Arg.(value & flag & info ["dt"; "returnable-datatypes"] ~doc:"allow data contained in datatypes to be usable (may impact soundness)")
+    $ Arg.(value & flag & info ["dt"; "liberal-datatypes"] ~doc:"allow data contained in datatypes to be usable (may impact soundness)")
     $ const ()) in
   let info = Cmd.info "mbcheck" ~doc:"Typechecker for mailbox calculus" in
   Cmd.v info mbcheck_t

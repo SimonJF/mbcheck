@@ -148,7 +148,9 @@
                 {"name": "Philosopher", "filename": "examples/savina/philosopher.pat", "exit_code": 0},
                 {"name": "Ping Pong", "filename": "examples/savina/ping_pong.pat", "exit_code": 0},
                 {"name": "Ping Pong (Strict)", "filename": "examples/savina/ping_pong_strict.pat", "exit_code": 0},
-                {"name": "Sleeping Barber", "filename": "examples/savina/barber.pat", "exit_code": 0},
+                {"name": "Sleeping Barber (Variation 1)", "filename": "examples/savina/barber.pat", "exit_code": 0},
+                {"name": "Sleeping Barber (Variation 2)", "filename": "examples/savina/barber2.pat", "exit_code": 0},
+                {"name": "Sleeping Barber (Variation 3)", "filename": "examples/savina/barber3.pat", "exit_code": 0},
                 {"name": "Thread Ring", "filename": "examples/savina/thread_ring.pat", "exit_code": 0}
             ]
         },
