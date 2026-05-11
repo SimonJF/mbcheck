@@ -2,7 +2,6 @@ interface WaitingRoom { Enter(Customer!), Next(Barber!), Sleeping(Barber!) }
 interface WaitingRoomBuffer { WaitingCustomer(Customer!) }
 interface Customer { Start(), Full(), Wait(), Done() }
 interface Barber { Wake(WaitingRoom!), CustomerReady(Customer!, WaitingRoom!), RoomEmpty(WaitingRoom!) }
-interface SleepNotification { Sleeping(Barber!) }
 
 
 ### Waiting Room
@@ -14,7 +13,7 @@ interface SleepNotification { Sleeping(Barber!) }
 ## and any Enter requests will need to transition us back to waitingRoom
 
 
-def waitingRoom(self: WaitingRoom?, customerBuffer: WaitingRoomBuffer?(WaitingCustomer*),
+def waitingRoom(self: WaitingRoom?, customerBuffer: WaitingRoomBuffer?,
                 numCustomers: Int, capacity: Int): Unit {
     guard self : Enter* . Next {
         receive Enter(customer) from self ->
