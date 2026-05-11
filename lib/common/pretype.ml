@@ -57,6 +57,7 @@ let rec of_type = function
     | Type.Sum (t1, t2) -> PSum (of_type t1, of_type t2)
     | Type.List t -> PList (of_type t)
     | Type.Mailbox { interface; _ } -> PInterface interface
+    | Type.UserMailbox { umb_interface; _ } -> PInterface umb_interface
 
 (* As long as a pretype isn't a mailbox type, and isn't a function
     returning a mailbox type, we can upgrade it to a type.

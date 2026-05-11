@@ -1,5 +1,5 @@
 (*
-    let x: A = M in N --> let x = (M : (returnable(A))) in N
+    let x: A = M in N --> let x = (M : (make_returnable(A))) in N
  *)
 open Common
 

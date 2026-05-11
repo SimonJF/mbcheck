@@ -2,8 +2,12 @@
 (* Annotation takes partially-defined mailbox types (i.e., MB types with
  * interface information but no pattern annotations) and annotates them with
  * fresh pattern variables so that we can generate constraints.
- * This is done for all types that are in binding position.  *)
-(* Additionally, for interfaces, sets the quasilinearity to Usable. *)
+ * This is done for all user-specified mailbox types. *)
+(* Additionally, for interfaces, sets default quasilinearity: if unspecified,
+   sets QL to reasonable defaults:
+     - Returnable for mailbox types in datatype annotations
+     - Usable for ! mailbox types
+ *)
 open Common
 open Sugar_ast
 open Source_code
@@ -12,6 +16,7 @@ let rec annotate_type =
     let open Type in
     function
         | Base t -> Base t
+        | Mailbox mb -> Mailbox mb
         | Fun { linear; args; result } ->
             Fun {
                 linear;
@@ -19,39 +24,93 @@ let rec annotate_type =
                 result = annotate_type result
             }
         | Tuple ts ->
-            Tuple (List.map annotate_type ts)
+            Tuple (List.map annotate_type_as_returnable ts)
         | Sum (t1, t2) ->
-            Sum (annotate_type t1, annotate_type t2)
+            Sum (annotate_type_as_returnable t1, annotate_type_as_returnable t2)
         | List t ->
-            List (annotate_type t)
-        | Mailbox { pattern = Some _; _ } as mb -> mb
-        | Mailbox { capability; interface; pattern = None; quasilinearity } ->
-            Mailbox {
-                capability;
-                interface;
-                pattern = Some (Pattern.fresh ());
-                quasilinearity
-            }
+            List (annotate_type_as_returnable t)
+        | UserMailbox { 
+            umb_capability;
+            umb_interface;
+            umb_quasilinearity;
+            umb_pattern
+          } ->
+              (* Sensible default QL is usable for ! and returnable for ? *)
+              let quasilinearity =
+                  let open Capability in
+                  match (umb_quasilinearity, umb_capability) with
+                    | (Some ql, _) -> ql
+                    | (None, Out) -> Usable
+                    | (None, In) -> Returnable
+              in
+              let pattern =
+                  match umb_pattern with
+                    | Some p -> p
+                    | None -> Pattern.fresh ()
+              in
+              Mailbox { capability = umb_capability; interface = umb_interface;
+                    quasilinearity; pattern }
 
-let annotate_interface_type =
+(* Biased annotation that will default to annotating QL as returnable if
+    undefined *)
+and annotate_type_as_returnable =
     let open Type in
     function
-        (* Outermost MB types (i.e., payloads) are treated as usable. *)
-        | Mailbox { pattern = Some _; _ } as mb -> mb
-        | Mailbox { capability; interface; pattern = None; _ } ->
+        | UserMailbox { umb_capability; umb_interface;
+                umb_pattern; umb_quasilinearity } ->
+            let pattern =
+                match umb_pattern with
+                    | Some p -> p
+                    | None -> Pattern.fresh ()
+            in
+            let quasilinearity =
+                match umb_quasilinearity with
+                    | Some ql -> ql
+                    | None -> Quasilinearity.Returnable
+            in
             Mailbox {
-                capability;
-                interface;
-                pattern = Some (Pattern.fresh ());
+                capability = umb_capability;
+                interface = umb_interface;
+                pattern;
+                quasilinearity
+            }
+        | List t -> List (annotate_type_as_returnable t)
+        | Tuple ts -> Tuple (List.map annotate_type_as_returnable ts)
+        | Sum (t1, t2) -> Sum (annotate_type_as_returnable t1, annotate_type_as_returnable t2)
+        | t -> annotate_type t
+
+let annotate_interface_type pos ty =
+    let open Type in
+    match ty with
+        (* Outermost MB types (i.e., payloads) are treated as usable. *)
+        | UserMailbox { umb_quasilinearity = Some _ ; _ } ->
+            raise (Errors.desugar_error
+                "Mailbox message payloads cannot be returnable."
+                [pos]
+            )
+        | UserMailbox { umb_capability; umb_interface; umb_pattern; _ } ->
+            let pattern =
+                match umb_pattern with
+                    | Some pat -> pat
+                    | None -> Pattern.fresh ()
+            in
+            Mailbox {
+                capability = umb_capability;
+                interface = umb_interface;
+                pattern;
                 quasilinearity = Quasilinearity.Usable
             }
+        | Mailbox mb -> Mailbox mb
         | t -> annotate_type t
 
 (* Annotates all types in an interface *)
 let annotate_interface iface =
-    Interface.bindings iface
-    |> List.map (fun (tag, tys) -> (tag, List.map annotate_interface_type tys))
-    |> Interface.(make (name iface))
+    let iface_pos = WithPos.pos iface in
+    let iface_node = WithPos.node iface in
+    Interface.bindings iface_node
+    |> List.map (fun (tag, tys) ->
+            (tag, List.map (annotate_interface_type iface_pos) tys))
+    |> Interface.(make (name iface_node))
 
 (* The visitor traverses the AST to annotate parameters of higher-order
    functions. *)
@@ -89,15 +148,15 @@ let visitor =
                 let new_let = Let { annot = Some ty; binder; term; body } in
                 { expr_with_pos with node = new_let }
             | LetTuple { annot = Some tys; binders; term; cont } ->
-                let tys = List.map annotate_type tys in
+                let tys = List.map annotate_type_as_returnable tys in
                 let term = self#visit_expr env term in
                 let cont = self#visit_expr env cont in
                 let new_let = LetTuple { annot = Some tys; binders; term; cont } in
                 { expr_with_pos with node = new_let }
             | Case { term; branch1 = ((bnd1, ty1), e1); branch2 = ((bnd2, ty2), e2) } ->
                 let term = self#visit_expr env term in
-                let ty1 = annotate_type ty1 in
-                let ty2 = annotate_type ty2 in
+                let ty1 = annotate_type_as_returnable ty1 in
+                let ty2 = annotate_type_as_returnable ty2 in
                 let e1 = self#visit_expr env e1 in
                 let e2 = self#visit_expr env e2 in
                 let new_case = Case {
@@ -106,7 +165,7 @@ let visitor =
                 { expr_with_pos with node = new_case }
             | CaseL { term; ty = ty1; nil = nil_cont; cons = ((x_bnd, xs_bnd), cons_cont)} ->
                 let term = self#visit_expr env term in
-                let ty_ann = annotate_type ty1 in
+                let ty_ann = annotate_type_as_returnable ty1 in
                 let nil_cont = self#visit_expr env nil_cont in
                 let cons_cont = self#visit_expr env cons_cont in
                 let new_case =
@@ -122,7 +181,7 @@ let visitor =
 
         method! visit_program env p =
             let prog_interfaces =
-                List.map annotate_interface (WithPos.extract_list_node p.prog_interfaces) in
+                List.map annotate_interface p.prog_interfaces in
             let prog_interfaces_with_pos =
                 List.map2 (fun iface pos -> WithPos.make ~pos iface) prog_interfaces (List.map WithPos.pos p.prog_interfaces) in
             let prog_decls =

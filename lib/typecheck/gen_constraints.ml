@@ -38,12 +38,19 @@ let rec synthesise_val :
         | Primitive prim ->
             let ty = List.assoc prim Lib_types.signatures in
             ty, Ty_env.empty, Constraint_set.empty
-        (* No harm having this as a synth case as well *)
+        (* No harm having this as a synth case as well. *)
         | Tuple vs ->
             let tys_envs_constrss = List.map (synthesise_val ienv decl_env) vs in
             let tys, envs, constrss = split3 tys_envs_constrss in
             let constrs = Constraint_set.union_many constrss in
             let env, constrs2 = Ty_env.combine_many ienv envs pos in
+            (* Ensure any synthesised types are returnable *)
+            let () =
+                if not <| Settings.(get liberal_datatypes) then
+                    List.iter (fun ty ->
+                        if not (Type.is_returnable ty) then
+                            Gripers.tuples_returnable ty [pos]) tys
+            in
             Type.Tuple tys,
                 env,
                 Constraint_set.union constrs constrs2
@@ -174,20 +181,39 @@ and check_val :
             begin
                 match ty with
                     | Type.Sum (t1, _) ->
-                        check_val ienv decl_env v (Type.make_returnable t1)
+                        let t1 =
+                            if not @@ Settings.(get liberal_datatypes) then
+                                Type.make_returnable t1
+                            else t1
+                        in
+                        check_val ienv decl_env v t1
                     | _ -> Gripers.expected_sum_type ty [pos]
             end
         | Inr v ->
             begin
                 match ty with
                     | Type.Sum (_, t2) ->
-                        check_val ienv decl_env v (Type.make_returnable t2)
+                        let t2 =
+                            if not @@ Settings.(get liberal_datatypes) then
+                                Type.make_returnable t2
+                            else t2
+                        in
+                        check_val ienv decl_env v t2
                     | _ -> Gripers.expected_sum_type ty [pos]
             end
         | Nil ->
             begin
                 match ty with
-                    | Type.List _ -> Ty_env.empty, Constraint_set.empty
+                    | Type.List t ->
+                            (* Check whether we can only create lists of
+                               returnable elements *)
+                            let () =
+                                if not (Settings.(get liberal_datatypes)) &&
+                                    (not @@ Type.is_returnable t) then
+                                    Gripers.lists_returnable ty [pos]
+                                else ()
+                            in
+                            Ty_env.empty, Constraint_set.empty
                     | _ -> Gripers.expected_list_type ty [pos]
             end
         | Cons (v1, v2) ->
@@ -209,10 +235,14 @@ and check_val :
                 end
             in
             let vs_and_ts = List.combine vs ts in
-            (* Tuple component types must be returnable *)
             let (check_envs, check_constrss) =
                 List.map (fun (v, ty) ->
-                    check_val ienv decl_env v (Type.make_returnable ty)) vs_and_ts
+                    let ty =
+                        if not @@ Settings.(get liberal_datatypes) then
+                            Type.make_returnable ty
+                        else ty
+                    in
+                    check_val ienv decl_env v ty) vs_and_ts
                 |> List.split
             in
             let check_constrs = Constraint_set.union_many check_constrss in
@@ -239,7 +269,7 @@ and synthesise_comp :
             let open Type in
             Mailbox {
                 capability = Capability.In;
-                interface; pattern = Some One;
+                interface; pattern = One;
                 (* 'New' always produces a returnable MB type *)
                 quasilinearity = Quasilinearity.Returnable;
             },
@@ -250,7 +280,7 @@ and synthesise_comp :
                 let open Type in
                 Mailbox {
                     capability = Capability.In;
-                    interface; pattern = Some One;
+                    interface; pattern = One;
                     (* 'New' always produces a returnable MB type *)
                     quasilinearity = Quasilinearity.Returnable;
                 }
@@ -308,7 +338,7 @@ and synthesise_comp :
                 Mailbox {
                     capability = Out;
                     interface = iname;
-                    pattern = Some (Message tag);
+                    pattern = (Message tag);
                     (* 'Send' gives the MB type the least specific
                        quasilinearity (Usable). It can be coerced to Returnable
                        via subtyping later if necessary, but we don't *need*
@@ -452,7 +482,11 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
         | CaseL { term; ty = ty1; nil = comp1; cons = ((bnd1, bnd2), comp2) } ->
             let elem_ty =
                 match ty1 with
-                    | Type.List elem_ty -> elem_ty
+                    | Type.List elem_ty ->
+                        if not @@ Settings.(get liberal_datatypes) then
+                            Type.make_returnable elem_ty
+                        else
+                            elem_ty
                     | _ -> Gripers.expected_list_type ty1 [pos]
             in
             (* Check that scrutinee has annotated list type *)
@@ -463,9 +497,9 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
             let (comp1_env, comp1_constrs) = chk comp1 ty in
             (* Next, check that comp2 (cons case) has expected return type *)
             let (comp2_env, comp2_constrs) = chk comp2 ty in
-            (* Next, check that the inferred types in comp2_env match annotations and that
-               the cons case doesn't contain any troublesome mailbox variables that could 
-               introduce unsafe aliasing *)
+            (* Next, depending on whether we require returnable datatypes, we either check
+               to see whether the type is returnable, or we do an aliasing check similar to
+               the guards. *)
             let var1 = Var.of_binder bnd1 in
             let var2 = Var.of_binder bnd2 in 
             let comp2_env_no_binders = Ty_env.delete_many [var1; var2] comp2_env in
@@ -602,7 +636,11 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                 | pty -> Pretype.to_type pty
             in
             let get_check_ty pty = function
-                | Some ty -> Some ty
+                | Some ty ->
+                    if not @@ Settings.(get liberal_datatypes) then
+                        Some (Type.make_returnable ty)
+                    else
+                        Some ty
                 | None -> default_ty pty
             in
             (* Precondition: pretypes have already been filled in during pre-typing,
@@ -612,15 +650,23 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                 List.map (uncurry get_check_ty) (List.combine ptys inferred_tys)
             in
             let env, constrs =
+                (* In this case we check consistency with the declared types. *)
                 if (List.for_all Option.is_some check_tys) then
                     let check_tys = List.map Option.get check_tys in
                     let target_ty = Type.make_tuple_type check_tys in
                     let (term_env, term_constrs) =
                             check_val ienv decl_env tuple target_ty
                     in
+                    let body_env_no_binders = Ty_env.delete_many bnd_vars body_env in
                     (* Combine environments, union constraints *)
                     let (env, env_constrs) =
-                        Ty_env.combine ienv term_env body_env pos
+                        Ty_env.combine ienv term_env body_env_no_binders pos
+                    in
+                    (* Do continuation aliasing check if any component is non-returnable
+                       (e.g. if we are using liberal DTs) *)
+                    let () =
+                        if not @@ List.for_all (Type.is_returnable) check_tys then
+                            Ty_env.check_free_mailbox_variables check_tys body_env_no_binders
                     in
                     let constrs =
                         Constraint_set.union_many
@@ -636,7 +682,11 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                     in
                     let component_tys =
                         match tuple_ty with
-                            | Type.Tuple tys -> tys
+                            | Type.Tuple tys ->
+                                if not @@ Settings.(get liberal_datatypes) then
+                                    List.map Type.make_returnable tys
+                                else
+                                    tys
                             | _ -> Gripers.expected_tuple_type tuple_ty [pos]
                     in
                     (* If any of the types are actually found in the continuation, then check subtype.
@@ -652,12 +702,15 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                         |> List.map (fun (cty, ity) -> ty_constrs cty ity pos)
                         |> Constraint_set.union_many
                     in
-                    let () =
-                        if not (Type.is_returnable tuple_ty) then
-                            Gripers.let_not_returnable tuple_ty [pos]
-                    in
+                    let body_env_no_binders = Ty_env.delete_many bnd_vars body_env in
                     let (env, env_constrs) =
-                        Ty_env.combine ienv tuple_env body_env pos
+                        Ty_env.combine ienv tuple_env body_env_no_binders pos
+                    in
+                    (* Do continuation aliasing check if any component is non-returnable
+                       (e.g. if we are using liberal DTs) *)
+                    let () =
+                        if not @@ List.for_all (Type.is_returnable) component_tys then
+                            Ty_env.check_free_mailbox_variables component_tys body_env_no_binders
                     in
                     let constrs =
                         Constraint_set.union_many
@@ -665,7 +718,6 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                     in
                     (env, constrs)
             in
-            let env = Ty_env.delete_many bnd_vars env in
             (env, constrs)
         | Guard { iname = None; _ } -> (* Should have been filled in by pre-typing *)
             assert false
@@ -679,7 +731,7 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
             let target_ty = Mailbox {
                 capability = In;
                 interface = iname;
-                pattern = Some guards_pat;
+                pattern = guards_pat;
                 (* We can only receive on a Returnable guard (since the name
                    goes out of scope afterwards) *)
                 quasilinearity = Quasilinearity.Returnable
@@ -808,7 +860,7 @@ and check_guard :
                 let mb_pat =
                   match mb_ty with
                     | Some Mailbox {
-                        capability = Capability.In; pattern = Some pat; _ } -> pat
+                        capability = Capability.In; pattern = pat; _ } -> pat
                     | Some ty ->
                         Gripers.expected_receive_mailbox
                             (Var.of_binder mailbox_binder)
@@ -849,7 +901,7 @@ and check_guard :
                     Type.Mailbox {
                         capability = Capability.In;
                         interface = iname;
-                        pattern = Some One;
+                        pattern = One;
                         quasilinearity = Quasilinearity.Returnable;
                     }
                 in

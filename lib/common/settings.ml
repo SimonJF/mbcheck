@@ -12,8 +12,10 @@ let verbose = ref false
 let debug = ref false
 let benchmark = ref (-1)
 let receive_typing_strategy = ref ReceiveTypingStrategy.Interface
+let liberal_datatypes = ref false
 let disable_quasilinearity = ref false
 let join_not_combine = ref false
+let show_ir = ref true
 
 let set : 'a setting -> 'a -> unit = fun setting value ->
     setting := value

@@ -308,7 +308,7 @@ let let_not_returnable ty pos_list =
 let duplicate_interface_receive_env var iface pos_list =
     let msg =
         Format.asprintf
-            "To prevent unsafe aliasing, no other variables of the same interface as a received variable may be present in the body of a receive guard or a case expression. However, variable %a also has interface name %s."
+            "To prevent unsafe aliasing, no other variables of the same interface as a received variable may be present in the body of a receive guard or a case expression. However, the type of variable %a also contains interface name %s."
             Ir.Var.pp_name var
             iface
     in
@@ -322,3 +322,20 @@ let pretype_consistency ty pty pos_list =
             Pretype.pp pty
     in
     raise (constraint_gen_error ~subsystem:Errors.GenCheck msg pos_list)
+
+let lists_returnable ty pos_list =
+    let msg =
+        Format.asprintf
+            "Lists must contain only returnable types, but type %a is not returnable."
+            Type.pp ty
+    in
+    raise (constraint_gen_error ~subsystem:Errors.GenCheck msg pos_list)
+
+let tuples_returnable ty pos_list =
+    let msg =
+        Format.asprintf
+            "Tuples must contain only returnable types, but type %a is not returnable."
+            Type.pp ty
+    in
+    raise (constraint_gen_error ~subsystem:Errors.GenCheck msg pos_list)
+

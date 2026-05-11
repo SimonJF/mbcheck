@@ -306,25 +306,19 @@ ql:
 
 mailbox_ty:
     | CONSTRUCTOR BANG simple_pat? ql? {
-        let quasilinearity =
-            Option.value $4 ~default:(Type.Quasilinearity.Usable)
-        in
-        Type.(Mailbox {
-            capability = Capability.Out;
-            interface = $1;
-            pattern = $3;
-            quasilinearity
+        Type.(UserMailbox {
+            umb_capability = Capability.Out;
+            umb_interface = $1;
+            umb_pattern = $3;
+            umb_quasilinearity = $4
         })
     }
     | CONSTRUCTOR QUERY simple_pat? ql? {
-        let quasilinearity =
-            Option.value $4 ~default:(Type.Quasilinearity.Returnable)
-        in
-        Type.(Mailbox {
-            capability = Capability.In;
-            interface = $1;
-            pattern = $3;
-            quasilinearity
+        Type.(UserMailbox {
+            umb_capability = Capability.In;
+            umb_interface = $1;
+            umb_pattern = $3;
+            umb_quasilinearity = $4
         })
     }
 

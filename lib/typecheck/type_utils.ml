@@ -20,7 +20,7 @@ let rec make_unrestricted t pos =
         | Mailbox { capability = Capability.In; _ } ->
             Gripers.cannot_make_unrestricted t [pos]
         (* Generate a pattern constraint in order to ensure linearity *)
-        | Mailbox { capability = Capability.Out; pattern = Some pat; _ } ->
+        | Mailbox { capability = Capability.Out; pattern = pat; _ } ->
                 Constraint_set.of_list
                     [Constraint.make (Pattern.One) pat]
         | Tuple tys ->
@@ -43,6 +43,8 @@ let rec subtype_type :
         Interface_env.t -> Type.t -> Type.t -> Position.t -> Constraint_set.t =
     fun visited ienv t1 t2 pos ->
         match t1, t2 with
+            | UserMailbox _, _
+            | _, UserMailbox _ -> assert false
             | Base b1, Base b2 when b1 = b2->
                         Constraint_set.empty
 
@@ -56,10 +58,6 @@ let rec subtype_type :
                     (subtype_type visited ienv tya1 tyb1 pos)
                     (subtype_type visited ienv tya2 tyb2 pos)
             | List ty1, List ty2 -> subtype_type visited ienv ty1 ty2 pos
-            | Mailbox { pattern = None; _ }, _
-            | _, Mailbox { pattern = None; _ } ->
-                    (* Should have been sorted by annotation pass *)
-                    assert false
             | Fun { linear = lin1; args = args1;
                     result = body1 },
               Fun { linear = lin2; args = args2;
@@ -77,13 +75,13 @@ let rec subtype_type :
             | Mailbox {
                 capability = capability1;
                 interface = iname1;
-                pattern = Some pat1;
+                pattern = pat1;
                 quasilinearity = ql1
               },
               Mailbox {
                 capability = capability2;
                 interface = iname2;
-                pattern = Some pat2;
+                pattern = pat2;
                 quasilinearity = ql2
               } ->
                   (* First, ensure interface subtyping *)

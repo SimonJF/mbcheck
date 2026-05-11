@@ -255,6 +255,16 @@ type t =
     | Tuple of t list
     | Sum of (t * t)
     | List of t
+    (* User-written mailbox type. May not have specified QL and pattern.
+       This will be desugared before IR conversion. *)
+    | UserMailbox of {
+        umb_capability: (Capability.t [@name "capability"]);
+        umb_interface: string;
+        umb_quasilinearity: (Quasilinearity.t [@name "quasilinearity"]) option;
+        umb_pattern: (Pattern.t [@name "pattern"]) option
+
+    }
+    (* Mailbox type after desugaring, or produced during TC *)
     | Mailbox of {
         capability: (Capability.t [@name "capability"]);
         interface: string;
@@ -270,9 +280,7 @@ type t =
            circumvent syntactic checks.
          *)
         quasilinearity: (Quasilinearity.t [@name "quasilinearity"]);
-        (* Annotations need not specify a mailbox pattern, leaving it
-           to be inferred. *)
-        pattern: (Pattern.t [@name "pattern"]) option
+        pattern: (Pattern.t [@name "pattern"])
     }
     [@@name "ty"]
 and base = [%import: Common_types.Base.t]
@@ -306,7 +314,7 @@ let mailbox_send_unit interface quasilinearity =
     Mailbox {
         capability = Capability.Out;
         interface;
-        pattern = Some (Pattern.One);
+        pattern = Pattern.One;
         quasilinearity
     }
 
@@ -337,15 +345,33 @@ let rec pp ppf =
                 | Quasilinearity.Returnable -> "R"
                 | Quasilinearity.Usable -> "U"
         in
-        let op =
+        let cap =
             match capability with
                 | Capability.In -> "?"
                 | Capability.Out -> "!"
         in
         fprintf ppf "%s%s(%a)[%s]"
             interface
-            op
-            (pp_print_option pp_pattern) pattern
+            cap
+            pp_pattern pattern
+            ql
+    | UserMailbox { umb_capability; umb_interface;
+            umb_pattern; umb_quasilinearity } ->
+        let ql =
+            match umb_quasilinearity with
+                | Some (Quasilinearity.Returnable) -> "[R]"
+                | Some (Quasilinearity.Usable) -> "[U]"
+                | None -> ""
+        in
+        let cap =
+            match umb_capability with
+                | Capability.In -> "?"
+                | Capability.Out -> "!"
+        in
+        fprintf ppf "%s%s(%a)%s"
+            umb_interface
+            cap
+            (pp_print_option pp_pattern) umb_pattern
             ql
 and pp_capability = Capability.pp
 and pp_base = Base.pp
@@ -361,23 +387,26 @@ let rec is_lin = function
     | Base _ -> false
     | Fun { linear; _ } -> linear
     (* !1 is unrestricted... *)
-    | Mailbox { capability = Out; pattern = Some One; _ } -> false
+    | Mailbox { capability = Out; pattern = One; _ } -> false
     | Tuple ts -> List.exists is_lin ts
     | Sum (t1, t2) -> is_lin t1 || is_lin t2
     | List t -> is_lin t
     (* ...but otherwise a mailbox type must be used linearly. *)
     | Mailbox _ -> true
+    | UserMailbox _ -> assert false
 
 let is_input_mailbox = function
-    | Mailbox { capability = In; pattern = Some _; _ } -> true
+    | Mailbox { capability = In; _ } -> true
     | _ -> false
 
 let is_output_mailbox = function
-    | Mailbox { capability = Out; pattern = Some _; _ } -> true
+    | Mailbox { capability = Out; _ } -> true
+    | UserMailbox { umb_capability = Out; _ } -> true
     | _ -> false
 
 let rec contains_output_mailbox = function
-    | Mailbox { capability = Out; pattern = Some _; _} -> true
+    | Mailbox { capability = Out; _} -> true
+    | UserMailbox { umb_capability = Out; _} -> true
     | Sum (t1, t2) -> contains_output_mailbox t1 || contains_output_mailbox t2
     | Tuple ts -> List.exists contains_output_mailbox ts
     | List t -> contains_output_mailbox t
@@ -396,27 +425,44 @@ let is_list = function
   | _ -> false
 
 let get_pattern = function
-    | Mailbox { pattern = Some pat; _ } -> pat
+    | Mailbox { pattern = pat; _ } -> pat
+    | UserMailbox { umb_pattern = Some pat; _ } -> pat
     | _ -> raise (Errors.internal_error "type.ml" "attempted to get pattern of non-mailbox type")
 
 let get_interface = function
-    | Mailbox { interface = iface; _ } -> iface
+    | Mailbox { interface = iface; _ }
+    | UserMailbox { umb_interface = iface; _ } -> iface
     | _ -> raise (Errors.internal_error "type.ml" "attempted to get interface of non-mailbox type")
 
 
 let get_quasilinearity = function
     | Mailbox { quasilinearity; _ } -> quasilinearity
+    | UserMailbox { umb_quasilinearity = Some ql; _ } -> ql
     | _ -> raise (Errors.internal_error "type.ml" "attempted to get quasilinearity of non-mailbox type")
 
-let make_usable = function
+(* make_usable always defined on datatypes in order to ensure spawn masking works *)
+let rec make_usable = function
     | Mailbox m -> Mailbox { m with quasilinearity = Quasilinearity.Usable }
+    | List t -> List (make_usable t)
+    | Tuple ts -> Tuple (List.map make_usable ts)
+    | Sum (t1, t2) -> Sum (make_usable t1, make_usable t2)
     | t -> t
 
-(* Tuples, sums, and lists can all be returnable even if they contain things that are not returnable,
-   as long as we are careful to avoid aliasing when deconstructing the value. *)
-let make_returnable = function
+(* make_returnable propagates returnability to datatype components
+   if liberal datatypes is off; otherwise it leaves them untouched *)
+let rec make_returnable = function
     | Mailbox m -> Mailbox { m with quasilinearity = Quasilinearity.Returnable }
-    | t -> t
+    | ty ->
+        begin
+            if not <| Settings.(get liberal_datatypes) then
+                match ty with
+                    | List t -> List (make_returnable t)
+                    | Tuple ts -> Tuple (List.map make_returnable ts)
+                    | Sum (t1, t2) -> Sum (make_returnable t1, make_returnable t2)
+                    | _ -> ty
+            else ty
+        end
+    
 
 let is_unr = is_lin >> not
 
@@ -429,9 +475,15 @@ let make_function_type linear args result =
     Fun { linear; args; result }
 
 let make_tuple_type tys =
-    Tuple (List.map make_returnable tys)
+    if Settings.(get liberal_datatypes) then
+        Tuple tys
+    else
+        Tuple (List.map make_returnable tys)
 
 let make_sum_type ty1 ty2 =
-    Sum (make_returnable ty1, make_returnable ty2)
+    if Settings.(get liberal_datatypes) then
+        Sum (ty1, ty2)
+    else
+        Sum (make_returnable ty1, make_returnable ty2)
 
 let make_list_type ty = List ty

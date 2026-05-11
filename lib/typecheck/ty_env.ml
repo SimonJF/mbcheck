@@ -29,6 +29,13 @@ let union = VarMap.union
 
 let from_list xs = List.to_seq xs |> VarMap.of_seq
 
+let dump env =
+    VarMap.bindings env
+    |> List.iter (fun (x, ty) ->
+            Format.(fprintf std_formatter "%s : %a\n%!"
+                (Ir.Var.unique_name x)
+                Type.pp ty))
+
 
 (* Joins two sequential or concurrent environments (i.e., where *both*
    actions will happen). *)
@@ -69,12 +76,12 @@ let join : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t =
                                 (subtype ienv t2 t1 pos)
                         in
                         (Fun { linear = false; args = dom1; result = cod1 }, subty_constrs)
-                | Mailbox { pattern = None; _ }, _ | _, Mailbox { pattern = None; _ } ->
-                    assert false (* Set by pre-typing *)
+                | UserMailbox _, _ | _, UserMailbox _ ->
+                    assert false (* Should have been desugared *)
                 | Mailbox { capability = cap1; interface = iface1; pattern =
-                    Some pat1; quasilinearity = ql1 },
+                    pat1; quasilinearity = ql1 },
                   Mailbox { capability = cap2; interface = iface2; pattern =
-                      Some pat2; quasilinearity = ql2 } ->
+                      pat2; quasilinearity = ql2 } ->
                       (* We can only join variables with the same interface
                          name. If these match, we can join the types. *)
                       if iface1 <> iface2 then
@@ -86,6 +93,10 @@ let join : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t =
                               match Quasilinearity.sequence ql1 ql2 with
                                 | Some ql -> ql
                                 | None ->
+                                    Format.printf "Env1:\n";
+                                    dump env1;
+                                    Format.printf "Env2:\n";
+                                    dump env2;
                                     Gripers.invalid_ql_sequencing var [pos]
                           in
                           let ((cap, pat), constrs) =
@@ -94,7 +105,7 @@ let join : Interface_env.t -> t -> t -> Position.t -> t * Constraint_set.t =
                           Mailbox {
                               capability = cap;
                               interface = iface1;
-                              pattern = Some pat;
+                              pattern = pat;
                               quasilinearity = ql
                           }, constrs
                 | List ty1, List ty2 ->
@@ -220,12 +231,11 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
                   Fun { linear = linear2; args = dom2; result = cod2 }
                     when (linear1 = linear2) && dom1 = dom2 && cod1 = cod2 ->
                         (Fun { linear = linear1; args = dom1; result = cod1 }, Constraint_set.empty)
-                | Mailbox { pattern = None; _ }, _ | _, Mailbox { pattern = None; _ } ->
-                    assert false (* Set by pre-typing *)
+                | UserMailbox _, _ | _, UserMailbox _ -> assert false (* desugared already *)
                 | Mailbox { capability = cap1; interface = iface1; pattern =
-                    Some pat1; quasilinearity = ql1 },
+                    pat1; quasilinearity = ql1 },
                   Mailbox { capability = cap2; interface = iface2; pattern =
-                      Some pat2; quasilinearity = ql2 } ->
+                      pat2; quasilinearity = ql2 } ->
                       (* As before -- interface names must be the same*)
                       if iface1 <> iface2 then
                           Gripers.env_interface_mismatch
@@ -237,7 +247,7 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
                           Mailbox {
                               capability = cap;
                               interface = iface1;
-                              pattern = Some pat;
+                              pattern = pat;
                               (* Must take strongest QL across all branches. *)
                               quasilinearity = Quasilinearity.max ql1 ql2
                           }, constrs
@@ -286,9 +296,9 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
               in
               (* Relaxes a mailbox type from !E to !(E+1) *)
               let rec relax_send_type = function
-                | Mailbox { capability = Out; interface; quasilinearity; pattern = Some pat } ->
+                | Mailbox { capability = Out; interface; quasilinearity; pattern = pat } ->
                           let pat = Pattern.Plus (pat, Pattern.One) in
-                          Mailbox { capability = Out; interface; quasilinearity; pattern = Some pat }
+                          Mailbox { capability = Out; interface; quasilinearity; pattern = pat }
                 | List ty -> List (relax_send_type ty)
                 | _ ->
                   raise (Errors.internal_error "ty_env.ml" "error in disjoint MB combination")
@@ -321,13 +331,6 @@ let intersect : t -> t -> Position.t -> t * Constraint_set.t =
         in
         intersect_envs env1 env2
 
-let dump env =
-    VarMap.bindings env
-    |> List.iter (fun (x, ty) ->
-            Format.(fprintf std_formatter "%s : %a\n%!"
-                (Ir.Var.unique_name x)
-                Type.pp ty))
-
 let make_usable =
     VarMap.map Type.make_usable
 
@@ -359,13 +362,25 @@ let make_unrestricted env pos =
       3. Nothing: No alias control: permissive, but unsafe.
   *)
 let check_free_mailbox_variables bound_variable_types env =
-    let mb_iface_tys =
+    let rec get_interfaces =
+        let open Type in
+        function
+        | Base _ | Fun _ -> []
+        | Tuple ts -> List.concat_map get_interfaces ts
+        | Sum (t1, t2) -> List.concat_map get_interfaces [t1; t2]
+        | List t -> get_interfaces t
+        | Mailbox { interface; _ } -> [interface]
+        | UserMailbox _ -> assert false
+    in
+    (*
         List.filter_map (fun ty ->
+
             if Type.is_mailbox_type ty then
                 Some (Type.get_interface ty)
             else None)
         bound_variable_types
     in
+    *)
     let open Settings in
     let open ReceiveTypingStrategy in
     match get receive_typing_strategy with
@@ -375,12 +390,22 @@ let check_free_mailbox_variables bound_variable_types env =
                     Gripers.unrestricted_recv_env v ty []
             ) env
         | Interface ->
+            (* Now we need to get the intersection of the interfaces in bound
+               variables and interfaces in environment
+            *)
+
+            (* All interfaces found in the variables being bound by the receive *)
+            let bv_interfaces =
+                List.concat_map get_interfaces bound_variable_types
+            in
+            (* For each binding in the env, ensure it's not also contained in BV interfaces *)
             iter (fun v ty ->
-                match ty with
-                    | Type.Mailbox { interface; _ } when (List.mem interface mb_iface_tys) ->
-                        Gripers.duplicate_interface_receive_env
-                        v interface
-                        []
-                    | _ -> ()
+                let ty_interfaces = get_interfaces ty in
+                let interfaces_in_both = ListUtils.intersect bv_interfaces ty_interfaces in
+                List.iter (fun offending_interface ->
+                    Gripers.duplicate_interface_receive_env
+                    v offending_interface
+                    []
+                ) interfaces_in_both
             ) env
         | Nothing -> ()

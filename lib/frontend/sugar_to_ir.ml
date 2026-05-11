@@ -114,8 +114,13 @@ and transform_expr :
                 result_type;
                 body = transform_expr env' body id }))) |> k env
         | Annotate (body, annotation) ->
-            with_same_pos (Ir.Annotate (transform_expr env body id, annotation))
-            |> k env
+            if Sugar_ast.is_syntactic_value body then
+                transform_subterm env
+                    body 
+                    (fun env v -> with_same_pos (Ir.Return (with_same_pos (Ir.VAnnotate (v, annotation)))) |> k env)
+            else
+                with_same_pos (Ir.Annotate (transform_expr env body id, annotation))
+                |> k env
         | Inl e ->
             transform_subterm env e (fun env v -> with_same_pos (Ir.Return (with_same_pos (Ir.Inl v))) |> k env)
         | Inr e ->
@@ -231,7 +236,53 @@ and transform_expr :
                 }) |> k env )
         |  SugarFail (_, _) -> (* shouldn't ever match *)
                 raise (Errors.internal_error "sugar_to_ir.ml" "Encountered SugarFree/SugarFail expression during the IR translation stage")
-
+(* Transforms an expression into a syntactic value, if possible *)
+and transform_syntactic_value
+    (env: env)
+    pos
+    (x: Sugar_ast.expr)
+    (* : Ir.value option *)
+    =
+    let wrap v = WithPos.make ~pos v in
+    match WithPos.node x with
+        | Var var ->
+             let v = lookup_var var env pos in
+             Some (wrap @@ Ir.Variable (v, None))
+        | Atom x -> Some (wrap @@ Ir.Atom x)
+        | Primitive x -> Some (wrap @@ Ir.Primitive x)
+        | Constant x -> Some (wrap @@ Ir.Constant x)
+        | Nil -> Some (wrap @@ Ir.Nil)
+        | Lam {linear; parameters; result_type; body} ->
+            let (bnds, env') = add_names env fst parameters in
+            Some (
+                wrap @@  
+                    Ir.Lam {
+                        linear;
+                        parameters = List.combine bnds (List.map snd parameters);
+                        result_type;
+                        body = transform_expr env' body id
+                    })
+        | Annotate (e, ty) -> 
+            Option.map
+                (fun v -> wrap @@ Ir.VAnnotate (v, ty))
+                (transform_syntactic_value env pos e)
+        | Cons (x, xs) ->
+             Option.bind (transform_syntactic_value env pos x) (fun v ->
+             Option.bind (transform_syntactic_value env pos xs) (fun vs ->
+                 Some (wrap @@ Ir.Cons (v, vs))))
+        | Tuple xs ->
+             List.map (transform_syntactic_value env pos) xs (* list(option(value)) *)
+                |> sequence_options (* option(list(value))*)
+                |> Option.map (fun vs -> (wrap @@ Ir.Tuple vs))
+        | Inl x ->
+            Option.map
+                (fun v -> wrap @@ Ir.Inl v)
+                (transform_syntactic_value env pos x)
+        | Inr x ->
+            Option.map
+                (fun v -> wrap @@ Ir.Inr v)
+                (transform_syntactic_value env pos x)
+        | _ -> None
 (* Transforms a subterm into an IR computation, naming if necessary. *)
 and transform_subterm
     (env: env)
@@ -240,36 +291,17 @@ and transform_subterm
     (* env: current environment
        x: sugared expression
        k: continuation which takes a *value*
+       Return type is an IR computation
      *)
-    (* Return type is an IR computation *)
-    (* Call transform_expr on the sugared expression.
-       Based on the result, either call continuation if the computation is
-       trivial (i.e., Return v) -- keeping in mind Return v doesn't exist in
-       sugared AST anymore! (Var, Lam, Constant)
-     *)
-    transform_expr env x (fun env c ->
-        let pos = WithPos.pos x in
-        let wrap v = WithPos.make ~pos v in
-        match WithPos.node x with
-            (* Translate syntactic values directly to avoid a needless
-               administrative reduction.
-             *)
-            | Primitive p -> wrap (Ir.Primitive p) |> k env
-            | Atom a -> wrap (Ir.Atom a) |> k env
-            | Var var ->
-                let v = lookup_var var env pos in
-                wrap (Ir.Variable (v, None)) |> k env
-            | Constant c -> wrap (Ir.Constant c) |> k env
-            | Lam {linear; parameters; result_type; body} ->
-                let (bnds, env') = add_names env fst parameters in
-                wrap (
-                    Ir.Lam {
-                        linear;
-                        parameters = List.combine bnds (List.map snd parameters);
-                        result_type;
-                        body = transform_expr env' body id }) |> k env
-            (* Other expressions need to be bound to an intermediate variable *)
-            | _ ->
+    let pos = WithPos.pos x in
+    let wrap v = WithPos.make ~pos v in
+
+    (* If we have a syntactic value already then we can just do the direct conversion *)
+    match transform_syntactic_value env pos x with
+        | Some value -> k env value
+        | None ->
+            (* Otherwise we need to insert a binder *)
+            transform_expr env x (fun env c ->
                 (* Create a new binder *)
                 let bnd = Ir.Binder.make () in
                 (* Create a new variable from the binder *)
