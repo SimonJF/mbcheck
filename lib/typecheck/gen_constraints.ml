@@ -598,17 +598,13 @@ and check_comp : IEnv.t -> Ty_env.t -> Ir.comp -> Type.t -> Ty_env.t * Constrain
                             if not (Type.is_returnable binder_ty) then
                                 Gripers.let_not_returnable binder_ty [pos]
                         in
-                        let () =
-                            if Type.is_lin binder_ty then
-                                Gripers.unused_synthesised_linear_var
-                                binder_var binder_ty [pos]
-                        in
+                        let unr_constrs = Type_utils.make_unrestricted binder_ty pos in
                         let (env, env_constrs) =
                             Ty_env.join ienv binder_env body_env pos
                         in
                         let constrs =
                             Constraint_set.union_many
-                                [body_constrs; binder_constrs; env_constrs]
+                                [body_constrs; binder_constrs; env_constrs; unr_constrs]
                         in
                         (env, constrs)
             in
