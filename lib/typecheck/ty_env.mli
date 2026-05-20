@@ -49,6 +49,6 @@ val make_unrestricted : t -> Position.t -> Constraint_set.t
 val check_type : Interface_env.t -> Ir.Var.t -> Type.t -> t -> Position.t -> Constraint_set.t
 
 (** Checks to see whether the environment contains any free variables with mailbox type,
-    depending on the current typechecking policy (strict, interface, none). Raises an
-    exception if so. *)
-val check_free_mailbox_variables : Type.t list -> t -> unit
+    depending on the specified typechecking policy (or the current global policy if not specified).
+    Raises an exception if so. *)
+val check_free_mailbox_variables : ?strategy:Settings.ReceiveTypingStrategy.t -> Type.t list -> t -> unit

@@ -25,6 +25,8 @@ let visitor =
                     in
                         { expr_with_pos with node = LetTuple { binders; annot = None; term; cont } }
                 | _ -> super#visit_expr env expr_with_pos
+        
+        method visit_t _env x = x
     end
 
 let desugar =

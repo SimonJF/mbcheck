@@ -361,7 +361,7 @@ let make_unrestricted env pos =
 
       3. Nothing: No alias control: permissive, but unsafe.
   *)
-let check_free_mailbox_variables bound_variable_types env =
+let check_free_mailbox_variables ?strategy bound_variable_types env =
     let rec get_interfaces =
         let open Type in
         function
@@ -383,7 +383,11 @@ let check_free_mailbox_variables bound_variable_types env =
     *)
     let open Settings in
     let open ReceiveTypingStrategy in
-    match get receive_typing_strategy with
+    let strat = match strategy with
+        | Some s -> s
+        | None -> get receive_typing_strategy
+    in
+    match strat with
         | Strict ->
             iter (fun v ty ->
                 if Type.is_lin ty then

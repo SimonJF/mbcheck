@@ -74,6 +74,7 @@ rule read =
     (* | def_float { add_to_source_code lexbuf; FLOAT (float_of_string (Lexing.lexeme lexbuf)) }  *)
     | "true"   { add_to_source_code lexbuf; BOOL true }
     | "false"  { add_to_source_code lexbuf; BOOL false }
+    | "receive*" { add_to_source_code lexbuf; RECEIVESTAR }
     | def_id as var { add_to_source_code lexbuf;
                       try List.assoc var keywords
                       with Not_found ->
