@@ -36,6 +36,8 @@ let visitor =
               let new_expr_node = Annotate (WithPos.make ~pos:(WithPos.pos new_target) new_guard, ty) in
               { expr_with_pos with node = new_expr_node }
             | _ -> super#visit_expr env expr_with_pos
+        
+        method visit_t _env x = x
     end
 
 let desugar =

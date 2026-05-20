@@ -191,7 +191,8 @@ let visitor =
             let prog_body =
                 self#visit_option (self#visit_expr) env p.prog_body in
             { prog_interfaces = prog_interfaces_with_pos; prog_decls; prog_body }
-
+        
+        method visit_t _env x = x
     end
 
 let annotate prog =

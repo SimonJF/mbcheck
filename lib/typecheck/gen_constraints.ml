@@ -822,7 +822,7 @@ and check_guard :
           let open Type in
           let pos = WithPos.pos g in
           match (WithPos.node g) with
-            | Receive { tag; payload_binders; mailbox_binder; cont } ->
+            | Receive { tag; payload_binders; mailbox_binder; strategy; cont } ->
                 let (env, cont_constrs) = check_comp ienv decl_env cont ty in
                 let payload_iface_tys =
                         let interface_withPos = IEnv.lookup iname ienv [pos] in
@@ -873,7 +873,9 @@ and check_guard :
                   List.fold_right (Ty_env.delete_binder) payload_binders env
                   |> Ty_env.delete_binder mailbox_binder
                 in
-                Ty_env.check_free_mailbox_variables payload_iface_tys env;
+                (* Ensure that we check aliases based on the specified strategy
+                -- if None then we will default to system setting *)
+                Ty_env.check_free_mailbox_variables ?strategy payload_iface_tys env;
                 (* Calculate the derivative wrt. the tag, and ensure via a
                    constraint that it is included in the calculated payload
                    type. *)

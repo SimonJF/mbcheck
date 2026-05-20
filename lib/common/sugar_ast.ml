@@ -91,6 +91,7 @@ and guard_node =
         tag: string;
         payload_binders: sugar_binder list;
         mailbox_binder: sugar_binder;
+        strategy: Settings.ReceiveTypingStrategy.t option;
         cont: expr
     }
     | GFree of expr
@@ -275,8 +276,13 @@ and pp_expr ppf expr_with_pos =
 and pp_guard ppf guard_with_node =
     let guard_node = WithPos.node guard_with_node in
     match guard_node with
-    | Receive { tag; payload_binders; mailbox_binder; cont } ->
-            fprintf ppf "receive %s(%a) from %s ->@,@[<v 2>  %a@]"
+    | Receive { tag; payload_binders; mailbox_binder; strategy; cont } ->
+            let receive_keyword = match strategy with
+                | Some Nothing -> "receive*"
+                | _ -> "receive"
+            in
+            fprintf ppf "%s %s(%a) from %s ->@,@[<v 2>  %a@]"
+            receive_keyword
             tag
             (pp_print_comma_list pp_print_string) payload_binders
             mailbox_binder
@@ -307,6 +313,10 @@ let substitute_solution sol =
                 match StringMap.find_opt x sol with
                     | Some ty -> ty
                     | None -> Type.Pattern.PatVar x
+            
+            method visit_Settings_ReceiveTypingStrategy_t _env x = x
+            
+            method visit_t _env x = x
         end
     in
     visitor#visit_program ()

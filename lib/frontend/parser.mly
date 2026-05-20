@@ -72,6 +72,7 @@ These will be added in later
 %token NEW
 %token GUARD
 %token RECEIVE
+%token RECEIVESTAR
 %token FREE
 %token FAIL
 %token EMPTY
@@ -248,7 +249,13 @@ guard:
             { with_pos_from_positions $startpos $endpos (
               let (tag, bnds) = $2 in
               Receive { tag; payload_binders = bnds;
-                        mailbox_binder = $4; cont = $6 })
+                        mailbox_binder = $4; strategy = None; cont = $6 })
+            }
+    | RECEIVESTAR message_binder FROM VARIABLE RIGHTARROW expr
+            { with_pos_from_positions $startpos $endpos (
+              let (tag, bnds) = $2 in
+              Receive { tag; payload_binders = bnds;
+                        mailbox_binder = $4; strategy = Some Nothing; cont = $6 })
             }
 
 (* Type parser *)

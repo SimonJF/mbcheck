@@ -147,6 +147,7 @@ and guard_node =
         tag: string;
         payload_binders: (Binder.t[@name "binder"]) list;
         mailbox_binder: (Binder.t[@name "binder"]);
+        strategy: Settings.ReceiveTypingStrategy.t option;
         cont: comp
     }
     | Empty of ((Binder.t[@name "binder"]) * comp)
@@ -156,8 +157,7 @@ and guard_node =
         ancestors = [
             "Type.map"; "Pretype.map"; "Binder.map";
             "Interface.map"; "Var.map"; "WithPos.map"];
-        data = false },
-    show]
+        data = false }]
 
 (* Pretty-printing of the AST *)
 (* Programs *)
@@ -300,8 +300,13 @@ and pp_value ppf v =
 and pp_guard ppf guard_with_pos =
     let guard_node = WithPos.node guard_with_pos in
     match guard_node with
-    | Receive { tag; payload_binders; mailbox_binder; cont } ->
-            fprintf ppf "receive %s(%a) from %a ->@,@[<v 2>  %a@]"
+    | Receive { tag; payload_binders; mailbox_binder; strategy; cont } ->
+            let receive_keyword = match strategy with
+                | Some Nothing -> "receive*"
+                | _ -> "receive"
+            in
+            fprintf ppf "%s %s(%a) from %a ->@,@[<v 2>  %a@]"
+            receive_keyword
             tag
             (pp_print_comma_list Binder.pp) payload_binders
             Binder.pp mailbox_binder
@@ -337,6 +342,10 @@ let substitute_solution sol =
                 match StringMap.find_opt x sol with
                     | Some ty -> ty
                     | None -> Type.Pattern.PatVar x
+            
+            method visit_Settings_ReceiveTypingStrategy_t _env x = x
+            
+            method visit_t _env x = x
         end
     in
     visitor#visit_program ()

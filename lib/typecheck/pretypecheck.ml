@@ -408,7 +408,7 @@ and synth_guard ienv env iname g =
     let iface = WithPos.node interface_withPos in
     let pos = WithPos.pos g in
     match WithPos.node g with
-        | Receive { tag; payload_binders; mailbox_binder; cont } ->
+        | Receive { tag; payload_binders; mailbox_binder; strategy; cont } ->
             let payload_tys = Interface.lookup ~pos_list:[(WithPos.pos interface_withPos);pos] tag iface in
             let expected_len = List.length payload_tys in
             (* Arity check *)
@@ -431,7 +431,7 @@ and synth_guard ienv env iname g =
                     (Pretype.PInterface iname)
             in
             let cont, cont_ty = synthesise_comp ienv env cont in
-            WithPos.make ~pos (Receive { tag; payload_binders; mailbox_binder; cont }), cont_ty
+            WithPos.make ~pos (Receive { tag; payload_binders; mailbox_binder; strategy; cont }), cont_ty
         | Empty (x, e) ->
             let env = PretypeEnv.bind (Var.of_binder x) (Pretype.PInterface iname) env in
             let e, e_ty = synthesise_comp ienv env e in

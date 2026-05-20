@@ -324,7 +324,7 @@ and transform_guard :
     let guard_node = WithPos.node x in
     let pos = WithPos.pos x in
     match guard_node with
-    | Receive { tag; payload_binders; mailbox_binder; cont } ->
+    | Receive { tag; payload_binders; mailbox_binder; strategy; cont } ->
         let (payload_bnds, env) = add_names env (id 1) payload_binders in
         let (mailbox_bnd, env') = add_name env mailbox_binder in
         let cont = transform_expr env' cont id in
@@ -333,6 +333,7 @@ and transform_guard :
             tag;
             payload_binders = payload_bnds;
             mailbox_binder = mailbox_bnd;
+            strategy;
             cont
         })
     | Empty (bnd, cont) ->
