@@ -118,6 +118,11 @@
                     "name": "Lists (with mailboxes)",
                     "filename": "pat-tests/list-mb.pat",
                     "exit_code": 0
+                },
+                {
+                    "name": "receive* guard",
+                    "filename": "pat-tests/receivestar.pat",
+                    "exit_code": 0
                 }
             ]
         },
