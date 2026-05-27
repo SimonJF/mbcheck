@@ -11,62 +11,67 @@
 ### After playing, the chameneos leave the mall.
 
 interface MallMb {
-  Request(ChameneosMb!),
-  Leave()
+  Request(ChameneosMb!)
 }
 
 interface ChameneosMb {
-  BeActive(ChameneosMb!, MallMb!),
-  BePassive(MallMb!),
-  Lonely(), # Sent if there are no more Chameneos
+  BeActive(ChameneosMb!, MallSignalMb!),
+  BePassive(MallSignalMb!),
   Play(Int,ChameneosMb!),
+  Lonely(),
   Respond(Int)
 }
 
+interface MallSignalMb {
+  Leave()
+}
+
 ## A chameneos with its colour represented by 0, 1 or 2
-def chameneos(self: ChameneosMb?, colour: Int, mall: MallMb!) : Unit {
+def chameneos(self: ChameneosMb?, colour: Int, mall: MallMb!(Request*)) : Unit {
   print("Training and eating honeysuckle");
   mall ! Request(self);
-  guard self: BeActive + (BePassive . (Play + Lonely)) {
-    receive BeActive(other, mallNext) from self -> 
-      chameneos_active(self, colour, other, mallNext)
-    receive BePassive(mallNext) from self ->
-      chameneos_passive(self, colour, mallNext)
+  guard self: BeActive + (BePassive . (Lonely + Play)) {
+    receive BeActive(other, mallSignal) from self -> 
+      chameneos_active(self, colour, other, mall, mallSignal)
+    receive BePassive(mallSignal) from self ->
+      chameneos_passive(self, colour, mall, mallSignal)
   }
 }
 
 ## The chameneos has been told to play the active role
-def chameneos_active(self: ChameneosMb?, colour: Int, other: ChameneosMb!, mall: MallMb!) : Unit {
-  other ! Play(colour,self);
+def chameneos_active(self: ChameneosMb?, colour: Int, other: ChameneosMb!, mall: MallMb!, mallSignal: MallSignalMb!Leave) : Unit {
+  other ! Play(colour, self);
   guard self: Respond {
     receive Respond(c) from self ->
-      chameneos_transform(self, colour, c, mall)
+      chameneos_transform(self, colour, c, mall, mallSignal)
   }
 }
     
 ## The chameneos has been told to play the passive role
-def chameneos_passive(self: ChameneosMb?, colour: Int, mall: MallMb!) : Unit {
+def chameneos_passive(self: ChameneosMb?, colour: Int, mall: MallMb!(Request*), mallSignal: MallSignalMb!Leave) : Unit {
   guard self: Play + Lonely {
-    receive Lonely() from self -> free(self)
+    receive Lonely() from self ->
+        mallSignal ! Leave();
+        free(self)
     receive Play(c, other) from self ->
       print("Entering the mall.");
       other ! Respond(colour);
-      chameneos_transform(self, colour, c, mall)
+      chameneos_transform(self, colour, c, mall, mallSignal)
   }
 }
 
 ## When the chameneos knows the colour of its partner, it can work out whether to change colour.
-def chameneos_transform(self: ChameneosMb?, colour: Int, other_colour: Int, mall: MallMb!) : Unit {
+def chameneos_transform(self: ChameneosMb?, colour: Int, other_colour: Int, mallMb: MallMb!(Request*), mallSignal: MallSignalMb!Leave) : Unit {
   if (colour == other_colour) {
     print("Playing but not changing colour.");
     print("Leaving the mall.");
-    mall ! Leave();
-    chameneos(self, colour, mall)
+    mallSignal ! Leave();
+    chameneos(self, colour, mallMb)
   } else {
     print("Changing colour.");
     print("Leaving the mall.");
-    mall ! Leave();
-    chameneos(self, 3 - colour - other_colour, mall)
+    mallSignal ! Leave();
+    chameneos(self, 3 - colour - other_colour, mallMb)
   }
 }
 
@@ -75,28 +80,34 @@ def mall(self: MallMb?) : Unit {
   guard self: Request* {
     free -> ()
     receive Request(idFirst) from self ->
-      mall_one(self,idFirst)
+      let signalMb = new[MallSignalMb] in
+      idFirst ! BePassive(signalMb);
+      mall_one(self, idFirst, signalMb)
   }
 }
 
 ## The mall with one chameneos inside
-def mall_one(self: MallMb?, idFirst: ChameneosMb!) : Unit {
+def mall_one(self: MallMb?, idFirst: ChameneosMb!, signalMb: MallSignalMb?) : Unit {
   guard self : Request*  {
-    free ->
-        idFirst ! Lonely()
+    empty(self) ->
+        idFirst ! Lonely();
+        guard signalMb : Leave {
+            receive Leave() from signalMb -> free(signalMb)
+        };
+        free(self)
     receive* Request(idSecond) from self ->
-      idFirst ! BePassive(self);
-      idSecond ! BeActive(idFirst, self);
-      mall_two(self)
+      idSecond ! BeActive(idFirst, signalMb);
+      mall_two(self, signalMb)
   }
 }
 
 ## The mall with two chameneos inside
-def mall_two(self: MallMb?) : Unit {
-  guard self: Leave . Leave . Request* {
-    receive Leave() from self ->
-      guard self: Leave . Request* {
-        receive Leave() from self ->
+def mall_two(self: MallMb?, signalMb: MallSignalMb?) : Unit {
+  guard signalMb : Leave . Leave {
+    receive Leave() from signalMb ->
+      guard signalMb: Leave {
+        receive Leave() from signalMb ->
+          free(signalMb);
           mall(self)
       }
   }
